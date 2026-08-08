@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Inverted Occlusion - Quaternions & Projective Raycasting</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #080810; color: #e0e0e8; font-family: system-ui, sans-serif; overflow: hidden; }
+  #c { display: block; width: 100vw; height: 100vh; }
+  #ui {
+    position: absolute; top: 12px; left: 12px; z-index: 10;
+    background: rgba(12,12,24,0.85); border: 1px solid #334; border-radius: 8px;
+    padding: 14px 18px; max-width: 420px; font-size: 13px; line-height: 1.45;
+  }
+  #ui h2 { font-size: 15px; margin-bottom: 8px; color: #8cf; }
+  #ui label { display: flex; justify-content: space-between; gap: 12px; margin: 6px 0; }
+  #ui input[type=range] { width: 160px; }
+  #status {
+    margin-top: 10px; padding-top: 8px; border-top: 1px solid #345;
+    font-family: ui-monospace, monospace; font-size: 12px; color: #adb;
+  }
+  .ok { color: #6d6; }
+  .warn { color: #fc6; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="ui">
+  <h2>Inverted Space Raycasting (Projective)</h2>
+  <label>Earth orbital pos <span id="eAngVal">0°</span>
+    <input type="range" id="earthAng" min="0" max="360" step="0.25" value="0">
+  </label>
+  <label>Moon orbital pos <span id="mAngVal">0°</span>
+    <input type="range" id="moonAng" min="0" max="360" step="0.25" value="0">
+  </label>
+  <label>Moon dist (Earth radii) <span id="mdVal">3.5</span>
+    <input type="range" id="moonDist" min="1.8" max="8" step="0.05" value="3.5">
+  </label>
+  <label>Earth radius scale <span id="erVal">1.0</span>
+    <input type="range" id="earthR" min="0.4" max="2.5" step="0.05" value="1.0">
+  </label>
+  <label>Moon radius scale <span id="mrVal">0.27</span>
+    <input type="range" id="moonR" min="0.1" max="1.2" step="0.01" value="0.27">
+  </label>
+  <label><input type="checkbox" id="showRings" checked> Show 6 Polar / Debug Rings</label>
+  <label><input type="checkbox" id="autoOrbit"> Auto-orbit System</label>
+  <div id="status">…</div>
+</div>
+
+<script type="importmap">
+{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+               "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/" } }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// ─────────────────────────────────────────────────────────────
+// Setup
+// ─────────────────────────────────────────────────────────────
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.1;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x06060c);
+const camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.05, 500);
+camera.position.set(12, 8, 14);
+const controls = new OrbitControls(camera, canvas);
+controls.enableDamping = true;
+
+// ─────────────────────────────────────────────────────────────
+// Body System (with Keplerian Quaternions)
+// ─────────────────────────────────────────────────────────────
+const MAX_BODIES = 3;
+
+class CelestialBody {
+  constructor({ id, name, radius, color, isSun = false, parent = null, albedo = 1.0 }) {
+    this.id = id;
+    this.name = name;
+    this.radius = radius;
+    this.color = new THREE.Color(color);
+    this.isSun = isSun;
+    this.parent = parent;
+    this.albedo = albedo;
+    
+    this.localPos = new THREE.Vector3();
+    this.worldPos = new THREE.Vector3();
+    
+    this.mesh = null;
+  }
+
+  updateWorldPos() {
+    if (this.parent) {
+      this.worldPos.copy(this.parent.worldPos).add(this.localPos);
+    } else {
+      this.worldPos.copy(this.localPos);
+    }
+  }
+}
+
+const sun = new CelestialBody({ id: 0, name: 'Sun', radius: 1.2, color: 0xffee88, isSun: true });
+sun.localPos.set(0, 0, 0);
+
+const earth = new CelestialBody({ id: 1, name: 'Earth', radius: 1.0, color: 0x2a6ad4, albedo: 1.8 });
+const moon = new CelestialBody({ id: 2, name: 'Moon', radius: 0.27, color: 0xb0b0b8, parent: earth, albedo: 0.4 });
+
+const bodies = [sun, earth, moon];
+
+// ─────────────────────────────────────────────────────────────
+// Shader
+// ─────────────────────────────────────────────────────────────
+const uBodyPosArray = [];
+const uBodyRadiusArray = [];
+const uBodyColorArray = [];
+const uBodyAlbedoArray = [];
+
+for(let i=0; i<MAX_BODIES; i++) {
+  uBodyPosArray.push(new THREE.Vector3());
+  uBodyRadiusArray.push(0);
+  uBodyColorArray.push(new THREE.Color());
+  uBodyAlbedoArray.push(0);
+}
+
+function makeBodyMaterial(body) {
+  if (body.isSun) {
+    return new THREE.MeshBasicMaterial({ color: body.color });
+  }
+
+  return new THREE.ShaderMaterial({
+    uniforms: {
+      uColor:        { value: body.color },
+      uMyID:         { value: body.id },
+      uCameraPos:    { value: new THREE.Vector3() },
+      uBodyPos:      { value: uBodyPosArray },
+      uBodyRadius:   { value: uBodyRadiusArray },
+      uBodyColor:    { value: uBodyColorArray },
+      uBodyAlbedo:   { value: uBodyAlbedoArray },
+    },
+    vertexShader: /* glsl */`
+      varying vec3 vWorldPos;
+      varying vec3 vNormal;
+      void main() {
+        vec4 wp = modelMatrix * vec4(position, 1.0);
+        vWorldPos = wp.xyz;
+        vNormal = normalize(mat3(modelMatrix) * normal);
+        gl_Position = projectionMatrix * viewMatrix * wp;
+      }
+    `,
+    fragmentShader: /* glsl */`
+      uniform vec3 uColor;
+      uniform int uMyID;
+      uniform vec3 uCameraPos;
+      
+      #define MAX_BODIES ${MAX_BODIES}
+      uniform vec3 uBodyPos[MAX_BODIES];
+      uniform float uBodyRadius[MAX_BODIES];
+      uniform vec3 uBodyColor[MAX_BODIES];
+      uniform float uBodyAlbedo[MAX_BODIES];
+      
+      varying vec3 vWorldPos;
+      varying vec3 vNormal;
+
+      void main() {
+        vec3 N = normalize(vNormal);
+        
+        // ---------------------------------------------------------
+        // 1. Direct Sunlight Raycast (Central Projection to Omega)
+        // ---------------------------------------------------------
+        vec3 rayOrig = vWorldPos;
+        vec3 rayDir = normalize(-vWorldPos); // To origin (Sun)
+        float distToSun = length(vWorldPos);
+        
+        float maxOcclusion = 0.0;
+        for (int i = 1; i < MAX_BODIES; i++) {
+          if (i == uMyID) continue; // No self-shadow
+          
+          vec3 occluderPos = uBodyPos[i];
+          float r = uBodyRadius[i];
+          
+          vec3 toOccluder = occluderPos - rayOrig;
+          float t = dot(toOccluder, rayDir);
+          
+          if (t > 0.0 && t < distToSun) { // Occluder is between fragment and Sun
+            vec3 closestPoint = rayOrig + rayDir * t;
+            float distToRay = length(occluderPos - closestPoint);
+            
+            // Soft shadow (penumbra approx mapping to angular size)
+            float soft = 0.45;
+            float occ = 1.0 - smoothstep(r - soft, r + soft, distToRay);
+            maxOcclusion = max(maxOcclusion, occ);
+          }
+        }
+        
+        float ndotl = max(0.0, dot(N, rayDir));
+        float direct = ndotl * 2.0 * (1.0 - clamp(maxOcclusion, 0.0, 1.0));
+
+        // ---------------------------------------------------------
+        // 2. Mutual Reflected Illumination Raycast
+        // ---------------------------------------------------------
+        vec3 reflectedTotal = vec3(0.0);
+        
+        for (int i = 1; i < MAX_BODIES; i++) {
+          if (i == uMyID) continue;
+          
+          vec3 reflectorPos = uBodyPos[i];
+          float reflectorR = uBodyRadius[i];
+          vec3 reflectorColor = uBodyColor[i];
+          float reflectorAlbedo = uBodyAlbedo[i];
+          
+          vec3 toReflector = reflectorPos - vWorldPos;
+          float distSq = dot(toReflector, toReflector);
+          if (distSq < 1e-3) continue;
+          
+          vec3 refDir = normalize(toReflector);
+          float distToReflector = sqrt(distSq);
+          
+          // Check if path from Fragment to Reflector is blocked
+          float blockFactor = 0.0;
+          for (int j = 1; j < MAX_BODIES; j++) {
+            if (j == uMyID || j == i) continue;
+            vec3 toBlocker = uBodyPos[j] - vWorldPos;
+            float t = dot(toBlocker, refDir);
+            if (t > 0.0 && t < distToReflector) {
+              vec3 closestPoint = vWorldPos + refDir * t;
+              float distToRay = length(uBodyPos[j] - closestPoint);
+              float occ = 1.0 - smoothstep(uBodyRadius[j] - 0.45, uBodyRadius[j] + 0.45, distToRay);
+              blockFactor = max(blockFactor, occ);
+            }
+          }
+          
+          // Check if Reflector's center is illuminated by Sun (shadow on reflector)
+          vec3 refToSunDir = normalize(-reflectorPos);
+          float refToSunDist = length(reflectorPos);
+          float refBlockFactor = 0.0;
+          for (int j = 1; j < MAX_BODIES; j++) {
+            if (j == i) continue; // Notice uMyID CAN block the reflector from the sun!
+            vec3 toBlocker = uBodyPos[j] - reflectorPos;
+            float t = dot(toBlocker, refToSunDir);
+            if (t > 0.0 && t < refToSunDist) {
+              vec3 closestPoint = reflectorPos + refToSunDir * t;
+              float distToRay = length(uBodyPos[j] - closestPoint);
+              float occ = 1.0 - smoothstep(uBodyRadius[j] - 0.45, uBodyRadius[j] + 0.45, distToRay);
+              refBlockFactor = max(refBlockFactor, occ);
+            }
+          }
+          
+          float visibility = (1.0 - clamp(blockFactor, 0.0, 1.0)) * (1.0 - clamp(refBlockFactor, 0.0, 1.0));
+          
+          // Phase gating: Reflector emits light toward fragment if fragment is on its dayside
+          float phase = max(0.0, dot(normalize(-reflectorPos), normalize(vWorldPos - reflectorPos)));
+          
+          float intensity = visibility * 2.0 * phase * (reflectorAlbedo / max(distSq, 0.5));
+          float ndotr = max(0.0, dot(N, refDir));
+          
+          reflectedTotal += ndotr * intensity * reflectorColor;
+        }
+
+        // Fresnel rim
+        vec3 V = normalize(uCameraPos - vWorldPos);
+        float rim = pow(1.0 - max(0.0, dot(N, V)), 3.0) * 0.08;
+
+        vec3 col = uColor * (direct * 1.25) + reflectedTotal * 0.65 + rim * uColor;
+        // Night side residual
+        col += uColor * 0.02;
+        gl_FragColor = vec4(col, 1.0);
+      }
+    `
+  });
+}
+
+bodies.forEach(b => {
+  b.mesh = new THREE.Mesh(new THREE.SphereGeometry(1, 64, 48), makeBodyMaterial(b));
+  b.mesh.scale.setScalar(b.radius);
+  scene.add(b.mesh);
+});
+
+// Sun glow
+const sunGlow = new THREE.Mesh(
+  new THREE.SphereGeometry(1.6, 32, 16),
+  new THREE.MeshBasicMaterial({ color: 0xffcc44, transparent: true, opacity: 0.25 })
+);
+scene.add(sunGlow);
+scene.add(new THREE.AmbientLight(0x223344, 0.04));
+
+// Debug rings group
+const ringGroup = new THREE.Group();
+scene.add(ringGroup);
+const ringMats = [
+  new THREE.LineBasicMaterial({ color: 0xffee88, transparent: true, opacity: 0.4 }),
+  new THREE.LineBasicMaterial({ color: 0x44aaff, transparent: true, opacity: 0.5 }),
+  new THREE.LineBasicMaterial({ color: 0xffaa44, transparent: true, opacity: 0.6 })
+];
+const circleGeo = new THREE.BufferGeometry().setFromPoints(Array.from({length:129}, (_,i) => {
+  const t = (i/128)*Math.PI*2; return new THREE.Vector3(Math.cos(t),Math.sin(t),0);
+}));
+
+function placeAngularRing(group, centerA, centerB, radiusB, colorMat) {
+  const rel = centerB.clone().sub(centerA);
+  const d = rel.length();
+  if (d <= radiusB + 1e-6) return; 
+  const dir = rel.clone().normalize();
+  const p = (d * d - radiusB * radiusB) / d;
+  const rLimb = radiusB * Math.sqrt(Math.max(0, 1 - (radiusB / d) ** 2));
+  const line = new THREE.Line(circleGeo, colorMat);
+  line.position.copy(centerA.clone().add(dir.clone().multiplyScalar(p)));
+  line.scale.setScalar(rLimb);
+  line.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), dir);
+  group.add(line);
+}
+
+// ─────────────────────────────────────────────────────────────
+// System Update
+// ─────────────────────────────────────────────────────────────
+function updateSystem() {
+  // Pass positions to uniforms
+  for (let i = 0; i < bodies.length; i++) {
+    const B = bodies[i];
+    B.updateWorldPos();
+    B.mesh.position.copy(B.worldPos);
+    B.mesh.scale.setScalar(B.radius);
+    
+    uBodyPosArray[i].copy(B.worldPos);
+    uBodyRadiusArray[i] = B.radius;
+    uBodyColorArray[i].copy(B.color);
+    uBodyAlbedoArray[i] = B.albedo;
+    
+    if (!B.isSun) {
+      B.mesh.material.uniforms.uCameraPos.value.copy(camera.position);
+    }
+  }
+
+  // Debug Rings
+  while(ringGroup.children.length > 0) ringGroup.remove(ringGroup.children[0]); 
+  if (document.getElementById('showRings').checked) {
+    for (let i = 0; i < bodies.length; i++) {
+      for (let j = 0; j < bodies.length; j++) {
+        if (i !== j) placeAngularRing(ringGroup, bodies[i].worldPos, bodies[j].worldPos, bodies[j].radius, ringMats[j]);
+      }
+    }
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// UI & Animation
+// ─────────────────────────────────────────────────────────────
+const eAngSlider = document.getElementById('earthAng');
+const mAngSlider = document.getElementById('moonAng');
+const distSlider = document.getElementById('moonDist');
+const erSlider = document.getElementById('earthR');
+const mrSlider = document.getElementById('moonR');
+const statusEl = document.getElementById('status');
+
+// Orbital Axes
+const Y_AXIS = new THREE.Vector3(0, 1, 0);
+const MOON_ORBIT_AXIS = new THREE.Vector3(0.1, 1, 0).normalize(); // Slight tilt for realism
+
+function syncFromUI() {
+  const eAng = parseFloat(eAngSlider.value) * Math.PI / 180;
+  const mAng = parseFloat(mAngSlider.value) * Math.PI / 180;
+  const mDist = parseFloat(distSlider.value);
+  
+  earth.radius = parseFloat(erSlider.value);
+  moon.radius  = parseFloat(mrSlider.value);
+
+  // Apply Keplerian Quaternion Orbits
+  const earthQ = new THREE.Quaternion().setFromAxisAngle(Y_AXIS, eAng);
+  earth.localPos.set(8.0, 0, 0).applyQuaternion(earthQ);
+  
+  const moonQ = new THREE.Quaternion().setFromAxisAngle(MOON_ORBIT_AXIS, mAng);
+  moon.localPos.set(mDist, 0, 0).applyQuaternion(moonQ);
+
+  document.getElementById('eAngVal').textContent = eAngSlider.value + '°';
+  document.getElementById('mAngVal').textContent = mAngSlider.value + '°';
+  document.getElementById('mdVal').textContent  = mDist.toFixed(2);
+  document.getElementById('erVal').textContent  = earth.radius.toFixed(2);
+  document.getElementById('mrVal').textContent  = moon.radius.toFixed(2);
+}
+
+function updateStatus() {
+  const dE = earth.worldPos.length();
+  const dM = moon.worldPos.length();
+  
+  // Approximate macro state for UI
+  const sunToEarth = earth.worldPos.clone().normalize();
+  const sunToMoon = moon.worldPos.clone().normalize();
+  const align = sunToEarth.dot(sunToMoon);
+  
+  let cls = 'ok', note = 'nominal';
+  if (align > 0.99 && dM > dE) { cls = 'warn'; note = 'Lunar eclipse alignment'; }
+  else if (align > 0.99 && dM < dE) { cls = 'warn'; note = 'Solar eclipse alignment'; }
+
+  statusEl.innerHTML = `
+    Quaternions active • Homogeneous raycasting active<br>
+    <span class="${cls}">${note}</span>
+  `;
+}
+
+let last = performance.now();
+function animate(now) {
+  requestAnimationFrame(animate);
+  const dt = (now - last) / 1000;
+  last = now;
+
+  if (document.getElementById('autoOrbit').checked) {
+    let ea = parseFloat(eAngSlider.value) + dt * 6;
+    let ma = parseFloat(mAngSlider.value) + dt * 36;
+    if (ea > 360) ea -= 360;
+    if (ma > 360) ma -= 360;
+    eAngSlider.value = ea;
+    mAngSlider.value = ma;
+  }
+
+  syncFromUI();
+  updateSystem();
+  updateStatus();
+
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+window.addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+animate(performance.now());
+</script>
+</body>
+</html>

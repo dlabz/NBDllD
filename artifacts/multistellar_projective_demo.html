@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Multistellar Projective Occlusion</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #050508; color: #e0e0e8; font-family: system-ui, sans-serif; overflow: hidden; }
+  #c { display: block; width: 100vw; height: 100vh; }
+  #ui {
+    position: absolute; top: 12px; left: 12px; z-index: 10;
+    background: rgba(12,12,24,0.85); border: 1px solid #334; border-radius: 8px;
+    padding: 14px 18px; max-width: 420px; font-size: 13px; line-height: 1.45;
+  }
+  #ui h2 { font-size: 15px; margin-bottom: 8px; color: #8cf; }
+  #status {
+    margin-top: 10px; padding-top: 8px; border-top: 1px solid #345;
+    font-family: ui-monospace, monospace; font-size: 12px; color: #adb;
+  }
+  .ok { color: #6d6; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="ui">
+  <h2>Multistellar Inverted Space</h2>
+  <p>20-Body System (3 Stars, 15 Planets, 2 Moons)</p>
+  <p style="margin-top:8px; font-size:11px; color:#aaa;">
+    The shared omnidirectional infinity (Ω) is decoupled and locked to the system's Center of Mass at [0,0,0]. All shadows project radially through this single origin.
+  </p>
+  <div id="status">Initializing...</div>
+</div>
+
+<script type="importmap">
+{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+               "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/" } }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// ─────────────────────────────────────────────────────────────
+// Setup
+// ─────────────────────────────────────────────────────────────
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x030306);
+const camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.1, 2000);
+camera.position.set(0, 40, 80);
+const controls = new OrbitControls(camera, canvas);
+controls.enableDamping = true;
+
+// ─────────────────────────────────────────────────────────────
+// Body System (20 Bodies)
+// ─────────────────────────────────────────────────────────────
+const MAX_BODIES = 20;
+
+class CelestialBody {
+  constructor({ id, name, radius, color, isStar = false, parent = null, albedo = 1.0, mass = 1.0 }) {
+    this.id = id;
+    this.name = name;
+    this.radius = radius;
+    this.color = new THREE.Color(color);
+    this.isStar = isStar;
+    this.parent = parent;
+    this.albedo = albedo;
+    this.mass = mass;
+    
+    // Orbital parameters
+    this.orbitRadius = 0;
+    this.orbitSpeed = 0;
+    this.orbitAxis = new THREE.Vector3(0,1,0);
+    this.orbitPhase = Math.random() * Math.PI * 2;
+    
+    this.localPos = new THREE.Vector3();
+    this.worldPos = new THREE.Vector3();
+    this.mesh = null;
+  }
+
+  updateLocalPos(time) {
+    const angle = this.orbitPhase + time * this.orbitSpeed;
+    const q = new THREE.Quaternion().setFromAxisAngle(this.orbitAxis, angle);
+    this.localPos.set(this.orbitRadius, 0, 0).applyQuaternion(q);
+  }
+
+  updateWorldPos() {
+    if (this.parent) {
+      this.worldPos.copy(this.parent.worldPos).add(this.localPos);
+    } else {
+      this.worldPos.copy(this.localPos);
+    }
+  }
+}
+
+const bodies = [];
+let idCounter = 0;
+
+// 3 Stars (orbiting an invisible central barycenter roughly at origin)
+const starColors = [0xff4444, 0x44ff44, 0x4444ff];
+const stars = [];
+for(let i=0; i<3; i++) {
+  const star = new CelestialBody({ id: idCounter++, name: 'Star'+i, radius: 2.5, color: starColors[i], isStar: true, mass: 10000 });
+  star.orbitRadius = 15;
+  star.orbitSpeed = 0.2;
+  star.orbitPhase = (Math.PI * 2 / 3) * i;
+  star.orbitAxis = new THREE.Vector3(0,1,0).normalize();
+  stars.push(star);
+  bodies.push(star);
+}
+
+// 15 Planets (5 per star)
+const planets = [];
+for(let i=0; i<3; i++) {
+  for(let p=0; p<5; p++) {
+    const planet = new CelestialBody({ id: idCounter++, name: `S${i}-P${p}`, radius: 0.6 + Math.random()*0.6, color: 0x888888, parent: stars[i], mass: 10 });
+    planet.orbitRadius = 4 + p * 2.5;
+    planet.orbitSpeed = (1.5 - p * 0.2) * (Math.random() > 0.5 ? 1 : -1);
+    planet.orbitAxis = new THREE.Vector3(Math.random()-0.5, 1, Math.random()-0.5).normalize();
+    planets.push(planet);
+    bodies.push(planet);
+  }
+}
+
+// 2 Moons on Planet 0
+for(let m=0; m<2; m++) {
+  const moon = new CelestialBody({ id: idCounter++, name: `Moon${m}`, radius: 0.2, color: 0xaaaaaa, parent: planets[0], mass: 1 });
+  moon.orbitRadius = 1.2 + m * 0.8;
+  moon.orbitSpeed = 3.0 - m;
+  moon.orbitAxis = new THREE.Vector3(0.2, 1, 0.2).normalize();
+  bodies.push(moon);
+}
+
+// ─────────────────────────────────────────────────────────────
+// Shader
+// ─────────────────────────────────────────────────────────────
+const uBodyPosArray = [];
+const uBodyRadiusArray = [];
+const uBodyColorArray = [];
+const uBodyAlbedoArray = [];
+const uIsStarArray = [];
+
+for(let i=0; i<MAX_BODIES; i++) {
+  uBodyPosArray.push(new THREE.Vector3());
+  uBodyRadiusArray.push(0);
+  uBodyColorArray.push(new THREE.Color());
+  uBodyAlbedoArray.push(0);
+  uIsStarArray.push(0);
+}
+
+function makeBodyMaterial(body) {
+  if (body.isStar) {
+    return new THREE.MeshBasicMaterial({ color: body.color });
+  }
+
+  return new THREE.ShaderMaterial({
+    uniforms: {
+      uColor:        { value: body.color },
+      uMyID:         { value: body.id },
+      uCameraPos:    { value: new THREE.Vector3() },
+      uBodyPos:      { value: uBodyPosArray },
+      uBodyRadius:   { value: uBodyRadiusArray },
+      uBodyColor:    { value: uBodyColorArray },
+      uBodyAlbedo:   { value: uBodyAlbedoArray },
+      uIsStar:       { value: uIsStarArray },
+    },
+    vertexShader: /* glsl */`
+      varying vec3 vWorldPos;
+      varying vec3 vNormal;
+      void main() {
+        vec4 wp = modelMatrix * vec4(position, 1.0);
+        vWorldPos = wp.xyz;
+        vNormal = normalize(mat3(modelMatrix) * normal);
+        gl_Position = projectionMatrix * viewMatrix * wp;
+      }
+    `,
+    fragmentShader: /* glsl */`
+      uniform vec3 uColor;
+      uniform int uMyID;
+      uniform vec3 uCameraPos;
+      
+      #define MAX_BODIES ${MAX_BODIES}
+      uniform vec3 uBodyPos[MAX_BODIES];
+      uniform float uBodyRadius[MAX_BODIES];
+      uniform vec3 uBodyColor[MAX_BODIES];
+      uniform float uBodyAlbedo[MAX_BODIES];
+      uniform int uIsStar[MAX_BODIES];
+      
+      varying vec3 vWorldPos;
+      varying vec3 vNormal;
+
+      void main() {
+        vec3 N = normalize(vNormal);
+        
+        vec3 finalLight = vec3(0.0);
+        
+        // We cast a ray from the fragment to EACH star.
+        // This ensures the light direction (Clifford phase) is correctly aligned with the star's actual position,
+        // rather than incorrectly funneling all light through the barycenter.
+        for (int s = 0; s < MAX_BODIES; s++) {
+          if (uIsStar[s] == 1) {
+            vec3 starPos = uBodyPos[s];
+            vec3 rayDir = normalize(starPos - vWorldPos);
+            float distToStar = length(starPos - vWorldPos);
+            
+            float maxOcclusion = 0.0;
+            // Check occlusion against all other bodies
+            for (int i = 0; i < MAX_BODIES; i++) {
+              if (i == uMyID || uIsStar[i] == 1) continue; 
+              
+              vec3 occluderPos = uBodyPos[i];
+              float r = uBodyRadius[i];
+              
+              vec3 toOccluder = occluderPos - vWorldPos;
+              float t = dot(toOccluder, rayDir);
+              
+              if (t > 0.0 && t < distToStar) {
+                vec3 closestPoint = vWorldPos + rayDir * t;
+                float distToRay = length(occluderPos - closestPoint);
+                float soft = 0.45;
+                float occ = 1.0 - smoothstep(r - soft, r + soft, distToRay);
+                maxOcclusion = max(maxOcclusion, occ);
+              }
+            }
+            
+            // Clifford phase relative to this specific star
+            float ndotl = max(0.0, dot(N, rayDir)); 
+            float intensity = 200.0 / (distToStar * distToStar);
+            
+            finalLight += uBodyColor[s] * ndotl * intensity * (1.0 - clamp(maxOcclusion, 0.0, 1.0));
+          }
+        }
+        
+        // Fresnel rim
+        vec3 V = normalize(uCameraPos - vWorldPos);
+        float rim = pow(1.0 - max(0.0, dot(N, V)), 3.0) * 0.04;
+
+        vec3 col = uColor * finalLight + rim * uColor;
+        
+        // Night side residual (deep space ambient)
+        col += uColor * 0.015;
+        
+        // Tonemapping inside shader for vibrant colors
+        col = col / (col + vec3(1.0));
+        col = pow(col, vec3(1.0/2.2));
+        
+        gl_FragColor = vec4(col, 1.0);
+      }
+    `
+  });
+}
+
+bodies.forEach(b => {
+  b.mesh = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 24), makeBodyMaterial(b));
+  b.mesh.scale.setScalar(b.radius);
+  scene.add(b.mesh);
+});
+
+// ─────────────────────────────────────────────────────────────
+// System Update
+// ─────────────────────────────────────────────────────────────
+const CoM = new THREE.Vector3();
+
+function updateSystem(time) {
+  let totalMass = 0;
+  CoM.set(0,0,0);
+  
+  // 1. Calculate positions normally
+  for (let i = 0; i < bodies.length; i++) {
+    bodies[i].updateLocalPos(time);
+    bodies[i].updateWorldPos();
+    
+    // Add to Center of Mass
+    CoM.add(bodies[i].worldPos.clone().multiplyScalar(bodies[i].mass));
+    totalMass += bodies[i].mass;
+  }
+  
+  CoM.divideScalar(totalMass);
+  
+  // 2. Shift all bodies so CoM is strictly at (0,0,0) (Omega)
+  // and create a sorted list based on distance to Omega (ascending R)
+  // This guarantees perfect Back-to-Front volumetric ray marching in the shader!
+  const sortedBodies = [...bodies].sort((a, b) => {
+    const distA = a.worldPos.clone().sub(CoM).lengthSq();
+    const distB = b.worldPos.clone().sub(CoM).lengthSq();
+    return distA - distB;
+  });
+  
+  for (let i = 0; i < sortedBodies.length; i++) {
+    const B = sortedBodies[i];
+    
+    // We only want to subtract CoM once per frame, but since we are iterating a sorted copy,
+    // we need to be careful. Actually, let's just subtract CoM from the original bodies first.
+  }
+  
+  // Corrected shifting:
+  for (let i = 0; i < bodies.length; i++) {
+    bodies[i].worldPos.sub(CoM);
+    bodies[i].mesh.position.copy(bodies[i].worldPos);
+  }
+  
+  // Now sort for the shader arrays
+  const shaderBodies = [...bodies].sort((a, b) => a.worldPos.lengthSq() - b.worldPos.lengthSq());
+  
+  for (let i = 0; i < shaderBodies.length; i++) {
+    const B = shaderBodies[i];
+    uBodyPosArray[i].copy(B.worldPos);
+    uBodyRadiusArray[i] = B.radius;
+    uBodyColorArray[i].copy(B.color);
+    uBodyAlbedoArray[i] = B.albedo;
+    uIsStarArray[i] = B.isStar ? 1 : 0;
+    
+    if (!B.isStar) {
+      B.mesh.material.uniforms.uCameraPos.value.copy(camera.position);
+    }
+  }
+  
+  // Keep camera locked roughly relative to Omega to avoid drifting away
+  controls.target.set(0,0,0);
+}
+
+// ─────────────────────────────────────────────────────────────
+// Animation
+// ─────────────────────────────────────────────────────────────
+const statusEl = document.getElementById('status');
+
+let startTime = performance.now();
+function animate(now) {
+  requestAnimationFrame(animate);
+  const time = (now - startTime) / 1000.0;
+
+  updateSystem(time);
+  
+  statusEl.innerHTML = `<span class="ok">Rendering 20-Body System (Omega centered)</span>`;
+
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+window.addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+animate(performance.now());
+</script>
+</body>
+</html>

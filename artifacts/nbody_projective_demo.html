@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Multistellar N-Body Projective Simulation</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #050508; color: #e0e0e8; font-family: system-ui, sans-serif; overflow: hidden; }
+  #c { display: block; width: 100vw; height: 100vh; }
+  #ui {
+    position: absolute; top: 12px; left: 12px; z-index: 10;
+    background: rgba(12,12,24,0.85); border: 1px solid #334; border-radius: 8px;
+    padding: 14px 18px; max-width: 420px; font-size: 13px; line-height: 1.45;
+  }
+  #ui h2 { font-size: 15px; margin-bottom: 8px; color: #f8c; }
+  #status {
+    margin-top: 10px; padding-top: 8px; border-top: 1px solid #345;
+    font-family: ui-monospace, monospace; font-size: 12px; color: #adb;
+  }
+  .ok { color: #f66; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="ui">
+  <h2>N-Body Chaos Space</h2>
+  <p>20-Body System (3 Stars, 15 Planets, 2 Moons)</p>
+  <p style="margin-top:8px; font-size:11px; color:#aaa;">
+    The kinematic rails have been removed. This is a true O(N²) N-body symplectic gravitational simulation. Initial velocities are seeded from the Keplerian model, but the system is now inherently chaotic! The lighting still uses the dynamic CoM projective inverse trick.
+  </p>
+  <div style="margin-top:10px; display:flex; gap:8px; flex-wrap: wrap;">
+    <button id="btnChaos" style="padding:4px 8px; background:#223; color:#fff; border:1px solid #445; cursor:pointer;">Chaos</button>
+    <button id="btnLagrange" style="padding:4px 8px; background:#223; color:#fff; border:1px solid #445; cursor:pointer;">Lagrange</button>
+    <button id="btnFig8" style="padding:4px 8px; background:#223; color:#fff; border:1px solid #445; cursor:pointer;">Figure-8</button>
+    <button id="btnCamFree" style="padding:4px 8px; background:#432; color:#fff; border:1px solid #543; cursor:pointer;">Free Cam</button>
+    <button id="btnCamPrince" style="padding:4px 8px; background:#432; color:#fff; border:1px solid #543; cursor:pointer;">Little Prince</button>
+    <button id="btnCamComet" style="padding:4px 8px; background:#432; color:#fff; border:1px solid #543; cursor:pointer;">Comet Ride</button>
+  </div>
+  <div id="status" style="margin-top: 10px; padding-top: 8px; border-top: 1px solid #345;">Integrating Physics...</div>
+</div>
+
+<script type="importmap">
+{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+               "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/" } }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// ─────────────────────────────────────────────────────────────
+// Setup
+// ─────────────────────────────────────────────────────────────
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x030306);
+const camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.1, 2000);
+camera.position.set(0, 80, 180);
+const controls = new OrbitControls(camera, canvas);
+controls.enableDamping = true;
+
+// ─────────────────────────────────────────────────────────────
+// Body System (20 Bodies)
+// ─────────────────────────────────────────────────────────────
+const MAX_BODIES = 30; // 3 Stars, 15 Planets, 2 Moons, 10 Comets
+
+class CelestialBody {
+  constructor({ id, name, radius, color, isStar = false, parent = null, albedo = 1.0, mass = 1.0 }) {
+    this.id = id;
+    this.name = name;
+    this.radius = radius;
+    this.color = new THREE.Color(color);
+    this.isStar = isStar;
+    this.parent = parent;
+    this.albedo = albedo;
+    this.mass = mass;
+    
+    // Keplerian orbital elements (used only for initialization now)
+    this.a = 0;
+    this.e = 0;
+    this.i = 0;
+    this.omega = 0;
+    this.w = 0;
+    this.M0 = 0;
+    this.n = 0;
+    
+    this.localPos = new THREE.Vector3();
+    this.worldPos = new THREE.Vector3();
+    this.initialPos = new THREE.Vector3();
+    
+    // Physics Vectors
+    this.velocity = new THREE.Vector3();
+    this.acceleration = new THREE.Vector3();
+    
+    this.mesh = null;
+  }
+
+  // Used only once to get deterministic starting conditions
+  updateLocalPosKinematic(time) {
+    if (this.a === 0) {
+      this.localPos.set(0, 0, 0);
+      return;
+    }
+    const M = this.M0 + time * this.n;
+    let E = M;
+    for (let iter = 0; iter < 5; iter++) {
+      E = E - (E - this.e * Math.sin(E) - M) / (1 - this.e * Math.cos(E));
+    }
+    const x = this.a * (Math.cos(E) - this.e);
+    const z = this.a * Math.sqrt(1 - this.e * this.e) * Math.sin(E);
+    this.localPos.set(x, 0, z);
+
+    const qOmega = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), this.omega);
+    const qi = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), this.i);
+    const qw = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), this.w);
+    const qTotal = new THREE.Quaternion().multiplyQuaternions(qOmega, qi).multiply(qw);
+
+    this.localPos.applyQuaternion(qTotal);
+  }
+
+  updateWorldPosKinematic() {
+    if (this.parent) {
+      this.worldPos.copy(this.parent.worldPos).add(this.localPos);
+    } else {
+      this.worldPos.copy(this.localPos);
+    }
+  }
+}
+
+const bodies = [];
+let idCounter = 0;
+const starColors = [0xff4444, 0x44ff44, 0x4444ff];
+const stars = [];
+const planets = [];
+const moons = [];
+const comets = [];
+
+// Create the 20 bodies once
+for(let i=0; i<3; i++) {
+  const star = new CelestialBody({ id: idCounter++, name: 'Star'+i, radius: 2.5, color: starColors[i], isStar: true, mass: 10000 });
+  stars.push(star);
+  bodies.push(star);
+}
+for(let i=0; i<3; i++) {
+  for(let p=0; p<5; p++) {
+    const planet = new CelestialBody({ id: idCounter++, name: `S${i}-P${p}`, radius: 0.6 + Math.random()*0.6, color: 0x888888, parent: stars[i], mass: 0.001 });
+    planets.push(planet);
+    bodies.push(planet);
+  }
+}
+for(let m=0; m<2; m++) {
+  const moon = new CelestialBody({ id: idCounter++, name: `Moon${m}`, radius: 0.2, color: 0xaaaaaa, parent: planets[0], mass: 0.0001 });
+  moons.push(moon);
+  bodies.push(moon);
+}
+// Add Comets
+for (let c = 0; c < 10; c++) {
+  const comet = new CelestialBody({ id: idCounter++, name: `Comet${c}`, radius: 0.03, color: 0xaabbff, isStar: false, mass: 0.000001 });
+  comets.push(comet);
+  bodies.push(comet);
+}
+
+const G = 0.035;
+
+window.initScenario = function(type) {
+  if (type === 'Chaos') {
+    for(let i=0; i<3; i++) {
+      stars[i].mass = 10000;
+      stars[i].a = 60; stars[i].e = 0.15; stars[i].i = Math.random() * 0.4;
+      stars[i].omega = (Math.PI * 2 / 3) * i; stars[i].w = 0;
+      stars[i].M0 = (Math.PI * 2 / 3) * i; stars[i].n = 0.2;
+    }
+    for(let i=0; i<3; i++) {
+      for(let p=0; p<5; p++) {
+        const planet = planets[i*5 + p];
+        planet.mass = (p === 3 || p === 4) ? 0.05 : 0.005; // Gas giants vs terrestrials
+        planet.a = 15 + p * 8; planet.e = 0.05 + Math.random() * 0.2;
+        planet.i = Math.random() * Math.PI; planet.omega = Math.random() * Math.PI * 2;
+        planet.w = Math.random() * Math.PI * 2; planet.M0 = Math.random() * Math.PI * 2;
+        planet.n = (1.5 - p * 0.2) * (Math.random() > 0.5 ? 1 : -1);
+      }
+    }
+    for(let m=0; m<2; m++) {
+      const moon = moons[m];
+      moon.mass = 1;
+      moon.a = 1.2 + m * 0.8; moon.e = 0.1; moon.i = Math.random() * 0.8;
+      moon.omega = Math.random() * Math.PI * 2; moon.w = Math.random() * Math.PI * 2;
+      moon.M0 = Math.random() * Math.PI * 2; moon.n = 3.0 - m;
+    }
+    
+    for(let c=0; c<10; c++) {
+      spawnComet(comets[c]);
+    }
+    
+    for (let i = 0; i < bodies.length; i++) {
+      if (comets.includes(bodies[i])) continue; // Comets are already placed in absolute coords
+      bodies[i].updateLocalPosKinematic(0);
+      bodies[i].updateWorldPosKinematic();
+      bodies[i].initialPos.copy(bodies[i].worldPos);
+    }
+    const dt_init = 0.0001;
+    for (let i = 0; i < bodies.length; i++) {
+      if (comets.includes(bodies[i])) continue; // Comets already have velocity
+      bodies[i].updateLocalPosKinematic(dt_init);
+      bodies[i].updateWorldPosKinematic();
+      bodies[i].velocity.copy(bodies[i].worldPos).sub(bodies[i].initialPos).divideScalar(dt_init);
+      bodies[i].worldPos.copy(bodies[i].initialPos);
+    }
+  } 
+  else if (type === 'Lagrange') {
+    const R = 35;
+    const m = 10000;
+    const v_mag = Math.sqrt(Math.sqrt(3)/3 * G * m / R);
+    for(let i=0; i<3; i++) {
+      stars[i].mass = m;
+      const angle = (Math.PI * 2 / 3) * i;
+      stars[i].worldPos.set(R * Math.cos(angle), 0, R * Math.sin(angle));
+      stars[i].velocity.set(-v_mag * Math.sin(angle), 0, v_mag * Math.cos(angle));
+    }
+    setupVariedOrbits(m);
+    for(let c=0; c<10; c++) spawnComet(comets[c]);
+  }
+  else if (type === 'Figure8') {
+    const m = 10000;
+    const R_scale = 35;
+    const V_scale = Math.sqrt(G * m / R_scale);
+    
+    const x1 = new THREE.Vector3(0.97000436 * R_scale, 0, -0.24308753 * R_scale);
+    const v1 = new THREE.Vector3(-0.466203685 * V_scale, 0, -0.43236573 * V_scale);
+    
+    stars[0].mass = m;
+    stars[0].worldPos.copy(x1);
+    stars[0].velocity.copy(v1);
+    
+    stars[1].mass = m;
+    stars[1].worldPos.copy(x1).multiplyScalar(-1);
+    stars[1].velocity.copy(v1);
+    
+    stars[2].mass = m;
+    stars[2].worldPos.set(0,0,0);
+    stars[2].velocity.copy(v1).multiplyScalar(-2);
+    
+    setupVariedOrbits(m);
+    for(let c=0; c<10; c++) spawnComet(comets[c]);
+  }
+};
+
+function setupVariedOrbits(starMass) {
+  for(let i=0; i<3; i++) {
+    for(let p=0; p<5; p++) {
+      const planet = planets[i*5 + p];
+      planet.mass = (p === 3 || p === 4) ? 0.05 : 0.005; // Mix of sizes
+      const r_p = 15 + p * 8; // Wider spaced orbits
+      const v_p = Math.sqrt(G * starMass / r_p);
+      const angle = Math.random() * Math.PI * 2;
+      
+      const pOffset = new THREE.Vector3(r_p * Math.cos(angle), 0, r_p * Math.sin(angle));
+      const pVel = new THREE.Vector3(-v_p * Math.sin(angle), 0, v_p * Math.cos(angle));
+      
+      const qInc = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1,0,0), (Math.random()-0.5)*0.5);
+      pOffset.applyQuaternion(qInc);
+      pVel.applyQuaternion(qInc);
+      
+      planet.worldPos.copy(stars[i].worldPos).add(pOffset);
+      planet.velocity.copy(stars[i].velocity).add(pVel);
+    }
+  }
+  for(let m=0; m<2; m++) {
+    const moon = moons[m];
+    moon.mass = 0.0001;
+    planets[0].mass = 1.0; 
+    const r_m = 1.5 + m * 0.8; // Wider moon orbits too
+    const v_m_real = Math.sqrt(G * planets[0].mass / r_m);
+    
+    const angle = Math.random() * Math.PI * 2;
+    moon.worldPos.copy(planets[0].worldPos).add(new THREE.Vector3(r_m * Math.cos(angle), r_m * Math.sin(angle), 0));
+    moon.velocity.copy(planets[0].velocity).add(new THREE.Vector3(-v_m_real * Math.sin(angle), v_m_real * Math.cos(angle), 0));
+  }
+}
+
+function spawnComet(comet) {
+  const r = 80 + Math.random() * 60; // spawn closer for immediate action
+  const angle = Math.random() * Math.PI * 2;
+  const inc = (Math.random() - 0.5) * Math.PI;
+  
+  comet.worldPos.set(r * Math.cos(angle), r * Math.sin(inc), r * Math.sin(angle));
+  
+  // Highly eccentric / incoming velocity
+  const vMag = Math.sqrt(G * 30000 / r) * (0.8 + Math.random() * 0.7); // Even faster baseline!
+  const vDir = new THREE.Vector3().subVectors(new THREE.Vector3(0,0,0), comet.worldPos).normalize(); // pointing inwards
+  const tangent = new THREE.Vector3(-Math.sin(angle), Math.cos(inc), Math.cos(angle)).normalize();
+  
+  // mix inward velocity and tangential velocity for eccentricity
+  const combinedV = new THREE.Vector3().lerpVectors(vDir, tangent, Math.random() * 0.5 + 0.1).normalize().multiplyScalar(vMag);
+  comet.velocity.copy(combinedV);
+  
+  comet.framesSurvived = 0;
+}
+
+initScenario('Chaos');
+
+let currentCameraMode = 'Free';
+let trackedBody = null;
+let lastTargetPos = new THREE.Vector3();
+
+// FPS Mouse Look Variables
+let fpvYaw = 0;
+let fpvPitch = 0;
+
+window.addEventListener('mousemove', (e) => {
+  if ((currentCameraMode === 'LittlePrince' || currentCameraMode === 'CometRide') && e.buttons === 1) {
+    fpvYaw -= e.movementX * 0.005;
+    fpvPitch -= e.movementY * 0.005;
+    // clamp pitch to avoid flipping
+    fpvPitch = Math.max(-Math.PI / 2 + 0.1, Math.min(Math.PI / 2 - 0.1, fpvPitch));
+  }
+});
+
+document.getElementById('btnChaos').addEventListener('click', () => initScenario('Chaos'));
+document.getElementById('btnLagrange').addEventListener('click', () => initScenario('Lagrange'));
+document.getElementById('btnFig8').addEventListener('click', () => initScenario('Figure8'));
+
+document.getElementById('btnCamFree').addEventListener('click', () => {
+  currentCameraMode = 'Free';
+  trackedBody = null;
+  controls.enabled = true;
+  camera.fov = 50;
+  camera.updateProjectionMatrix();
+});
+
+document.getElementById('btnCamPrince').addEventListener('click', () => {
+  currentCameraMode = 'LittlePrince';
+  trackedBody = planets[Math.floor(Math.random() * planets.length)];
+  controls.enabled = false;
+  fpvYaw = 0; fpvPitch = 0;
+  camera.fov = 35; // Telephoto to reduce fisheye
+  camera.updateProjectionMatrix();
+});
+
+document.getElementById('btnCamComet').addEventListener('click', () => {
+  currentCameraMode = 'CometRide';
+  trackedBody = comets[Math.floor(Math.random() * comets.length)];
+  controls.enabled = false;
+  fpvYaw = 0; fpvPitch = 0;
+  camera.fov = 115; // Extreme Fisheye rollercoaster!
+  camera.updateProjectionMatrix();
+  
+  // Snap camera immediately on start
+  const vDir = trackedBody.velocity.clone().normalize();
+  camera.position.copy(trackedBody.mesh.position).sub(vDir.multiplyScalar(3)).add(new THREE.Vector3(0, 1, 0));
+});
+
+
+// ─────────────────────────────────────────────────────────────
+// Shader
+// ─────────────────────────────────────────────────────────────
+const uBodyPosArray = [];
+const uBodyRadiusArray = [];
+const uBodyColorArray = [];
+const uBodyAlbedoArray = [];
+const uIsStarArray = [];
+
+for(let i=0; i<MAX_BODIES; i++) {
+  uBodyPosArray.push(new THREE.Vector3());
+  uBodyRadiusArray.push(0);
+  uBodyColorArray.push(new THREE.Color());
+  uBodyAlbedoArray.push(0);
+  uIsStarArray.push(0);
+}
+
+function makeBodyMaterial(body) {
+  if (body.isStar) {
+    return new THREE.MeshBasicMaterial({ color: body.color });
+  }
+  return new THREE.ShaderMaterial({
+    uniforms: {
+      uColor:        { value: body.color },
+      uMyID:         { value: body.id },
+      uCameraPos:    { value: new THREE.Vector3() },
+      uBodyPos:      { value: uBodyPosArray },
+      uBodyRadius:   { value: uBodyRadiusArray },
+      uBodyColor:    { value: uBodyColorArray },
+      uBodyAlbedo:   { value: uBodyAlbedoArray },
+      uIsStar:       { value: uIsStarArray },
+    },
+    vertexShader: /* glsl */`
+      varying vec3 vWorldPos;
+      varying vec3 vNormal;
+      void main() {
+        vec4 wp = modelMatrix * vec4(position, 1.0);
+        vWorldPos = wp.xyz;
+        vNormal = normalize(mat3(modelMatrix) * normal);
+        gl_Position = projectionMatrix * viewMatrix * wp;
+      }
+    `,
+    fragmentShader: /* glsl */`
+      uniform vec3 uColor;
+      uniform int uMyID;
+      uniform vec3 uCameraPos;
+      
+      #define MAX_BODIES ${MAX_BODIES}
+      uniform vec3 uBodyPos[MAX_BODIES];
+      uniform float uBodyRadius[MAX_BODIES];
+      uniform vec3 uBodyColor[MAX_BODIES];
+      uniform float uBodyAlbedo[MAX_BODIES];
+      uniform int uIsStar[MAX_BODIES];
+      
+      varying vec3 vWorldPos;
+      varying vec3 vNormal;
+
+      void main() {
+        vec3 N = normalize(vNormal);
+        vec3 finalLight = vec3(0.0);
+        
+        for (int s = 0; s < MAX_BODIES; s++) {
+          if (uIsStar[s] == 1) {
+            vec3 starPos = uBodyPos[s];
+            vec3 rayDir = normalize(starPos - vWorldPos);
+            float distToStar = length(starPos - vWorldPos);
+            
+            float maxOcclusion = 0.0;
+            for (int i = 0; i < MAX_BODIES; i++) {
+              if (i == uMyID || uIsStar[i] == 1) continue; 
+              
+              vec3 occluderPos = uBodyPos[i];
+              float r = uBodyRadius[i];
+              vec3 toOccluder = occluderPos - vWorldPos;
+              float t = dot(toOccluder, rayDir);
+              
+              if (t > 0.0 && t < distToStar) {
+                vec3 closestPoint = vWorldPos + rayDir * t;
+                float distToRay = length(occluderPos - closestPoint);
+                float soft = 0.45;
+                float occ = 1.0 - smoothstep(r - soft, r + soft, distToRay);
+                maxOcclusion = max(maxOcclusion, occ);
+              }
+            }
+            
+            float ndotl = max(0.0, dot(N, rayDir)); 
+            float intensity = 200.0 / (distToStar * distToStar);
+            finalLight += uBodyColor[s] * ndotl * intensity * (1.0 - clamp(maxOcclusion, 0.0, 1.0));
+          }
+        }
+        
+        vec3 V = normalize(uCameraPos - vWorldPos);
+        float rim = pow(1.0 - max(0.0, dot(N, V)), 3.0) * 0.04;
+        vec3 col = uColor * finalLight + rim * uColor;
+        col += uColor * 0.015;
+        col = col / (col + vec3(1.0));
+        col = pow(col, vec3(1.0/2.2));
+        gl_FragColor = vec4(col, 1.0);
+      }
+    `
+  });
+}
+
+bodies.forEach(b => {
+  b.mesh = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 24), makeBodyMaterial(b));
+  b.mesh.scale.setScalar(b.radius);
+  scene.add(b.mesh);
+});
+
+// ─────────────────────────────────────────────────────────────
+// Physics Engine (Velocity Verlet)
+// ─────────────────────────────────────────────────────────────
+// G is defined above in the initialization section
+const SOFTENING = 0.5; // Epsilon to prevent 1/0 singularity on collisions
+
+function computeAccelerations() {
+  for (let i = 0; i < bodies.length; i++) {
+    bodies[i].acceleration.set(0, 0, 0);
+  }
+  for (let i = 0; i < bodies.length; i++) {
+    for (let j = i + 1; j < bodies.length; j++) {
+      const b1 = bodies[i];
+      const b2 = bodies[j];
+      const diff = new THREE.Vector3().subVectors(b2.worldPos, b1.worldPos);
+      const distSq = diff.lengthSq() + SOFTENING;
+      const dist = Math.sqrt(distSq);
+      
+      const forceMag = G / distSq;
+      const forceDir = diff.clone().divideScalar(dist);
+      
+      b1.acceleration.add(forceDir.clone().multiplyScalar(forceMag * b2.mass));
+      b2.acceleration.sub(forceDir.clone().multiplyScalar(forceMag * b1.mass));
+    }
+  }
+}
+
+// Initial acceleration
+computeAccelerations();
+
+const CoM = new THREE.Vector3();
+
+function stepPhysics() {
+  // Use a fixed physics timestep for stability
+  const dt = 0.015;
+  const subSteps = 4; // Multiple sub-steps for symplectic accuracy
+  const sdt = dt / subSteps;
+  
+  for (let s = 0; s < subSteps; s++) {
+    for (let i = 0; i < bodies.length; i++) {
+      const b = bodies[i];
+      b.velocity.add(b.acceleration.clone().multiplyScalar(sdt * 0.5));
+      b.worldPos.add(b.velocity.clone().multiplyScalar(sdt));
+    }
+    
+    computeAccelerations();
+    
+    for (let i = 0; i < bodies.length; i++) {
+      const b = bodies[i];
+      b.velocity.add(b.acceleration.clone().multiplyScalar(sdt * 0.5));
+    }
+  }
+  
+  // Check Comet conditions
+  for (let c = 0; c < comets.length; c++) {
+    const comet = comets[c];
+    comet.framesSurvived++;
+    let crashed = false;
+    for (let s = 0; s < 3; s++) {
+      if (comet.worldPos.distanceTo(stars[s].worldPos) < stars[s].radius + 1.0) {
+        crashed = true;
+        break;
+      }
+    }
+    const distFromCenter = comet.worldPos.length();
+    if (crashed || distFromCenter > 1500) {
+      if (comet.framesSurvived > 10000) {
+        console.log(`Stable Comet Found! Survived ${comet.framesSurvived} frames.`);
+        console.log(`Initial Pos:`, comet.initialPos);
+        console.log(`Initial Vel:`, comet.initialVel); // Wait, need to store initialVel in spawnComet
+      }
+      spawnComet(comet);
+      comet.initialPos = comet.worldPos.clone();
+      comet.initialVel = comet.velocity.clone();
+    } else if (comet.framesSurvived === 1) {
+      comet.initialPos = comet.worldPos.clone();
+      comet.initialVel = comet.velocity.clone();
+    }
+  }
+}
+
+function updateVisuals() {
+  let totalMass = 0;
+  CoM.set(0,0,0);
+  
+  // Calculate raw Center of Mass
+  for (let i = 0; i < bodies.length; i++) {
+    CoM.add(bodies[i].worldPos.clone().multiplyScalar(bodies[i].mass));
+    totalMass += bodies[i].mass;
+  }
+  CoM.divideScalar(totalMass);
+  
+  // Create a sorted list for shader arrays (Back-to-front rendering logic)
+  const shaderBodies = [...bodies].sort((a, b) => {
+    const distA = a.worldPos.clone().sub(CoM).lengthSq();
+    const distB = b.worldPos.clone().sub(CoM).lengthSq();
+    return distA - distB;
+  });
+  
+  // Shift bodies visually so CoM is at [0,0,0], matching the projective origin
+  for (let i = 0; i < bodies.length; i++) {
+    const shiftedPos = bodies[i].worldPos.clone().sub(CoM);
+    bodies[i].mesh.position.copy(shiftedPos);
+  }
+  
+  for (let i = 0; i < shaderBodies.length; i++) {
+    const B = shaderBodies[i];
+    const shiftedPos = B.worldPos.clone().sub(CoM);
+    uBodyPosArray[i].copy(shiftedPos);
+    uBodyRadiusArray[i] = B.radius;
+    uBodyColorArray[i].copy(B.color);
+    uBodyAlbedoArray[i] = B.albedo;
+    uIsStarArray[i] = B.isStar ? 1 : 0;
+    
+    if (!B.isStar) {
+      B.mesh.material.uniforms.uCameraPos.value.copy(camera.position);
+    }
+  }
+  
+  // Default camera up vector
+  camera.up.set(0, 1, 0);
+  
+  if (currentCameraMode === 'LittlePrince' && trackedBody) {
+    const planetPos = trackedBody.mesh.position;
+    // Add artificial spin based on time
+    const time = performance.now() * 0.001;
+    const spinRate = 0.5; // majestic sunset speed
+    const angle = time * spinRate + trackedBody.id;
+    
+    // Physically rotate the planet mesh so the terrain stays locked to the camera!
+    trackedBody.mesh.rotation.y = angle;
+    
+    // Normal vector (UP for the person standing on the planet) - tracks local X axis
+    const normal = new THREE.Vector3(Math.cos(angle), 0, -Math.sin(angle));
+    
+    // Base sunset look direction (West)
+    const west = new THREE.Vector3(Math.sin(angle), 0, Math.cos(angle));
+    
+    // Sit very close to the surface (0.1 units above) for a flatter, human-scale horizon
+    const camPos = planetPos.clone().add(normal.clone().multiplyScalar(trackedBody.radius + 0.1));
+    camera.position.copy(camPos);
+    
+    camera.up.copy(normal);
+    
+    // Apply First-Person mouse look
+    // We rotate the base look direction (west) around the up vector (normal) for yaw
+    // And rotate it up/down for pitch
+    const lookDir = west.clone();
+    lookDir.applyAxisAngle(normal, fpvYaw);
+    
+    // Pitch axis is cross product of lookDir and normal
+    const pitchAxis = new THREE.Vector3().crossVectors(lookDir, normal).normalize();
+    lookDir.applyAxisAngle(pitchAxis, -fpvPitch); // negative pitch to look up/down correctly
+    
+    const lookTarget = camPos.clone().add(lookDir.multiplyScalar(10));
+    camera.lookAt(lookTarget);
+    
+  } else if (currentCameraMode === 'CometRide' && trackedBody) {
+    const cometPos = trackedBody.mesh.position;
+    const vDir = trackedBody.velocity.clone().normalize();
+    
+    // Highly elastic smooth follow for intense rollercoaster feel
+    const idealPos = cometPos.clone().sub(vDir.clone().multiplyScalar(3)).add(new THREE.Vector3(0, 1, 0));
+    camera.position.lerp(idealPos, 0.05); // More lag = more elastic stretch during high Gs
+    
+    // Apply First-Person mouse look around the forward velocity direction
+    const lookDir = vDir.clone();
+    lookDir.applyAxisAngle(new THREE.Vector3(0,1,0), fpvYaw);
+    const pitchAxis = new THREE.Vector3().crossVectors(lookDir, new THREE.Vector3(0,1,0)).normalize();
+    lookDir.applyAxisAngle(pitchAxis, -fpvPitch);
+    
+    camera.lookAt(cometPos.clone().add(lookDir.multiplyScalar(20)));
+  } else {
+    controls.target.set(0,0,0);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// Animation
+// ─────────────────────────────────────────────────────────────
+const statusEl = document.getElementById('status');
+
+function animate(now) {
+  requestAnimationFrame(animate);
+  
+  stepPhysics();
+  updateVisuals();
+  
+  statusEl.innerHTML = `<span class="ok">Rendering 30-Body System (N-Body Gravity Integration)</span>`;
+
+  if (currentCameraMode === 'Free') {
+    controls.update();
+  }
+  
+  renderer.render(scene, camera);
+}
+
+window.addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+animate(performance.now());
+</script>
+</body>
+</html>

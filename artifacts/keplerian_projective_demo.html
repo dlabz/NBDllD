@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Multistellar Keplerian Projective Occlusion</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #050508; color: #e0e0e8; font-family: system-ui, sans-serif; overflow: hidden; }
+  #c { display: block; width: 100vw; height: 100vh; }
+  #ui {
+    position: absolute; top: 12px; left: 12px; z-index: 10;
+    background: rgba(12,12,24,0.85); border: 1px solid #334; border-radius: 8px;
+    padding: 14px 18px; max-width: 420px; font-size: 13px; line-height: 1.45;
+  }
+  #ui h2 { font-size: 15px; margin-bottom: 8px; color: #8cf; }
+  #status {
+    margin-top: 10px; padding-top: 8px; border-top: 1px solid #345;
+    font-family: ui-monospace, monospace; font-size: 12px; color: #adb;
+  }
+  .ok { color: #6d6; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="ui">
+  <h2>Keplerian Inverted Space</h2>
+  <p>20-Body System (3 Stars, 15 Planets, 2 Moons)</p>
+  <p style="margin-top:8px; font-size:11px; color:#aaa;">
+    The shared omnidirectional infinity (Ω) is decoupled and locked to the system's Center of Mass at [0,0,0]. All shadows project radially through this single origin. Celestial bodies now follow elliptical orbits using full Keplerian elements and quaternion rotations.
+  </p>
+  <div id="status">Initializing...</div>
+</div>
+
+<script type="importmap">
+{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+               "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/" } }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// ─────────────────────────────────────────────────────────────
+// Setup
+// ─────────────────────────────────────────────────────────────
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x030306);
+const camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.1, 2000);
+camera.position.set(0, 60, 140);
+const controls = new OrbitControls(camera, canvas);
+controls.enableDamping = true;
+
+// ─────────────────────────────────────────────────────────────
+// Body System (20 Bodies)
+// ─────────────────────────────────────────────────────────────
+const MAX_BODIES = 20;
+
+class CelestialBody {
+  constructor({ id, name, radius, color, isStar = false, parent = null, albedo = 1.0, mass = 1.0 }) {
+    this.id = id;
+    this.name = name;
+    this.radius = radius;
+    this.color = new THREE.Color(color);
+    this.isStar = isStar;
+    this.parent = parent;
+    this.albedo = albedo;
+    this.mass = mass;
+    
+    // Keplerian orbital elements
+    this.a = 0; // semi-major axis
+    this.e = 0; // eccentricity
+    this.i = 0; // inclination
+    this.omega = 0; // longitude of ascending node
+    this.w = 0; // argument of periapsis
+    this.M0 = 0; // mean anomaly at epoch
+    this.n = 0; // mean motion
+    
+    this.localPos = new THREE.Vector3();
+    this.worldPos = new THREE.Vector3();
+    this.mesh = null;
+  }
+
+  updateLocalPos(time) {
+    if (this.a === 0) {
+      this.localPos.set(0, 0, 0);
+      return;
+    }
+
+    // 1. Mean Anomaly
+    const M = this.M0 + time * this.n;
+
+    // 2. Eccentric Anomaly (Newton-Raphson to solve Kepler's equation M = E - e * sin(E))
+    let E = M;
+    for (let iter = 0; iter < 5; iter++) {
+      E = E - (E - this.e * Math.sin(E) - M) / (1 - this.e * Math.cos(E));
+    }
+
+    // 3. Position in 2D orbital plane (XZ plane)
+    const x = this.a * (Math.cos(E) - this.e);
+    const z = this.a * Math.sqrt(1 - this.e * this.e) * Math.sin(E);
+    const y = 0;
+
+    this.localPos.set(x, y, z);
+
+    // 4. Apply 3D Orientation via Quaternions
+    // qOmega: rotate around Y by omega (Longitude of ascending node)
+    // qi: rotate around X by inclination
+    // qw: rotate around Y by w (Argument of periapsis)
+    const qOmega = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), this.omega);
+    const qi = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), this.i);
+    const qw = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), this.w);
+
+    const qTotal = new THREE.Quaternion().multiplyQuaternions(qOmega, qi).multiply(qw);
+
+    this.localPos.applyQuaternion(qTotal);
+  }
+
+  updateWorldPos() {
+    if (this.parent) {
+      this.worldPos.copy(this.parent.worldPos).add(this.localPos);
+    } else {
+      this.worldPos.copy(this.localPos);
+    }
+  }
+}
+
+const bodies = [];
+let idCounter = 0;
+
+// 3 Stars (orbiting an invisible central barycenter roughly at origin)
+const starColors = [0xff4444, 0x44ff44, 0x4444ff];
+const stars = [];
+for(let i=0; i<3; i++) {
+  const star = new CelestialBody({ id: idCounter++, name: 'Star'+i, radius: 2.5, color: starColors[i], isStar: true, mass: 10000 });
+  star.a = 35;
+  star.e = 0.15;
+  star.i = Math.random() * 0.4;
+  star.omega = (Math.PI * 2 / 3) * i;
+  star.w = 0;
+  star.M0 = (Math.PI * 2 / 3) * i;
+  star.n = 0.2;
+  stars.push(star);
+  bodies.push(star);
+}
+
+// 15 Planets (5 per star)
+const planets = [];
+for(let i=0; i<3; i++) {
+  for(let p=0; p<5; p++) {
+    const planet = new CelestialBody({ id: idCounter++, name: `S${i}-P${p}`, radius: 0.6 + Math.random()*0.6, color: 0x888888, parent: stars[i], mass: 10 });
+    planet.a = 4 + p * 2.5;
+    planet.e = 0.05 + Math.random() * 0.35; // Distinct elliptical orbits
+    planet.i = Math.random() * Math.PI;
+    planet.omega = Math.random() * Math.PI * 2;
+    planet.w = Math.random() * Math.PI * 2;
+    planet.M0 = Math.random() * Math.PI * 2;
+    planet.n = (1.5 - p * 0.2) * (Math.random() > 0.5 ? 1 : -1);
+    planets.push(planet);
+    bodies.push(planet);
+  }
+}
+
+// 2 Moons on Planet 0
+for(let m=0; m<2; m++) {
+  const moon = new CelestialBody({ id: idCounter++, name: `Moon${m}`, radius: 0.2, color: 0xaaaaaa, parent: planets[0], mass: 1 });
+  moon.a = 1.2 + m * 0.8;
+  moon.e = 0.1;
+  moon.i = Math.random() * 0.8;
+  moon.omega = Math.random() * Math.PI * 2;
+  moon.w = Math.random() * Math.PI * 2;
+  moon.M0 = Math.random() * Math.PI * 2;
+  moon.n = 3.0 - m;
+  bodies.push(moon);
+}
+
+// ─────────────────────────────────────────────────────────────
+// Shader
+// ─────────────────────────────────────────────────────────────
+const uBodyPosArray = [];
+const uBodyRadiusArray = [];
+const uBodyColorArray = [];
+const uBodyAlbedoArray = [];
+const uIsStarArray = [];
+
+for(let i=0; i<MAX_BODIES; i++) {
+  uBodyPosArray.push(new THREE.Vector3());
+  uBodyRadiusArray.push(0);
+  uBodyColorArray.push(new THREE.Color());
+  uBodyAlbedoArray.push(0);
+  uIsStarArray.push(0);
+}
+
+function makeBodyMaterial(body) {
+  if (body.isStar) {
+    return new THREE.MeshBasicMaterial({ color: body.color });
+  }
+
+  return new THREE.ShaderMaterial({
+    uniforms: {
+      uColor:        { value: body.color },
+      uMyID:         { value: body.id },
+      uCameraPos:    { value: new THREE.Vector3() },
+      uBodyPos:      { value: uBodyPosArray },
+      uBodyRadius:   { value: uBodyRadiusArray },
+      uBodyColor:    { value: uBodyColorArray },
+      uBodyAlbedo:   { value: uBodyAlbedoArray },
+      uIsStar:       { value: uIsStarArray },
+    },
+    vertexShader: /* glsl */`
+      varying vec3 vWorldPos;
+      varying vec3 vNormal;
+      void main() {
+        vec4 wp = modelMatrix * vec4(position, 1.0);
+        vWorldPos = wp.xyz;
+        vNormal = normalize(mat3(modelMatrix) * normal);
+        gl_Position = projectionMatrix * viewMatrix * wp;
+      }
+    `,
+    fragmentShader: /* glsl */`
+      uniform vec3 uColor;
+      uniform int uMyID;
+      uniform vec3 uCameraPos;
+      
+      #define MAX_BODIES ${MAX_BODIES}
+      uniform vec3 uBodyPos[MAX_BODIES];
+      uniform float uBodyRadius[MAX_BODIES];
+      uniform vec3 uBodyColor[MAX_BODIES];
+      uniform float uBodyAlbedo[MAX_BODIES];
+      uniform int uIsStar[MAX_BODIES];
+      
+      varying vec3 vWorldPos;
+      varying vec3 vNormal;
+
+      void main() {
+        vec3 N = normalize(vNormal);
+        
+        vec3 finalLight = vec3(0.0);
+        
+        for (int s = 0; s < MAX_BODIES; s++) {
+          if (uIsStar[s] == 1) {
+            vec3 starPos = uBodyPos[s];
+            vec3 rayDir = normalize(starPos - vWorldPos);
+            float distToStar = length(starPos - vWorldPos);
+            
+            float maxOcclusion = 0.0;
+            for (int i = 0; i < MAX_BODIES; i++) {
+              if (i == uMyID || uIsStar[i] == 1) continue; 
+              
+              vec3 occluderPos = uBodyPos[i];
+              float r = uBodyRadius[i];
+              
+              vec3 toOccluder = occluderPos - vWorldPos;
+              float t = dot(toOccluder, rayDir);
+              
+              if (t > 0.0 && t < distToStar) {
+                vec3 closestPoint = vWorldPos + rayDir * t;
+                float distToRay = length(occluderPos - closestPoint);
+                float soft = 0.45;
+                float occ = 1.0 - smoothstep(r - soft, r + soft, distToRay);
+                maxOcclusion = max(maxOcclusion, occ);
+              }
+            }
+            
+            float ndotl = max(0.0, dot(N, rayDir)); 
+            float intensity = 200.0 / (distToStar * distToStar);
+            
+            finalLight += uBodyColor[s] * ndotl * intensity * (1.0 - clamp(maxOcclusion, 0.0, 1.0));
+          }
+        }
+        
+        vec3 V = normalize(uCameraPos - vWorldPos);
+        float rim = pow(1.0 - max(0.0, dot(N, V)), 3.0) * 0.04;
+
+        vec3 col = uColor * finalLight + rim * uColor;
+        
+        col += uColor * 0.015;
+        
+        col = col / (col + vec3(1.0));
+        col = pow(col, vec3(1.0/2.2));
+        
+        gl_FragColor = vec4(col, 1.0);
+      }
+    `
+  });
+}
+
+bodies.forEach(b => {
+  b.mesh = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 24), makeBodyMaterial(b));
+  b.mesh.scale.setScalar(b.radius);
+  scene.add(b.mesh);
+});
+
+// ─────────────────────────────────────────────────────────────
+// System Update
+// ─────────────────────────────────────────────────────────────
+const CoM = new THREE.Vector3();
+
+function updateSystem(time) {
+  let totalMass = 0;
+  CoM.set(0,0,0);
+  
+  for (let i = 0; i < bodies.length; i++) {
+    bodies[i].updateLocalPos(time);
+    bodies[i].updateWorldPos();
+    
+    CoM.add(bodies[i].worldPos.clone().multiplyScalar(bodies[i].mass));
+    totalMass += bodies[i].mass;
+  }
+  
+  CoM.divideScalar(totalMass);
+  
+  for (let i = 0; i < bodies.length; i++) {
+    bodies[i].worldPos.sub(CoM);
+    bodies[i].mesh.position.copy(bodies[i].worldPos);
+  }
+  
+  const shaderBodies = [...bodies].sort((a, b) => a.worldPos.lengthSq() - b.worldPos.lengthSq());
+  
+  for (let i = 0; i < shaderBodies.length; i++) {
+    const B = shaderBodies[i];
+    uBodyPosArray[i].copy(B.worldPos);
+    uBodyRadiusArray[i] = B.radius;
+    uBodyColorArray[i].copy(B.color);
+    uBodyAlbedoArray[i] = B.albedo;
+    uIsStarArray[i] = B.isStar ? 1 : 0;
+    
+    if (!B.isStar) {
+      B.mesh.material.uniforms.uCameraPos.value.copy(camera.position);
+    }
+  }
+  
+  controls.target.set(0,0,0);
+}
+
+// ─────────────────────────────────────────────────────────────
+// Animation
+// ─────────────────────────────────────────────────────────────
+const statusEl = document.getElementById('status');
+
+let startTime = performance.now();
+function animate(now) {
+  requestAnimationFrame(animate);
+  const time = (now - startTime) / 1000.0;
+
+  updateSystem(time);
+  
+  statusEl.innerHTML = `<span class="ok">Rendering 20-Body System (Keplerian)</span>`;
+
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+window.addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+animate(performance.now());
+</script>
+</body>
+</html>

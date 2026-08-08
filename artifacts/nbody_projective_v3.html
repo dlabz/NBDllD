@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>N-Body GPGPU Projective Simulation v3</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #050508; color: #e0e0e8; font-family: system-ui, sans-serif; overflow: hidden; }
+  #c { display: block; width: 100vw; height: 100vh; }
+  #ui {
+    position: absolute; top: 12px; left: 12px; z-index: 10;
+    background: rgba(12,12,24,0.85); border: 1px solid #334; border-radius: 8px;
+    padding: 14px 18px; max-width: 440px; font-size: 13px; line-height: 1.45;
+  }
+  #ui h2 { font-size: 15px; margin-bottom: 8px; color: #f8c; }
+  .btn-row { margin-top:10px; display:flex; gap:8px; flex-wrap: wrap; }
+  .btn { padding:4px 10px; background:#223; color:#fff; border:1px solid #445;
+         cursor:pointer; border-radius:3px; font-size:12px; }
+  .btn:hover { background:#335; }
+  #status {
+    margin-top: 10px; padding-top: 8px; border-top: 1px solid #345;
+    font-family: ui-monospace, monospace; font-size: 11px; color: #adb; line-height: 1.7;
+  }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="ui">
+  <h2>GPGPU N-Body Chaos v3</h2>
+  <p>256-Body System · 3 Stars · 253 Asteroids</p>
+  <p style="margin-top:8px; font-size:11px; color:#aaa;">
+    Physics: O(N²) GPGPU Gravity<br>
+    Rendering: InstancedMesh + O(S×N) per-fragment projective shadows.
+  </p>
+  <div class="btn-row">
+    <button id="btnReset" class="btn">Reset Scenario</button>
+  </div>
+  <div id="status">Compiling Shaders...</div>
+</div>
+
+<script type="importmap">
+{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+               "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/" } }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GPUComputationRenderer } from 'three/addons/misc/GPUComputationRenderer.js';
+
+// ═══════════════════════════════════════════════════════════════
+// §1  Setup & Config
+// ═══════════════════════════════════════════════════════════════
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.toneMapping = THREE.NoToneMapping;
+renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x030306);
+const camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.1, 4000);
+camera.position.set(0, 180, 250);
+const controls = new OrbitControls(camera, canvas);
+controls.enableDamping = true;
+
+const WIDTH = 16;
+const N_BODIES = WIDTH * WIDTH; // 256
+const STARS = 3;
+const G = 0.035;
+const SOFTENING = 1.0;
+
+// ═══════════════════════════════════════════════════════════════
+// §2  GPGPU Initialization
+// ═══════════════════════════════════════════════════════════════
+const gpuCompute = new GPUComputationRenderer(WIDTH, WIDTH, renderer);
+const dtPosition = gpuCompute.createTexture();
+const dtVelocity = gpuCompute.createTexture();
+// massData: x = mass, y = radius, z = isStar, w = color (packed rgb)
+const dtMassData = gpuCompute.createTexture();
+
+function packColor(c) {
+  return (Math.floor(c.r*255)<<16) | (Math.floor(c.g*255)<<8) | Math.floor(c.b*255);
+}
+
+function initData() {
+  const pA = dtPosition.image.data;
+  const vA = dtVelocity.image.data;
+  const mA = dtMassData.image.data;
+  
+  let mx = 0, my = 0, mz = 0, totalMass = 0;
+
+  for (let i = 0; i < N_BODIES; i++) {
+    const isStar = i < STARS;
+    const r = isStar ? 2.5 : 0.3 + Math.random() * 0.4;
+    const m = isStar ? 10000 : 0.1;
+    const col = isStar ? [0xff4444, 0x44ff44, 0x4444ff][i] : 0x888888;
+    const cObj = new THREE.Color(col);
+
+    mA[i*4 + 0] = m;
+    mA[i*4 + 1] = r;
+    mA[i*4 + 2] = isStar ? 1.0 : 0.0;
+    mA[i*4 + 3] = packColor(cObj);
+
+    if (isStar) {
+      const a = (Math.PI * 2 / 3) * i;
+      const R = 35;
+      const v = Math.sqrt(Math.sqrt(3)/3 * G * 10000 / R);
+      pA[i*4+0] = R * Math.cos(a); pA[i*4+1] = 0; pA[i*4+2] = R * Math.sin(a); pA[i*4+3] = 1;
+      vA[i*4+0] = -v * Math.sin(a); vA[i*4+1] = 0; vA[i*4+2] = v * Math.cos(a); vA[i*4+3] = 1;
+    } else {
+      const si = i % 3;
+      const sa = (Math.PI * 2 / 3) * si;
+      const sPos = new THREE.Vector3(35 * Math.cos(sa), 0, 35 * Math.sin(sa));
+      const sVel = new THREE.Vector3(-Math.sqrt(Math.sqrt(3)/3*G*10000/35)*Math.sin(sa), 0, Math.sqrt(Math.sqrt(3)/3*G*10000/35)*Math.cos(sa));
+      
+      const rp = 10 + Math.random() * 80;
+      const vp = Math.sqrt(G * 10000 / rp);
+      const a = Math.random() * Math.PI * 2;
+      
+      const off = new THREE.Vector3(rp * Math.cos(a), (Math.random()-0.5)*10, rp * Math.sin(a));
+      const vel = new THREE.Vector3(-vp * Math.sin(a), 0, vp * Math.cos(a));
+      
+      const qI = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1,0,0), (Math.random()-0.5)*0.5);
+      off.applyQuaternion(qI); vel.applyQuaternion(qI);
+      
+      pA[i*4+0] = sPos.x + off.x; pA[i*4+1] = sPos.y + off.y; pA[i*4+2] = sPos.z + off.z; pA[i*4+3] = 1;
+      vA[i*4+0] = sVel.x + vel.x; vA[i*4+1] = sVel.y + vel.y; vA[i*4+2] = sVel.z + vel.z; vA[i*4+3] = 1;
+    }
+
+    mx += vA[i*4+0] * m; my += vA[i*4+1] * m; mz += vA[i*4+2] * m;
+    totalMass += m;
+  }
+  
+  // Zero net momentum to prevent CoM drift
+  mx /= totalMass; my /= totalMass; mz /= totalMass;
+  for(let i=0; i<N_BODIES; i++) {
+    vA[i*4+0] -= mx; vA[i*4+1] -= my; vA[i*4+2] -= mz;
+  }
+}
+
+initData();
+
+// ═══════════════════════════════════════════════════════════════
+// §3  GPGPU Shaders
+// ═══════════════════════════════════════════════════════════════
+const computeVelocityShader = `
+  uniform float dt;
+  uniform float G;
+  uniform float softening;
+  uniform sampler2D textureMassData;
+  
+  void main() {
+    vec2 uv = gl_FragCoord.xy / resolution.xy;
+    vec3 pos = texture2D( texturePosition, uv ).xyz;
+    vec3 vel = texture2D( textureVelocity, uv ).xyz;
+    
+    vec3 accel = vec3(0.0);
+    
+    // O(N^2) Gravity summation
+    for (float y = 0.5; y < resolution.y; y++) {
+      for (float x = 0.5; x < resolution.x; x++) {
+        vec2 uv2 = vec2(x, y) / resolution.xy;
+        vec3 pos2 = texture2D( texturePosition, uv2 ).xyz;
+        float mass2 = texture2D( textureMassData, uv2 ).x;
+        
+        vec3 d = pos2 - pos;
+        float distSq = dot(d, d) + softening;
+        float invDist = inversesqrt(distSq);
+        float invDist3 = invDist * invDist * invDist;
+        
+        accel += d * (G * mass2 * invDist3);
+      }
+    }
+    
+    vel += accel * dt;
+    gl_FragColor = vec4(vel, 1.0);
+  }
+`;
+
+const computePositionShader = `
+  uniform float dt;
+  void main() {
+    vec2 uv = gl_FragCoord.xy / resolution.xy;
+    vec3 pos = texture2D( texturePosition, uv ).xyz;
+    vec3 vel = texture2D( textureVelocity, uv ).xyz;
+    pos += vel * dt;
+    gl_FragColor = vec4(pos, 1.0);
+  }
+`;
+
+const velocityVar = gpuCompute.addVariable("textureVelocity", computeVelocityShader, dtVelocity);
+const positionVar = gpuCompute.addVariable("texturePosition", computePositionShader, dtPosition);
+
+gpuCompute.setVariableDependencies(velocityVar, [positionVar, velocityVar]);
+gpuCompute.setVariableDependencies(positionVar, [positionVar, velocityVar]);
+
+velocityVar.material.uniforms['dt'] = { value: 0.005 };
+velocityVar.material.uniforms['G'] = { value: G };
+velocityVar.material.uniforms['softening'] = { value: SOFTENING };
+velocityVar.material.uniforms['textureMassData'] = { value: dtMassData };
+
+positionVar.material.uniforms['dt'] = { value: 0.005 };
+
+const error = gpuCompute.init();
+if (error !== null) console.error(error);
+
+// ═══════════════════════════════════════════════════════════════
+// §4  Rendering (InstancedMesh + Custom Shader)
+// ═══════════════════════════════════════════════════════════════
+const sphereGeo = new THREE.SphereGeometry(1, 24, 16);
+
+// We attach a dummy matrix to each instance, the real position comes from the GPGPU texture
+const dummy = new THREE.Object3D();
+const instancedMesh = new THREE.InstancedMesh(sphereGeo, null, N_BODIES);
+
+// Create an index buffer so each instance knows its ID (0 to N-1)
+const instanceIDs = new Float32Array(N_BODIES);
+for(let i=0; i<N_BODIES; i++) instanceIDs[i] = i;
+sphereGeo.setAttribute('instanceID', new THREE.InstancedBufferAttribute(instanceIDs, 1));
+
+const material = new THREE.ShaderMaterial({
+  uniforms: {
+    uPositionTexture: { value: null },
+    uMassDataTexture: { value: dtMassData },
+    uCameraPos: { value: camera.position },
+    uTexRes: { value: WIDTH }
+  },
+  vertexShader: `
+    uniform sampler2D uPositionTexture;
+    uniform sampler2D uMassDataTexture;
+    uniform float uTexRes;
+    
+    attribute float instanceID;
+    
+    varying vec3 vWorldPos;
+    varying vec3 vNormal;
+    varying vec3 vColor;
+    varying float vIsStar;
+    varying float vMyID;
+    
+    vec3 unpackColor(float f) {
+      int c = int(f);
+      float r = float(c / 65536) / 255.0;
+      float g = float((c / 256) - (c / 65536) * 256) / 255.0;
+      float b = float(c - (c / 256) * 256) / 255.0;
+      return vec3(r, g, b);
+    }
+    
+    void main() {
+      // Calculate UV in the GPGPU texture for this instance
+      float y = floor(instanceID / uTexRes);
+      float x = mod(instanceID, uTexRes);
+      vec2 uv = vec2(x + 0.5, y + 0.5) / uTexRes;
+      
+      vec3 pos = texture2D(uPositionTexture, uv).xyz;
+      vec4 massData = texture2D(uMassDataTexture, uv);
+      float radius = massData.y;
+      
+      vIsStar = massData.z;
+      vColor = unpackColor(massData.w);
+      vMyID = instanceID;
+      
+      // Scale and translate
+      vec3 transformed = position * radius + pos;
+      
+      vWorldPos = transformed;
+      vNormal = normal; // spherical normal
+      
+      gl_Position = projectionMatrix * viewMatrix * vec4(transformed, 1.0);
+    }
+  `,
+  fragmentShader: `
+    uniform sampler2D uPositionTexture;
+    uniform sampler2D uMassDataTexture;
+    uniform float uTexRes;
+    uniform vec3 uCameraPos;
+    
+    varying vec3 vWorldPos;
+    varying vec3 vNormal;
+    varying vec3 vColor;
+    varying float vIsStar;
+    varying float vMyID;
+    
+    void main() {
+      if (vIsStar > 0.5) {
+        gl_FragColor = vec4(vColor, 1.0);
+        return;
+      }
+      
+      vec3 Nm = normalize(vNormal);
+      vec3 lit = vec3(0.0);
+      
+      // We only have 3 stars, they are the first 3 pixels in the texture
+      for(int s = 0; s < 3; s++) {
+        vec2 sUv = vec2(float(s) + 0.5, 0.5) / uTexRes;
+        vec3 sPos = texture2D(uPositionTexture, sUv).xyz;
+        vec4 sData = texture2D(uMassDataTexture, sUv);
+        float sR = sData.y;
+        
+        vec3 ray = normalize(sPos - vWorldPos);
+        float dStar = length(sPos - vWorldPos);
+        
+        float maxOcc = 0.0;
+        
+        // O(N) Occlusion loop in fragment shader!
+        for(float y=0.5; y<16.0; y++) {
+          for(float x=0.5; x<16.0; x++) {
+            vec2 oUv = vec2(x, y) / uTexRes;
+            
+            // Skip stars (y=0, x<3) and self
+            float oid = floor(y)*16.0 + floor(x);
+            if (oid < 3.0 || abs(oid - vMyID) < 0.1) continue;
+            
+            vec3 oP = texture2D(uPositionTexture, oUv).xyz;
+            float oR = texture2D(uMassDataTexture, oUv).y;
+            
+            vec3 to = oP - vWorldPos;
+            float t = dot(to, ray);
+            
+            if (t > 0.0 && t < dStar) {
+              vec3 cp = vWorldPos + ray * t;
+              float dr = length(oP - cp);
+              
+              float dOccStar = max(dStar - t, 0.1);
+              float pen = sR * t / dOccStar;
+              float soft = max(pen, 0.02);
+              
+              float occ = 1.0 - smoothstep(oR - soft, oR + soft, dr);
+              maxOcc = max(maxOcc, occ);
+            }
+          }
+        }
+        
+        float ndl = max(0.0, dot(Nm, ray));
+        float att = 200.0 / (dStar * dStar);
+        
+        // Unpack star color
+        int c = int(sData.w);
+        float sr = float(c / 65536) / 255.0;
+        float sg = float((c / 256) - (c / 65536) * 256) / 255.0;
+        float sb = float(c - (c / 256) * 256) / 255.0;
+        vec3 sColor = vec3(sr, sg, sb);
+        
+        lit += sColor * ndl * att * (1.0 - clamp(maxOcc, 0.0, 1.0));
+      }
+      
+      vec3 V = normalize(uCameraPos - vWorldPos);
+      float rim = pow(1.0 - max(0.0, dot(Nm, V)), 3.0) * 0.04;
+      
+      vec3 col = vColor * lit + rim * vColor;
+      col += vColor * 0.015;
+      
+      col = col / (col + vec3(1.0));
+      col = pow(col, vec3(1.0 / 2.2));
+      
+      gl_FragColor = vec4(col, 1.0);
+    }
+  `
+});
+
+instancedMesh.material = material;
+scene.add(instancedMesh);
+
+// Add simple starfield background
+{
+  const N = 3000, arr = new Float32Array(N * 3);
+  for (let i = 0; i < N; i++) {
+    const θ = Math.random()*Math.PI*2;
+    const φ = Math.acos(2*Math.random()-1);
+    const r = 1850 + Math.random()*100;
+    arr[i*3]   = r*Math.sin(φ)*Math.cos(θ);
+    arr[i*3+1] = r*Math.sin(φ)*Math.sin(θ);
+    arr[i*3+2] = r*Math.cos(φ);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(arr, 3));
+  scene.add(new THREE.Points(g, new THREE.PointsMaterial({ color:0xccccdd, size:0.4, sizeAttenuation:false })));
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+// §5  Main loop
+// ═══════════════════════════════════════════════════════════════
+const statusEl = document.getElementById('status');
+
+document.getElementById('btnReset').onclick = () => {
+  initData();
+  velocityVar.material.uniforms.textureVelocity.value = dtVelocity;
+  positionVar.material.uniforms.texturePosition.value = dtPosition;
+  gpuCompute.init();
+};
+
+let frame = 0;
+
+function animate() {
+  requestAnimationFrame(animate);
+  
+  // Physics substeps (Symplectic Euler on GPU)
+  for (let i = 0; i < 4; i++) {
+    gpuCompute.compute();
+  }
+  
+  // The result is in gpuCompute.getCurrentRenderTarget(positionVar).texture
+  material.uniforms.uPositionTexture.value = gpuCompute.getCurrentRenderTarget(positionVar).texture;
+  
+  controls.update();
+  renderer.render(scene, camera);
+  
+  if (frame++ % 30 === 0) {
+    statusEl.innerHTML = '<span class="ok">GPGPU Active: 256 Bodies, 65,536 gravity pairs/step</span>';
+  }
+}
+
+window.addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+animate();
+</script>
+</body>
+</html>

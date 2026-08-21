@@ -713,14 +713,14 @@
             <!-- Coordinate Grid Layer -->
             <g id="layer-grid"></g>
 
-            <!-- Horizon Inversion Circle Layer -->
-            <g id="layer-horizon">
+            <!-- Horizon Inversion Circle Layer (Mode 1 / Mode 2 / Mode 4) -->
+            <g id="layer-horizon" style="display: none;">
                 <circle id="horizon-glow" class="horizon-glow" cx="0" cy="0" r="100" />
                 <circle id="horizon-circle" class="horizon-circle" cx="0" cy="0" r="100" />
                 <circle id="horizon-barrier" class="horizon-barrier-ring" cx="0" cy="0" r="100" />
                 <circle id="origin-marker" cx="0" cy="0" r="3" fill="#ffd700" />
                 <text id="origin-label" x="8" y="-6" fill="#ffd700" font-size="10" font-family="monospace">O (0,0)</text>
-                <text id="horizon-label" x="105" y="15" fill="#ffd700" font-size="11" font-family="monospace">r = R (Uncrossable Horizon)</text>
+                <text id="horizon-label" x="105" y="15" fill="#ffd700" font-size="11" font-family="monospace">r = R (Inversion Horizon)</text>
             </g>
 
             <!-- Mode 1: Wikipedia Theorems Layer -->
@@ -876,11 +876,13 @@
 
     <!-- Controls Panel -->
     <div id="controls-panel" class="glass-panel">
-        <div class="control-row">
-            <span class="control-label">Global Horizon Radius (R)</span>
-            <span id="val-radius" class="control-value">120.0</span>
+        <div id="horizon-controls-group" style="display: none; flex-direction: column; gap: 8px;">
+            <div class="control-row">
+                <span class="control-label">Inversion Radius (R)</span>
+                <span id="val-radius" class="control-value">120.0</span>
+            </div>
+            <input type="range" id="slider-radius" min="50" max="220" step="1" value="120">
         </div>
-        <input type="range" id="slider-radius" min="50" max="220" step="1" value="120">
 
         <!-- Dynamic Controls for Mode 3: Planetary System -->
         <div id="planet-controls-group" style="display: flex; flex-direction: column; gap: 8px; margin-top: 4px;">
@@ -1012,11 +1014,11 @@
 
         /** SVG Viewport Pan & Zoom State */
         const viewport = {
-            cx: 260,
+            cx: 120,
             cy: 0,
             width: 900,
             height: 900,
-            zoom: 0.65,
+            zoom: 0.85,
             isDragging: false,
             startX: 0,
             startY: 0
@@ -1039,7 +1041,7 @@
 
         /* Mode 3 Astronomical Scale Planetary Parameters */
         const planetaryParams = {
-            sunPos: /** @type {[number, number]} */ ([160, 0]),
+            sunPos: /** @type {[number, number]} */ ([0, 0]),
             sunRadius: 180,
             planetDist: 310,
             planetRadius: 12,
@@ -1082,6 +1084,7 @@
         const svgViewport = /** @type {SVGSVGElement} */ (/** @type {any} */ (document.getElementById('svg-viewport')));
         const svgContainer = /** @type {HTMLElement} */ (/** @type {any} */ (document.getElementById('svg-container')));
         const layerGrid = /** @type {SVGGElement} */ (/** @type {any} */ (document.getElementById('layer-grid')));
+        const layerHorizon = /** @type {SVGGElement} */ (/** @type {any} */ (document.getElementById('layer-horizon')));
         const layerWiki = /** @type {SVGGElement} */ (/** @type {any} */ (document.getElementById('layer-wikipedia')));
         const layerGridMode = /** @type {SVGGElement} */ (/** @type {any} */ (document.getElementById('layer-conformal-grid')));
         const layerPlanetary = /** @type {SVGGElement} */ (/** @type {any} */ (document.getElementById('layer-planetary-system')));
@@ -1094,6 +1097,7 @@
         const horizonBarrier = /** @type {SVGCircleElement} */ (/** @type {any} */ (document.getElementById('horizon-barrier')));
         const horizonLabel = /** @type {SVGTextElement} */ (/** @type {any} */ (document.getElementById('horizon-label')));
 
+        const horizonControlsGroup = /** @type {HTMLElement} */ (/** @type {any} */ (document.getElementById('horizon-controls-group')));
         const cameraFocusContainer = /** @type {HTMLElement} */ (/** @type {any} */ (document.getElementById('camera-focus-container')));
         const sliderRadius = /** @type {HTMLInputElement} */ (/** @type {any} */ (document.getElementById('slider-radius')));
         const valRadius = /** @type {HTMLElement} */ (/** @type {any} */ (document.getElementById('val-radius')));
@@ -1387,10 +1391,6 @@
          */
         function renderPlanetarySystemMode() {
             layerHandles.innerHTML = '';
-
-            /** @type {[number, number]} */
-            const clampedSun = clampToExterior(planetaryParams.sunPos, R, planetaryParams.sunRadius + 4);
-            planetaryParams.sunPos = [clampedSun[0], clampedSun[1]];
 
             const recSys = evaluateRecursivePlanetarySystem2D(simTime, planetaryParams);
 
@@ -2202,8 +2202,7 @@
                 const clamped = clampToExterior([x, y], R, 2.0);
                 mirrorProbePos = [clamped[0], clamped[1]];
             } else if (handleId === 'planet-sun-handle') {
-                const clampedSun = clampToExterior([x, y], R, planetaryParams.sunRadius + 4);
-                planetaryParams.sunPos = [clampedSun[0], clampedSun[1]];
+                planetaryParams.sunPos = [x, y];
             } else if (handleId === 'planet-orbit-handle') {
                 const dist = Math.max(planetaryParams.sunRadius + 30, Math.hypot(x - planetaryParams.sunPos[0], y - planetaryParams.sunPos[1]));
                 planetaryParams.planetDist = dist;
@@ -2276,9 +2275,9 @@
 
             if (focus === 'system') {
                 hudCamFocus.textContent = 'SYSTEM (1:1)';
-                viewport.cx = 260;
+                viewport.cx = 120;
                 viewport.cy = 0;
-                viewport.zoom = 0.65;
+                viewport.zoom = 0.85;
             } else if (focus === 'sun') {
                 hudCamFocus.textContent = 'INSIDE SUN (k-AXIS ∞ CORE)';
                 viewport.cx = planetaryParams.sunPos[0];
@@ -2309,8 +2308,10 @@
             layerPlanetary.style.display = (mode === 'fourier_orbits' || mode === 'planetary_system') ? 'block' : 'none';
             layerSplats.style.display = mode === 'gaussian_splats' ? 'block' : 'none';
             layerMirror.style.display = mode === 'mirror_infinity' ? 'block' : 'none';
+            layerHorizon.style.display = (mode === 'wikipedia' || mode === 'conformal_grid' || mode === 'gaussian_splats' || mode === 'mirror_infinity') ? 'block' : 'none';
             layerHandles.style.display = (mode === 'wikipedia' || mode === 'gaussian_splats' || mode === 'mirror_infinity' || mode === 'fourier_orbits' || mode === 'planetary_system') ? 'block' : 'none';
 
+            horizonControlsGroup.style.display = (mode === 'wikipedia' || mode === 'conformal_grid' || mode === 'gaussian_splats' || mode === 'mirror_infinity') ? 'flex' : 'none';
             cameraFocusContainer.style.display = (mode === 'fourier_orbits' || mode === 'planetary_system') ? 'block' : 'none';
             planetControlsGroup.style.display = (mode === 'fourier_orbits' || mode === 'planetary_system') ? 'flex' : 'none';
             boxControlRow.style.display = mode === 'mirror_infinity' ? 'flex' : 'none';

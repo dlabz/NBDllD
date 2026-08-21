@@ -110,6 +110,21 @@ declare namespace CGA2D {
         };
     }
 
+    /** 2D Planetary System Orbital Configuration */
+    export interface PlanetaryParams2D {
+        sunPos?: Point2D;
+        sunRadius?: number;
+        planetDist?: number;
+        planetRadius?: number;
+        planetSpeed?: number;
+        planetPhase?: number;
+        moonDist?: number;
+        moonRadius?: number;
+        moonSpeed?: number;
+        moonPhase?: number;
+        hyperbolicWarp?: number;
+    }
+
     /** Celestial Body in 2D Planetary System */
     export interface CelestialBody2D {
         name: string;

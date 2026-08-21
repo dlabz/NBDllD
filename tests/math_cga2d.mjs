@@ -407,6 +407,7 @@ export function invertCosmicBox(halfL, R, samplesPerSide = 32) {
  * @property {number} [moonRadius] - Radius of Moon disk
  * @property {number} [moonSpeed] - Orbital frequency of Moon (rad/s)
  * @property {number} [moonPhase] - Initial phase of Moon
+ * @property {number} [hyperbolicWarp] - Hyperbolic metric exponent gamma (1.0 = raw Euclidean, < 1.0 = hyperbolic expansion)
  */
 
 /**
@@ -537,13 +538,15 @@ export function evaluatePlanetarySystem2D(t, params = {}, R = 120.0) {
 }
 
 /**
- * Invert a target circle into the interior mirror universe of an arbitrary host body (host center c_h, host radius R_h).
+ * Invert a target circle into the interior mirror universe of an arbitrary host body (host center c_h, host radius R_h),
+ * optionally applying an angle-preserving hyperbolic / logarithmic conformal radial metric warp to prevent cramming at the central singularity.
  * 
  * @param {{ cx: number, cy: number, r: number }} targetCircle - External body circle
  * @param {{ cx: number, cy: number, r: number }} hostCircle - Host body horizon circle
+ * @param {number} [warpGamma=1.0] - Hyperbolic exponent gamma (1.0 = raw Euclidean inversion, < 1.0 = hyperbolic metric expansion)
  * @returns {CGA2D.Circle}
  */
-export function invertCircleInHost(targetCircle, hostCircle) {
+export function invertCircleInHost(targetCircle, hostCircle, warpGamma = 1.0) {
     const dx = targetCircle.cx - hostCircle.cx;
     const dy = targetCircle.cy - hostCircle.cy;
     const distSq = dx * dx + dy * dy;
@@ -561,9 +564,22 @@ export function invertCircleInHost(targetCircle, hostCircle) {
     }
 
     const factor = R_hSq / denom;
-    const dualCx = hostCircle.cx + dx * factor;
-    const dualCy = hostCircle.cy + dy * factor;
-    const dualR = (R_hSq * targetCircle.r) / Math.abs(denom);
+    let dualCx = hostCircle.cx + dx * factor;
+    let dualCy = hostCircle.cy + dy * factor;
+    let dualR = (R_hSq * targetCircle.r) / Math.abs(denom);
+
+    if (warpGamma > 0 && warpGamma < 0.999) {
+        const offsetDist = Math.hypot(dualCx - hostCircle.cx, dualCy - hostCircle.cy);
+        const u = Math.min(1.0, offsetDist / hostCircle.r);
+        if (u > 1e-5) {
+            const uHyp = Math.pow(u, warpGamma);
+            const scale = (uHyp * hostCircle.r) / (offsetDist || 1);
+            dualCx = hostCircle.cx + (dualCx - hostCircle.cx) * scale;
+            dualCy = hostCircle.cy + (dualCy - hostCircle.cy) * scale;
+            const rScale = uHyp / u;
+            dualR = Math.min(dualR * rScale, hostCircle.r * Math.max(0.01, 1.0 - uHyp) * 0.48);
+        }
+    }
 
     return {
         type: 'circle',
@@ -593,6 +609,7 @@ export function evaluateRecursivePlanetarySystem2D(t, params = {}) {
     const moonRadius = params.moonRadius || 5;
     const moonSpeed = params.moonSpeed || 2.8;
     const moonPhase = params.moonPhase || 0;
+    const warpGamma = params.hyperbolicWarp || 1.0;
 
     // Primal Celestial Coordinates
     const thetaPlanet = planetSpeed * t + planetPhase;
@@ -620,8 +637,8 @@ export function evaluateRecursivePlanetarySystem2D(t, params = {}) {
 
     // 1. Inside the Sun (Host: Sun, Horizon R_sun, Center = Infinity_sun)
     // Hosts: Planet*(sun), Moon*(sun)
-    const planetInSun = invertCircleInHost(planetCircle, sunCircle);
-    const moonInSun = invertCircleInHost(moonCircle, sunCircle);
+    const planetInSun = invertCircleInHost(planetCircle, sunCircle, warpGamma);
+    const moonInSun = invertCircleInHost(moonCircle, sunCircle, warpGamma);
 
     /** @type {CGA2D.HostBodyUniverse2D} */
     const sunUniverse = {
@@ -635,8 +652,8 @@ export function evaluateRecursivePlanetarySystem2D(t, params = {}) {
 
     // 2. Inside the Planet (Host: Planet, Horizon R_planet, Center = Infinity_planet)
     // Hosts: Sun*(planet), Moon*(planet)
-    const sunInPlanet = invertCircleInHost(sunCircle, planetCircle);
-    const moonInPlanet = invertCircleInHost(moonCircle, planetCircle);
+    const sunInPlanet = invertCircleInHost(sunCircle, planetCircle, warpGamma);
+    const moonInPlanet = invertCircleInHost(moonCircle, planetCircle, warpGamma);
 
     /** @type {CGA2D.HostBodyUniverse2D} */
     const planetUniverse = {
@@ -650,8 +667,8 @@ export function evaluateRecursivePlanetarySystem2D(t, params = {}) {
 
     // 3. Inside the Moon (Host: Moon, Horizon R_moon, Center = Infinity_moon)
     // Hosts: Sun*(moon), Planet*(moon)
-    const sunInMoon = invertCircleInHost(sunCircle, moonCircle);
-    const planetInMoon = invertCircleInHost(planetCircle, moonCircle);
+    const sunInMoon = invertCircleInHost(sunCircle, moonCircle, warpGamma);
+    const planetInMoon = invertCircleInHost(planetCircle, moonCircle, warpGamma);
 
     /** @type {CGA2D.HostBodyUniverse2D} */
     const moonUniverse = {
@@ -1269,21 +1286,37 @@ export function evaluateRocheLobeContours2D(primary, secondary, lagrange, numPoi
 }
 
 /**
- * Invert all 5 Lagrange points of a system into the interior universe of a host body.
+ * Invert all 5 Lagrange points of a system into the interior universe of a host body,
+ * with optional hyperbolic metric warp.
  * 
  * @param {Array<CGA2D.LagrangePoint2D>} points
  * @param {{ cx: number, cy: number, r: number }} host
+ * @param {number} [warpGamma=1.0]
  * @returns {Array<CGA2D.LagrangePoint2D>}
  */
-export function evaluateLagrangeProjectionsInHost(points, host) {
+export function evaluateLagrangeProjectionsInHost(points, host, warpGamma = 1.0) {
     return points.map(pt => {
         const dx = pt.pos[0] - host.cx;
         const dy = pt.pos[1] - host.cy;
         const distSq = dx * dx + dy * dy;
         const factor = distSq > 1e-6 ? (host.r * host.r) / distSq : 0;
 
+        let px = host.cx + dx * factor;
+        let py = host.cy + dy * factor;
+
+        if (warpGamma > 0 && warpGamma < 0.999) {
+            const offsetDist = Math.hypot(px - host.cx, py - host.cy);
+            const u = Math.min(1.0, offsetDist / host.r);
+            if (u > 1e-5) {
+                const uHyp = Math.pow(u, warpGamma);
+                const scale = (uHyp * host.r) / (offsetDist || 1);
+                px = host.cx + (px - host.cx) * scale;
+                py = host.cy + (py - host.cy) * scale;
+            }
+        }
+
         /** @type {[number, number]} */
-        const invertedPos = [host.cx + dx * factor, host.cy + dy * factor];
+        const invertedPos = [px, py];
 
         return {
             id: `${pt.id}*(in-${host.r})`,

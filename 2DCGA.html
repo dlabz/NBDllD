@@ -355,6 +355,27 @@
             filter: drop-shadow(0 0 6px rgba(255, 0, 127, 0.9));
         }
 
+        .hyperbolic-geodesic-ring {
+            fill: none;
+            stroke: rgba(0, 240, 255, 0.16);
+            stroke-width: 0.5px;
+            stroke-dasharray: 2 2;
+        }
+
+        .hyperbolic-geodesic-ring-gold {
+            fill: none;
+            stroke: rgba(255, 215, 0, 0.16);
+            stroke-width: 0.5px;
+            stroke-dasharray: 3 2;
+        }
+
+        .hyperbolic-geodesic-ring-moon {
+            fill: none;
+            stroke: rgba(255, 0, 127, 0.16);
+            stroke-width: 0.4px;
+            stroke-dasharray: 2 1.5;
+        }
+
         .internal-sun-disk {
             fill: url(#sun-photosphere-grad);
             stroke: var(--accent-yellow);
@@ -768,6 +789,8 @@
                 <g id="group-sun-universe">
                     <circle id="planet-sun-corona" class="sun-corona" cx="0" cy="0" r="180" />
                     <circle id="planet-sun" class="sun-photosphere" cx="0" cy="0" r="180" />
+                    <!-- Hyperbolic Geodesic Funnel (Omnidirectional Infinity Depths) -->
+                    <g id="sun-hyperbolic-funnel"></g>
                     <!-- Inside Sun: Singularity Center, Conformal Dual Optics & Inverted Bodies -->
                     <circle id="sun-singularity-core" class="singularity-sun-core" cx="0" cy="0" r="9" />
                     <text id="sun-singularity-label" x="0" y="16" text-anchor="middle" fill="#00f0ff" font-size="7" font-family="monospace">∞</text>
@@ -785,6 +808,8 @@
                     <path id="planet-zone-dawn" class="zone-twilight-planet" d="" />
                     <path id="planet-zone-day" class="zone-day-planet" d="" />
                     <path id="planet-zone-dusk" class="zone-twilight-planet" d="" />
+                    <!-- Hyperbolic Geodesic Funnel (Omnidirectional Infinity Depths) -->
+                    <g id="planet-hyperbolic-funnel"></g>
                     <!-- Inside Planet: Singularity Center, Conformal Dual Optics & Inverted Bodies -->
                     <circle id="planet-singularity-core" class="singularity-planet-core" cx="0" cy="0" r="2.5" />
                     <g id="planet-internal-optics"></g>
@@ -800,6 +825,8 @@
                     <path id="moon-zone-dawn" class="zone-twilight-moon" d="" />
                     <path id="moon-zone-day" class="zone-day-moon" d="" />
                     <path id="moon-zone-dusk" class="zone-twilight-moon" d="" />
+                    <!-- Hyperbolic Geodesic Funnel (Omnidirectional Infinity Depths) -->
+                    <g id="moon-hyperbolic-funnel"></g>
                     <!-- Inside Moon: Singularity Center, Conformal Dual Optics & Inverted Bodies -->
                     <circle id="moon-singularity-core" class="singularity-moon-core" cx="0" cy="0" r="1.2" />
                     <g id="moon-internal-optics"></g>
@@ -915,6 +942,12 @@
                 <span id="val-moon-speed" class="control-value">2.40 rad/s</span>
             </div>
             <input type="range" id="slider-moon-speed" min="0.5" max="8.0" step="0.1" value="2.4">
+
+            <div class="control-row">
+                <span class="control-label">Hyperbolic Depth Warp (γ)</span>
+                <span id="val-hyperbolic-warp" class="control-value">0.55</span>
+            </div>
+            <input type="range" id="slider-hyperbolic-warp" min="0.30" max="1.00" step="0.02" value="0.55">
         </div>
 
         <!-- Dynamic Controls for Mode 5: Cosmic Box L -->
@@ -1048,7 +1081,8 @@
             planetSpeed: 0.4,
             moonDist: 38,
             moonRadius: 3.8,
-            moonSpeed: 2.4
+            moonSpeed: 2.4,
+            hyperbolicWarp: 0.55
         };
         /** @type {Array<[number, number]>} */
         const planetOrbitTrail = [];
@@ -1116,6 +1150,8 @@
         const valPlanetSpeed = /** @type {HTMLElement} */ (/** @type {any} */ (document.getElementById('val-planet-speed')));
         const sliderMoonSpeed = /** @type {HTMLInputElement} */ (/** @type {any} */ (document.getElementById('slider-moon-speed')));
         const valMoonSpeed = /** @type {HTMLElement} */ (/** @type {any} */ (document.getElementById('val-moon-speed')));
+        const sliderHyperbolicWarp = /** @type {HTMLInputElement} */ (/** @type {any} */ (document.getElementById('slider-hyperbolic-warp')));
+        const valHyperbolicWarp = /** @type {HTMLElement} */ (/** @type {any} */ (document.getElementById('val-hyperbolic-warp')));
 
         const hudTime = /** @type {HTMLElement} */ (/** @type {any} */ (document.getElementById('hud-time')));
         const hudFps = /** @type {HTMLElement} */ (/** @type {any} */ (document.getElementById('hud-fps')));
@@ -1501,10 +1537,13 @@
             const lagrangeGroup = /** @type {SVGGElement} */ (/** @type {any} */ (document.getElementById('group-lagrange-points')));
             lagrangeGroup.innerHTML = '';
 
+            const dotR_SP = Math.max(0.5, 2.5 / Math.sqrt(viewport.zoom));
+            const dotR_PM = Math.max(0.3, 2.0 / Math.sqrt(viewport.zoom));
+
             recSys.sunPlanetLagrange?.allPoints.forEach(pt => {
                 const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
                 dot.setAttribute('cx', String(pt.pos[0])); dot.setAttribute('cy', String(pt.pos[1]));
-                dot.setAttribute('r', '2.5');
+                dot.setAttribute('r', String(dotR_SP));
                 dot.setAttribute('class', 'lagrange-dot-sp');
                 lagrangeGroup.appendChild(dot);
 
@@ -1520,11 +1559,11 @@
             recSys.planetMoonLagrange?.allPoints.forEach(pt => {
                 const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
                 dot.setAttribute('cx', String(pt.pos[0])); dot.setAttribute('cy', String(pt.pos[1]));
-                dot.setAttribute('r', '2');
+                dot.setAttribute('r', String(dotR_PM));
                 dot.setAttribute('class', 'lagrange-dot-pm');
                 lagrangeGroup.appendChild(dot);
 
-                if (viewport.zoom > 0.8) {
+                if (viewport.zoom > 0.8 && viewport.zoom < 15.0) {
                     const txt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
                     txt.setAttribute('x', String(pt.pos[0] + 4)); txt.setAttribute('y', String(pt.pos[1] + 3));
                     txt.setAttribute('class', 'lagrange-label-pm');
@@ -1608,6 +1647,7 @@
             const sunCorona = /** @type {SVGCircleElement} */ (/** @type {any} */ (document.getElementById('planet-sun-corona')));
             const sunSingularity = /** @type {SVGCircleElement} */ (/** @type {any} */ (document.getElementById('sun-singularity-core')));
             const sunSingularityLabel = /** @type {SVGTextElement} */ (/** @type {any} */ (document.getElementById('sun-singularity-label')));
+            const sunFunnelGroup = /** @type {SVGGElement} */ (/** @type {any} */ (document.getElementById('sun-hyperbolic-funnel')));
             const planetInSunElem = /** @type {SVGCircleElement} */ (/** @type {any} */ (document.getElementById('planet-in-sun')));
             const moonInSunElem = /** @type {SVGCircleElement} */ (/** @type {any} */ (document.getElementById('moon-in-sun')));
             const sunInternalOpticsGroup = /** @type {SVGGElement} */ (/** @type {any} */ (document.getElementById('sun-internal-optics')));
@@ -1623,9 +1663,23 @@
 
             sunSingularity.setAttribute('cx', String(recSys.sunUniverse.singularityCenter[0]));
             sunSingularity.setAttribute('cy', String(recSys.sunUniverse.singularityCenter[1]));
+            sunSingularity.setAttribute('r', String(Math.max(1.0, 9.0 / Math.sqrt(viewport.zoom))));
 
             sunSingularityLabel.setAttribute('x', String(recSys.sunUniverse.singularityCenter[0]));
             sunSingularityLabel.setAttribute('y', String(recSys.sunUniverse.singularityCenter[1] + 16));
+
+            // Concentric Hyperbolic Geodesic Funnel Rings inside Sun
+            if (sunFunnelGroup) {
+                sunFunnelGroup.innerHTML = '';
+                [0.75, 0.52, 0.32, 0.18, 0.08].forEach(frac => {
+                    const ring = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                    ring.setAttribute('cx', String(sunHost.pos[0]));
+                    ring.setAttribute('cy', String(sunHost.pos[1]));
+                    ring.setAttribute('r', String(sunHost.radius * frac));
+                    ring.setAttribute('class', 'hyperbolic-geodesic-ring-gold');
+                    sunFunnelGroup.appendChild(ring);
+                });
+            }
 
             // Dual Conformal Optics Circles inside Sun
             sunInternalOpticsGroup.innerHTML = '';
@@ -1642,17 +1696,17 @@
 
             planetInSunElem.setAttribute('cx', String(pInSun.pos[0]));
             planetInSunElem.setAttribute('cy', String(pInSun.pos[1]));
-            planetInSunElem.setAttribute('r', String(Math.max(2.0, pInSun.radius)));
+            planetInSunElem.setAttribute('r', String(Math.max(2.5, pInSun.radius)));
 
             moonInSunElem.setAttribute('cx', String(mInSun.pos[0]));
             moonInSunElem.setAttribute('cy', String(mInSun.pos[1]));
-            moonInSunElem.setAttribute('r', String(Math.max(1.2, mInSun.radius)));
+            moonInSunElem.setAttribute('r', String(Math.max(1.5, mInSun.radius)));
 
             sunInternalLagrangeGroup.innerHTML = '';
             recSys.sunUniverse.internalLagrangePoints?.forEach(pt => {
                 const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
                 dot.setAttribute('cx', String(pt.pos[0])); dot.setAttribute('cy', String(pt.pos[1]));
-                dot.setAttribute('r', '1.2');
+                dot.setAttribute('r', String(Math.max(0.4, 1.4 / Math.sqrt(viewport.zoom))));
                 dot.setAttribute('fill', pt.color || '#ff3344');
                 dot.setAttribute('stroke', '#ffffff');
                 dot.setAttribute('stroke-width', '0.4px');
@@ -1666,6 +1720,7 @@
             const pZoneDusk = /** @type {SVGPathElement} */ (/** @type {any} */ (document.getElementById('planet-zone-dusk')));
 
             const planetSingularity = /** @type {SVGCircleElement} */ (/** @type {any} */ (document.getElementById('planet-singularity-core')));
+            const planetFunnelGroup = /** @type {SVGGElement} */ (/** @type {any} */ (document.getElementById('planet-hyperbolic-funnel')));
             const planetInternalOpticsGroup = /** @type {SVGGElement} */ (/** @type {any} */ (document.getElementById('planet-internal-optics')));
             const sunInPlanetElem = /** @type {SVGCircleElement} */ (/** @type {any} */ (document.getElementById('sun-in-planet')));
             const moonInPlanetElem = /** @type {SVGCircleElement} */ (/** @type {any} */ (document.getElementById('moon-in-planet')));
@@ -1686,6 +1741,20 @@
 
             planetSingularity.setAttribute('cx', String(recSys.planetUniverse.singularityCenter[0]));
             planetSingularity.setAttribute('cy', String(recSys.planetUniverse.singularityCenter[1]));
+            planetSingularity.setAttribute('r', String(Math.max(0.35, 2.5 / Math.sqrt(viewport.zoom))));
+
+            // Concentric Hyperbolic Geodesic Funnel Rings inside Planet
+            if (planetFunnelGroup) {
+                planetFunnelGroup.innerHTML = '';
+                [0.72, 0.48, 0.28, 0.12].forEach(frac => {
+                    const ring = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                    ring.setAttribute('cx', String(planetHost.pos[0]));
+                    ring.setAttribute('cy', String(planetHost.pos[1]));
+                    ring.setAttribute('r', String(planetHost.radius * frac));
+                    ring.setAttribute('class', 'hyperbolic-geodesic-ring');
+                    planetFunnelGroup.appendChild(ring);
+                });
+            }
 
             // Dual Conformal Optics Circles inside Planet
             planetInternalOpticsGroup.innerHTML = '';
@@ -1702,20 +1771,20 @@
 
             sunInPlanetElem.setAttribute('cx', String(sInPlanet.pos[0]));
             sunInPlanetElem.setAttribute('cy', String(sInPlanet.pos[1]));
-            sunInPlanetElem.setAttribute('r', String(Math.max(1.2, sInPlanet.radius)));
+            sunInPlanetElem.setAttribute('r', String(Math.max(0.6, Math.min(sInPlanet.radius, planetHost.radius * 0.25))));
 
             moonInPlanetElem.setAttribute('cx', String(mInPlanet.pos[0]));
             moonInPlanetElem.setAttribute('cy', String(mInPlanet.pos[1]));
-            moonInPlanetElem.setAttribute('r', String(Math.max(0.7, mInPlanet.radius)));
+            moonInPlanetElem.setAttribute('r', String(Math.max(0.3, Math.min(mInPlanet.radius, planetHost.radius * 0.15))));
 
             planetInternalLagrangeGroup.innerHTML = '';
             recSys.planetUniverse.internalLagrangePoints?.forEach(pt => {
                 const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
                 dot.setAttribute('cx', String(pt.pos[0])); dot.setAttribute('cy', String(pt.pos[1]));
-                dot.setAttribute('r', '1.0');
+                dot.setAttribute('r', String(Math.max(0.08, 0.45 / Math.sqrt(viewport.zoom))));
                 dot.setAttribute('fill', pt.color || '#00ff66');
                 dot.setAttribute('stroke', '#ffffff');
-                dot.setAttribute('stroke-width', '0.4px');
+                dot.setAttribute('stroke-width', '0.2px');
                 planetInternalLagrangeGroup.appendChild(dot);
             });
 
@@ -1726,6 +1795,7 @@
             const mZoneDusk = /** @type {SVGPathElement} */ (/** @type {any} */ (document.getElementById('moon-zone-dusk')));
 
             const moonSingularity = /** @type {SVGCircleElement} */ (/** @type {any} */ (document.getElementById('moon-singularity-core')));
+            const moonFunnelGroup = /** @type {SVGGElement} */ (/** @type {any} */ (document.getElementById('moon-hyperbolic-funnel')));
             const moonInternalOpticsGroup = /** @type {SVGGElement} */ (/** @type {any} */ (document.getElementById('moon-internal-optics')));
             const sunInMoonElem = /** @type {SVGCircleElement} */ (/** @type {any} */ (document.getElementById('sun-in-moon')));
             const planetInMoonElem = /** @type {SVGCircleElement} */ (/** @type {any} */ (document.getElementById('planet-in-moon')));
@@ -1745,6 +1815,20 @@
 
             moonSingularity.setAttribute('cx', String(recSys.moonUniverse.singularityCenter[0]));
             moonSingularity.setAttribute('cy', String(recSys.moonUniverse.singularityCenter[1]));
+            moonSingularity.setAttribute('r', String(Math.max(0.18, 1.2 / Math.sqrt(viewport.zoom))));
+
+            // Concentric Hyperbolic Geodesic Funnel Rings inside Moon
+            if (moonFunnelGroup) {
+                moonFunnelGroup.innerHTML = '';
+                [0.70, 0.42, 0.20].forEach(frac => {
+                    const ring = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                    ring.setAttribute('cx', String(moonHost.pos[0]));
+                    ring.setAttribute('cy', String(moonHost.pos[1]));
+                    ring.setAttribute('r', String(moonHost.radius * frac));
+                    ring.setAttribute('class', 'hyperbolic-geodesic-ring-moon');
+                    moonFunnelGroup.appendChild(ring);
+                });
+            }
 
             // Dual Conformal Optics Circles inside Moon
             moonInternalOpticsGroup.innerHTML = '';
@@ -1761,21 +1845,21 @@
 
             sunInMoonElem.setAttribute('cx', String(sInMoon.pos[0]));
             sunInMoonElem.setAttribute('cy', String(sInMoon.pos[1]));
-            sunInMoonElem.setAttribute('r', String(Math.max(0.8, sInMoon.radius)));
+            sunInMoonElem.setAttribute('r', String(Math.max(0.2, Math.min(sInMoon.radius, moonHost.radius * 0.25))));
 
             planetInMoonElem.setAttribute('cx', String(pInMoon.pos[0]));
             planetInMoonElem.setAttribute('cy', String(pInMoon.pos[1]));
-            planetInMoonElem.setAttribute('r', String(Math.max(0.6, pInMoon.radius)));
+            planetInMoonElem.setAttribute('r', String(Math.max(0.15, Math.min(pInMoon.radius, moonHost.radius * 0.18))));
 
             // Inside Moon: Thin internal Lagrange dual points
             moonInternalLagrangeGroup.innerHTML = '';
             recSys.moonUniverse.internalLagrangePoints?.forEach(pt => {
                 const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
                 dot.setAttribute('cx', String(pt.pos[0])); dot.setAttribute('cy', String(pt.pos[1]));
-                dot.setAttribute('r', '0.6');
+                dot.setAttribute('r', String(Math.max(0.04, 0.25 / Math.sqrt(viewport.zoom))));
                 dot.setAttribute('fill', '#00ff66');
                 dot.setAttribute('stroke', '#ffffff');
-                dot.setAttribute('stroke-width', '0.3px');
+                dot.setAttribute('stroke-width', '0.15px');
                 moonInternalLagrangeGroup.appendChild(dot);
             });
 
@@ -2267,6 +2351,12 @@
         sliderMoonSpeed.addEventListener('input', () => {
             planetaryParams.moonSpeed = parseFloat(sliderMoonSpeed.value);
             valMoonSpeed.textContent = `${planetaryParams.moonSpeed.toFixed(2)} rad/s`;
+        });
+
+        sliderHyperbolicWarp.addEventListener('input', () => {
+            planetaryParams.hyperbolicWarp = parseFloat(sliderHyperbolicWarp.value);
+            valHyperbolicWarp.textContent = planetaryParams.hyperbolicWarp.toFixed(2);
+            if (activeMode === 'planetary_system' || activeMode === 'fourier_orbits') renderPlanetarySystemMode();
         });
 
         /** @type {any} */ (window).focusCamera = (/** @type {string} */ focus) => {

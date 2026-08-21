@@ -567,6 +567,30 @@ test('Boundary Reach Inversion: Points at boundary are invariant, while infinity
     assertClose(pInvFar[1], sunPos[1], 1e-4, 'Infinity Y collapses to center');
 });
 
+// 26. Hyperbolic Conformal Metric Depth Expansion Invariant
+test('Hyperbolic Metric Expansion: Expands cramped internal objects away from singularity while preserving boundary horizon', () => {
+    const host = { cx: 0.0, cy: 0.0, r: 20.0 };
+    const distantTarget = { cx: 400.0, cy: 0.0, r: 10.0 }; // Very distant object (d = 20 * R)
+
+    // 1. Raw Euclidean Inversion (gamma = 1.0)
+    const rawDual = invertCircleInHost(distantTarget, host, 1.0);
+    // 2. Hyperbolic Warped Inversion (gamma = 0.55)
+    const hypDual = invertCircleInHost(distantTarget, host, 0.55);
+
+    // Both must reside strictly inside host
+    assert(hypDual.cx > host.cx && hypDual.cx < host.r, 'Hyperbolic dual must remain strictly inside host horizon');
+    assert(Math.abs(hypDual.cy - host.cy) < 1e-4, 'Hyperbolic dual must preserve radial collinearity angle');
+
+    // Hyperbolic warp expands distance from crammed center: hypDual.cx > rawDual.cx
+    assert(hypDual.cx > rawDual.cx * 2.5, 'Hyperbolic expansion must give internal bodies breathing room away from singularity');
+    assert(hypDual.r > rawDual.r * 2.0, 'Hyperbolic expansion must scale visual radius proportionally');
+
+    // Boundary horizon invariance test: Target on horizon (d = R) must map to horizon under any gamma
+    const horizonTarget = { cx: 20.0, cy: 0.0, r: 0.0 };
+    const hypHorizon = invertCircleInHost(horizonTarget, host, 0.55);
+    assertClose(hypHorizon.cx, 20.0, 1e-4, 'Horizon boundary remains strictly invariant under hyperbolic warp');
+});
+
 // Summary
 const total = results.length;
 const passed = results.filter(r => r.passed).length;

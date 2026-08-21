@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3DGSIL & 2DCGA — Inversive Multiverse & Conformal Optics</title>
+    <meta name="description" content="5D Conformal Geometric Algebra (CGA), Projective Inverted Occlusion, and Analytic Multiverse Demos.">
+    <style>
+        :root {
+            --bg-base: #030712;
+            --card-bg: rgba(15, 23, 42, 0.75);
+            --card-border: rgba(0, 240, 255, 0.2);
+            --accent-cyan: #00f0ff;
+            --accent-gold: #ffd700;
+            --accent-magenta: #ff007f;
+            --accent-green: #00ff66;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+            background: var(--bg-base);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 2rem 1.5rem;
+            background-image: 
+                radial-gradient(circle at 50% 0%, rgba(0, 240, 255, 0.12) 0%, transparent 60%),
+                radial-gradient(circle at 80% 80%, rgba(255, 0, 127, 0.08) 0%, transparent 50%);
+        }
+
+        header {
+            max-width: 900px;
+            width: 100%;
+            text-align: center;
+            margin-bottom: 2.5rem;
+        }
+
+        h1 {
+            font-size: 2.4rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, #00f0ff 0%, #ffd700 50%, #ff007f 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.75rem;
+            letter-spacing: -0.02em;
+        }
+
+        p.subtitle {
+            font-size: 1.1rem;
+            color: var(--text-muted);
+            line-height: 1.6;
+        }
+
+        .featured-card {
+            max-width: 900px;
+            width: 100%;
+            background: linear-gradient(145deg, rgba(15, 23, 42, 0.9), rgba(30, 41, 59, 0.8));
+            border: 1.5px solid var(--accent-cyan);
+            border-radius: 16px;
+            padding: 2rem;
+            margin-bottom: 2.5rem;
+            box-shadow: 0 0 35px rgba(0, 240, 255, 0.15);
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            text-decoration: none;
+            color: inherit;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .featured-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 0 45px rgba(0, 240, 255, 0.3);
+        }
+
+        .badge {
+            align-self: flex-start;
+            background: rgba(0, 240, 255, 0.15);
+            color: var(--accent-cyan);
+            padding: 0.35rem 0.85rem;
+            border-radius: 9999px;
+            font-size: 0.8rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            border: 1px solid rgba(0, 240, 255, 0.3);
+        }
+
+        .featured-title {
+            font-size: 1.6rem;
+            font-weight: 700;
+            color: #fff;
+        }
+
+        .featured-desc {
+            color: var(--text-muted);
+            font-size: 1rem;
+            line-height: 1.5;
+        }
+
+        .grid {
+            max-width: 900px;
+            width: 100%;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+            gap: 1.25rem;
+            margin-bottom: 3rem;
+        }
+
+        .demo-card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            text-decoration: none;
+            color: inherit;
+            backdrop-filter: blur(12px);
+            transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .demo-card:hover {
+            transform: translateY(-3px);
+            border-color: var(--accent-cyan);
+            box-shadow: 0 8px 25px rgba(0, 240, 255, 0.15);
+        }
+
+        .demo-card h3 {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: #fff;
+        }
+
+        .demo-card p {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            line-height: 1.4;
+            flex-grow: 1;
+        }
+
+        .demo-link {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--accent-cyan);
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
+        footer {
+            margin-top: auto;
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            text-align: center;
+        }
+
+        footer a {
+            color: var(--accent-cyan);
+            text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>3DGSIL & 2DCGA Multiverse</h1>
+        <p class="subtitle">5D Conformal Geometric Algebra, Inversive Celestial Multiverse, and Projective Raytracing</p>
+    </header>
+
+    <a href="2DCGA.html" class="featured-card">
+        <span class="badge">Featured Demo</span>
+        <div class="featured-title">🪐 2DCGA 4-Tangent Conformal Optics & CAD Inversive Multiverse</div>
+        <div class="featured-desc">
+            Complete interactive 5-mode visualization featuring the 4 extended common tangents, 4 exact illumination zones, complex k-axis singularity, CAD & Lagrange dual sub-universes, and hyperbolic coordinate funnel collapse.
+        </div>
+        <div class="demo-link">Launch 2DCGA.html →</div>
+    </a>
+
+    <div class="grid">
+        <a href="tests/test_runner.html" class="demo-card">
+            <h3>🧪 Math & Invariant Test Suite</h3>
+            <p>Interactive test runner verifying 14 3D CGA invariants, 26 2D CGA theorems, and live numerical stability benchmarks.</p>
+            <div class="demo-link">Run Tests →</div>
+        </a>
+
+        <a href="one_sphere_universe.html" class="demo-card">
+            <h3>🔮 One-Sphere Universe</h3>
+            <p>Interactive single-horizon spherical inversion showing coordinate reflection, metric warp, and boundary invariants.</p>
+            <div class="demo-link">Open Demo →</div>
+        </a>
+
+        <a href="webgpu_star_clusters.html" class="demo-card">
+            <h3>✨ WebGPU Star Clusters</h3>
+            <p>High-performance WebGPU compute and particle renderer simulating gravitational star clusters with projective inversion.</p>
+            <div class="demo-link">Open Demo →</div>
+        </a>
+
+        <a href="gravity_viewer.html" class="demo-card">
+            <h3>🌌 Gravity Viewer</h3>
+            <p>2D and 3D celestial orbital simulation with symplectic Verlet integration and real-time energy diagnostics.</p>
+            <div class="demo-link">Open Demo →</div>
+        </a>
+
+        <a href="nbody_projective_v6.html" class="demo-card">
+            <h3>🪐 N-Body Projective Inversion (v6)</h3>
+            <p>64-body WebGPU compute simulation with dynamic Center of Mass rebasing and analytic raytraced rendering.</p>
+            <div class="demo-link">Open Demo →</div>
+        </a>
+
+        <a href="tangent_viewer.html" class="demo-card">
+            <h3>📐 4-Tangent Geometric Solver</h3>
+            <p>Analytical solver for direct and transverse tangent lines, circle of antisimilitude, and umbra/penumbra geometry.</p>
+            <div class="demo-link">Open Demo →</div>
+        </a>
+    </div>
+
+    <footer>
+        <p>Built with Zero-Build Vanilla ECMAScript & WebGPU | <a href="https://github.com/dlabz/NBDllD" target="_blank" rel="noopener">GitHub Repository</a></p>
+    </footer>
+</body>
+</html>

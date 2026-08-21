@@ -376,6 +376,24 @@
             stroke-dasharray: 2 1.5;
         }
 
+        .hyperbolic-convergent-ray {
+            stroke: rgba(0, 240, 255, 0.14);
+            stroke-width: 0.4px;
+            stroke-dasharray: 2 3;
+        }
+
+        .hyperbolic-convergent-ray-gold {
+            stroke: rgba(255, 215, 0, 0.14);
+            stroke-width: 0.4px;
+            stroke-dasharray: 3 3;
+        }
+
+        .hyperbolic-convergent-ray-moon {
+            stroke: rgba(255, 0, 127, 0.14);
+            stroke-width: 0.35px;
+            stroke-dasharray: 2 2.5;
+        }
+
         .internal-sun-disk {
             fill: url(#sun-photosphere-grad);
             stroke: var(--accent-yellow);
@@ -1668,9 +1686,20 @@
             sunSingularityLabel.setAttribute('x', String(recSys.sunUniverse.singularityCenter[0]));
             sunSingularityLabel.setAttribute('y', String(recSys.sunUniverse.singularityCenter[1] + 16));
 
-            // Concentric Hyperbolic Geodesic Funnel Rings inside Sun
+            // Concentric Hyperbolic Geodesic Funnel Rings & Converging Polar Rays inside Sun
             if (sunFunnelGroup) {
                 sunFunnelGroup.innerHTML = '';
+                // 8 Convergent Polar Rays: Lines from horizon boundary to central infinity (0,0)
+                for (let a = 0; a < 8; a++) {
+                    const angle = (a / 8) * 2 * Math.PI;
+                    const ray = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                    ray.setAttribute('x1', String(sunHost.pos[0] + sunHost.radius * Math.cos(angle)));
+                    ray.setAttribute('y1', String(sunHost.pos[1] + sunHost.radius * Math.sin(angle)));
+                    ray.setAttribute('x2', String(sunHost.pos[0]));
+                    ray.setAttribute('y2', String(sunHost.pos[1]));
+                    ray.setAttribute('class', 'hyperbolic-convergent-ray-gold');
+                    sunFunnelGroup.appendChild(ray);
+                }
                 [0.75, 0.52, 0.32, 0.18, 0.08].forEach(frac => {
                     const ring = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
                     ring.setAttribute('cx', String(sunHost.pos[0]));
@@ -1742,9 +1771,20 @@
             planetSingularity.setAttribute('cy', String(recSys.planetUniverse.singularityCenter[1]));
             planetSingularity.setAttribute('r', String(Math.max(0.35, 2.5 / Math.sqrt(viewport.zoom))));
 
-            // Concentric Hyperbolic Geodesic Funnel Rings inside Planet
+            // Concentric Hyperbolic Geodesic Funnel Rings & Converging Polar Rays inside Planet
             if (planetFunnelGroup) {
                 planetFunnelGroup.innerHTML = '';
+                // 8 Convergent Polar Rays: Lines from horizon boundary to central infinity (0,0)
+                for (let a = 0; a < 8; a++) {
+                    const angle = (a / 8) * 2 * Math.PI;
+                    const ray = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                    ray.setAttribute('x1', String(planetHost.pos[0] + planetHost.radius * Math.cos(angle)));
+                    ray.setAttribute('y1', String(planetHost.pos[1] + planetHost.radius * Math.sin(angle)));
+                    ray.setAttribute('x2', String(planetHost.pos[0]));
+                    ray.setAttribute('y2', String(planetHost.pos[1]));
+                    ray.setAttribute('class', 'hyperbolic-convergent-ray');
+                    planetFunnelGroup.appendChild(ray);
+                }
                 [0.72, 0.48, 0.28, 0.12].forEach(frac => {
                     const ring = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
                     ring.setAttribute('cx', String(planetHost.pos[0]));
@@ -1815,9 +1855,20 @@
             moonSingularity.setAttribute('cy', String(recSys.moonUniverse.singularityCenter[1]));
             moonSingularity.setAttribute('r', String(Math.max(0.18, 1.2 / Math.sqrt(viewport.zoom))));
 
-            // Concentric Hyperbolic Geodesic Funnel Rings inside Moon
+            // Concentric Hyperbolic Geodesic Funnel Rings & Converging Polar Rays inside Moon
             if (moonFunnelGroup) {
                 moonFunnelGroup.innerHTML = '';
+                // 8 Convergent Polar Rays: Lines from horizon boundary to central infinity (0,0)
+                for (let a = 0; a < 8; a++) {
+                    const angle = (a / 8) * 2 * Math.PI;
+                    const ray = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                    ray.setAttribute('x1', String(moonHost.pos[0] + moonHost.radius * Math.cos(angle)));
+                    ray.setAttribute('y1', String(moonHost.pos[1] + moonHost.radius * Math.sin(angle)));
+                    ray.setAttribute('x2', String(moonHost.pos[0]));
+                    ray.setAttribute('y2', String(moonHost.pos[1]));
+                    ray.setAttribute('class', 'hyperbolic-convergent-ray-moon');
+                    moonFunnelGroup.appendChild(ray);
+                }
                 [0.70, 0.42, 0.20].forEach(frac => {
                     const ring = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
                     ring.setAttribute('cx', String(moonHost.pos[0]));

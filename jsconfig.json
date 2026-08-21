@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "checkJs": true,
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "node",
+    "lib": ["DOM", "DOM.Iterable", "ESNext"],
+    "allowJs": true,
+    "strict": false,
+    "typeRoots": ["./types"]
+  },
+  "include": [
+    "**/*.js",
+    "**/*.mjs",
+    "**/*.d.ts",
+    "**/*.html",
+    "types/**/*",
+    "tests/**/*"
+  ]
+}

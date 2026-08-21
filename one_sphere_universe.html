@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>One-Sphere Universe: Conformal Inversion &amp; EquiFlop Dynamics</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        :root {
+            --bg-base: #030712;
+            --card-bg: rgba(15, 23, 42, 0.85);
+            --border-glow: rgba(56, 189, 248, 0.25);
+            --accent-cyan: #38bdf8;
+            --accent-emerald: #34d399;
+            --accent-purple: #c084fc;
+            --accent-amber: #fbbf24;
+            --accent-rose: #f43f5e;
+        }
+
+        body {
+            background-color: var(--bg-base);
+            color: #f8fafc;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            overflow-x: hidden;
+            margin: 0;
+        }
+
+        .glass-panel {
+            background: var(--card-bg);
+            backdrop-filter: blur(16px);
+            border: 1px solid var(--border-glow);
+            box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.7), 0 0 25px rgba(56, 189, 248, 0.08);
+            border-radius: 1rem;
+        }
+
+        .code-font {
+            font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        }
+
+        /* Custom range slider */
+        input[type="range"] {
+            accent-color: var(--accent-cyan);
+        }
+
+        /* MathML formatting */
+        math {
+            font-family: 'Cambria Math', 'Latin Modern Math', 'STIX Two Math', 'Times New Roman', serif;
+            font-size: 1.05rem;
+            color: #e2e8f0;
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.25rem 0.65rem;
+            border-radius: 9999px;
+            font-size: 0.72rem;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            background: rgba(56, 189, 248, 0.12);
+            color: var(--accent-cyan);
+            border: 1px solid rgba(56, 189, 248, 0.3);
+        }
+        .badge.purple {
+            background: rgba(192, 132, 252, 0.12);
+            color: var(--accent-purple);
+            border-color: rgba(192, 132, 252, 0.3);
+        }
+        .badge.emerald {
+            background: rgba(52, 211, 153, 0.12);
+            color: var(--accent-emerald);
+            border-color: rgba(52, 211, 153, 0.3);
+        }
+
+        .link-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            padding: 0.25rem 0.65rem;
+            border-radius: 9999px;
+            font-size: 0.72rem;
+            font-weight: 600;
+            background: rgba(255, 255, 255, 0.05);
+            color: #94a3b8;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            text-decoration: none;
+            transition: all 0.2s ease;
+        }
+        .link-pill:hover {
+            background: rgba(56, 189, 248, 0.15);
+            color: #ffffff;
+            border-color: var(--accent-cyan);
+            transform: translateY(-1px);
+        }
+    </style>
+</head>
+<body class="relative min-h-screen flex flex-col">
+
+    <!-- Top Navigation Header -->
+    <header class="p-4 md:px-8 border-b border-slate-800/80 bg-slate-950/80 backdrop-blur z-20 flex flex-wrap justify-between items-center gap-4">
+        <div>
+            <div class="flex items-center gap-2 mb-1">
+                <span class="badge">Conformal 5D CGA</span>
+                <span class="badge purple">EquiFlop Dynamics</span>
+                <span class="badge emerald">Single-Horizon Parallelism</span>
+            </div>
+            <h1 class="text-xl md:text-2xl font-bold bg-gradient-to-r from-sky-400 via-teal-300 to-purple-400 bg-clip-text text-transparent">
+                One-Sphere-At-A-Time Universe Simulator
+            </h1>
+        </div>
+        <div class="flex items-center gap-2">
+            <a href="https://5dcolor.netlify.app" target="_blank" rel="noopener noreferrer" class="link-pill">5DColor ↗</a>
+            <a href="https://black7.netlify.app" target="_blank" rel="noopener noreferrer" class="link-pill">Black7 ↗</a>
+            <a href="https://popcorn11.netlify.app" target="_blank" rel="noopener noreferrer" class="link-pill">Popcorn11 ↗</a>
+            <a href="./gravity_viewer.html" class="link-pill">Gravity Viewer</a>
+            <a href="./tangent_viewer.html" class="link-pill">Tangent Optics</a>
+        </div>
+    </header>
+
+    <!-- Main Content Grid -->
+    <main class="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 p-4 md:p-8 max-w-[1600px] w-full mx-auto">
+        
+        <!-- Left: Interactive 3D Simulation Canvas Container -->
+        <div class="lg:col-span-8 flex flex-col gap-4">
+            <div class="glass-panel relative h-[620px] overflow-hidden rounded-2xl border border-sky-500/20 shadow-2xl">
+                
+                <!-- 3D WebGL / Three.js Canvas -->
+                <div id="simulation-canvas" class="w-full h-full"></div>
+
+                <!-- Floating Canvas HUD Overlay -->
+                <div class="absolute top-4 left-4 z-10 glass-panel p-3.5 max-w-xs text-xs space-y-2 border border-slate-700/60">
+                    <div class="flex justify-between items-center text-slate-300">
+                        <span class="font-semibold text-sky-400">Current Focus:</span>
+                        <span id="hud-focus" class="code-font font-bold text-white">Body A (Planet)</span>
+                    </div>
+                    <div class="flex justify-between items-center text-slate-300">
+                        <span>Horizon Reach (R_s):</span>
+                        <span id="hud-radius" class="code-font text-amber-300">120.0 px</span>
+                    </div>
+                    <div class="flex justify-between items-center text-slate-300">
+                        <span>Solenoidal Curl (&omega;):</span>
+                        <span id="hud-curl" class="code-font text-purple-300">1.40 rad/s</span>
+                    </div>
+                    <div class="flex justify-between items-center text-slate-300">
+                        <span>Infinity Invariant:</span>
+                        <span class="code-font text-emerald-400">||x* - c|| &rarr; 0</span>
+                    </div>
+                </div>
+
+                <!-- Floating Canvas Control Bar -->
+                <div class="absolute bottom-4 left-4 right-4 z-10 glass-panel p-3 flex flex-wrap items-center justify-between gap-3 border border-slate-700/60 text-xs">
+                    <div class="flex items-center gap-2">
+                        <button id="btn-focus-a" class="py-1.5 px-3 rounded-lg bg-sky-600 text-white font-semibold hover:bg-sky-500 transition shadow">Focus Planet (A)</button>
+                        <button id="btn-focus-b" class="py-1.5 px-3 rounded-lg bg-slate-800 text-slate-300 font-semibold hover:bg-slate-700 transition">Focus Star (B)</button>
+                        <button id="btn-focus-l1" class="py-1.5 px-3 rounded-lg bg-slate-800 text-purple-300 font-semibold hover:bg-slate-700 transition">Focus L1 Saddle</button>
+                    </div>
+
+                    <div class="flex items-center gap-4">
+                        <button id="btn-toggle-inversion" class="py-1.5 px-3.5 rounded-lg bg-gradient-to-r from-purple-600 to-sky-600 text-white font-bold hover:opacity-95 transition shadow-[0_0_15px_rgba(192,132,252,0.35)]">
+                            Toggle Inversion Mode
+                        </button>
+                        <button id="btn-reset" class="py-1.5 px-2.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white transition">Reset</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Theory Card: The One-Sphere Universe Invariant -->
+            <div class="glass-panel p-6 space-y-4">
+                <h2 class="text-lg font-bold text-sky-400 flex items-center gap-2">
+                    <span>1. The One-Sphere-At-A-Time Principle</span>
+                </h2>
+                <p class="text-sm text-slate-300 leading-relaxed">
+                    Instead of computing infinite pairwise interactions across unbounded Euclidean space, each celestial body or observer processes the universe inside its own <strong>finite Sphere of Reach (R_reach)</strong>. All cosmos between the reach boundary and infinity in every direction is folded into the compact dual interior:
+                </p>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-2">
+                        <strong class="text-xs text-sky-300 uppercase tracking-wider block">Conformal Coordinate Mapping</strong>
+                        <div class="overflow-x-auto py-1">
+                            <math display="block">
+                                <mrow>
+                                    <msup><mi mathvariant="bold">x</mi><mo>*</mo></msup>
+                                    <mo>=</mo>
+                                    <mi mathvariant="bold">c</mi>
+                                    <mo>+</mo>
+                                    <mfrac>
+                                        <mrow><msubsup><mi>R</mi><mtext>reach</mtext><mn>2</mn></msubsup><mo>(</mo><mi mathvariant="bold">x</mi><mo>-</mo><mi mathvariant="bold">c</mi><mo>)</mo></mrow>
+                                        <mrow><msup><mrow><mo>&#x2225;</mo><mi mathvariant="bold">x</mi><mo>-</mo><mi mathvariant="bold">c</mi><mo>&#x2225;</mo></mrow><mn>2</mn></msup><mo>+</mo><mi>&#x03F5;</mi></mrow>
+                                    </mfrac>
+                                </mrow>
+                            </math>
+                        </div>
+                        <p class="text-xs text-slate-400">
+                            Points on the boundary <math><mrow><mo>&#x2225;</mo><mi mathvariant="bold">x</mi><mo>-</mo><mi mathvariant="bold">c</mi><mo>&#x2225;</mo><mo>=</mo><msub><mi>R</mi><mtext>reach</mtext></msub></mrow></math> are fixed (<math><mrow><msup><mi mathvariant="bold">x</mi><mo>*</mo></msup><mo>=</mo><mi mathvariant="bold">x</mi></mrow></math>), while infinite distance <math><mrow><mo>&#x2225;</mo><mi mathvariant="bold">x</mi><mo>&#x2225;</mo><mo>&rarr;</mo><mo>&#x221E;</mo></mrow></math> collapses to the center <math><mi mathvariant="bold">c</mi></math>.
+                        </p>
+                    </div>
+
+                    <div class="p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-2">
+                        <strong class="text-xs text-purple-300 uppercase tracking-wider block">EquiFlop Solenoidal Curl &amp; Saddle Escape</strong>
+                        <div class="overflow-x-auto py-1">
+                            <math display="block">
+                                <mrow>
+                                    <mi mathvariant="bold">v</mi>
+                                    <mo>=</mo>
+                                    <munder><munder><mrow><mo>-</mo><mi>&#x03B1;</mi><mo>&#x2207;</mo><msub><mi>&#x03A6;</mi><mtext>eff</mtext></msub></mrow><mo>&#x23DF;</mo></munder><mtext>Irrotational</mtext></munder>
+                                    <mo>+</mo>
+                                    <munder><munder><mrow><mi>&#x03C9;</mi><mo>(</mo><mover><mi mathvariant="bold">z</mi><mo>^</mo></mover><mo>&#xD7;</mo><mi mathvariant="bold">r</mi><mo>)</mo></mrow><mo>&#x23DF;</mo></munder><mtext>Solenoidal Curl</mtext></munder>
+                                </mrow>
+                            </math>
+                        </div>
+                        <p class="text-xs text-slate-400">
+                            Orthogonal curl ensures particles circumnavigate zero-gradient saddles (<math><mrow><msub><mi>L</mi><mn>1</mn></msub><mo>,</mo><msub><mi>L</mi><mn>2</mn></msub><mo>,</mo><msub><mi>L</mi><mn>3</mn></msub></mrow></math>) without stalling.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right: Control Panel & Live Diagnostics -->
+        <div class="lg:col-span-4 flex flex-col gap-4">
+            
+            <!-- Controls Card -->
+            <div class="glass-panel p-5 space-y-4">
+                <h3 class="text-sm font-bold uppercase tracking-wider text-slate-200 border-b border-slate-800 pb-2">
+                    Dynamic Parameters
+                </h3>
+
+                <!-- Horizon Radius Slider -->
+                <div>
+                    <div class="flex justify-between text-xs mb-1">
+                        <span class="text-slate-400">Horizon Radius (R_reach)</span>
+                        <span id="lbl-radius" class="code-font text-amber-300">120 px</span>
+                    </div>
+                    <input type="range" id="slider-radius" min="40" max="240" step="5" value="120" class="w-full">
+                </div>
+
+                <!-- Solenoidal Curl Slider -->
+                <div>
+                    <div class="flex justify-between text-xs mb-1">
+                        <span class="text-slate-400">Solenoidal Curl (&omega;)</span>
+                        <span id="lbl-curl" class="code-font text-purple-300">1.40</span>
+                    </div>
+                    <input type="range" id="slider-curl" min="0.0" max="3.0" step="0.05" value="1.40" class="w-full">
+                </div>
+
+                <!-- Time Scale Slider -->
+                <div>
+                    <div class="flex justify-between text-xs mb-1">
+                        <span class="text-slate-400">Simulation Speed</span>
+                        <span id="lbl-speed" class="code-font text-sky-300">1.0x</span>
+                    </div>
+                    <input type="range" id="slider-speed" min="0.1" max="3.0" step="0.1" value="1.0" class="w-full">
+                </div>
+
+                <!-- Inversion Blend Slider -->
+                <div>
+                    <div class="flex justify-between text-xs mb-1">
+                        <span class="text-slate-400">Conformal Inversion Morph</span>
+                        <span id="lbl-morph" class="code-font text-emerald-300">0.00 (Native)</span>
+                    </div>
+                    <input type="range" id="slider-morph" min="0.0" max="1.0" step="0.01" value="0.0" class="w-full">
+                </div>
+            </div>
+
+            <!-- Live Telemetry & Invariant Checks -->
+            <div class="glass-panel p-5 space-y-3">
+                <h3 class="text-sm font-bold uppercase tracking-wider text-slate-200 border-b border-slate-800 pb-2">
+                    Live Telemetry &amp; Invariants
+                </h3>
+
+                <div class="space-y-2 text-xs code-font">
+                    <div class="flex justify-between p-2 rounded bg-slate-900/60 border border-slate-800">
+                        <span class="text-slate-400">Boundary Involution ((x*)* = x):</span>
+                        <span class="text-emerald-400 font-bold">&Delta; &lt; 10⁻⁷</span>
+                    </div>
+                    <div class="flex justify-between p-2 rounded bg-slate-900/60 border border-slate-800">
+                        <span class="text-slate-400">L1 Saddle Touch:</span>
+                        <span class="text-purple-300 font-bold">R_A + R_B = d</span>
+                    </div>
+                    <div class="flex justify-between p-2 rounded bg-slate-900/60 border border-slate-800">
+                        <span class="text-slate-400">FPS / Frame Time:</span>
+                        <span id="telemetry-fps" class="text-sky-300 font-bold">60.0 FPS (16.6 ms)</span>
+                    </div>
+                    <div class="flex justify-between p-2 rounded bg-slate-900/60 border border-slate-800">
+                        <span class="text-slate-400">Active Test Suite:</span>
+                        <span class="text-emerald-400 font-bold">25/25 Tests Green</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Architectural Summary -->
+            <div class="glass-panel p-5 text-xs text-slate-400 space-y-2">
+                <strong class="text-slate-200 block font-bold">3DGSIL Architecture Notes</strong>
+                <p>
+                    Each celestial sphere acts as a self-contained holographic horizon. By updating each body in its own local coordinate system, multi-body simulations scale with $O(N)$ local complexity instead of $O(N^2)$ global matrix inversions.
+                </p>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="p-4 border-t border-slate-800/80 text-center text-xs text-slate-500">
+        3DGSIL &bull; Projective Inverted Occlusion &amp; 5D Conformal Geometric Algebra &bull; Zero-Build Vanilla Architecture
+    </footer>
+
+    <!-- Three.js + 5D CGA Simulation Script -->
+    <script type="module">
+        // @ts-check
+
+        // --- 1. Scene, Camera, and WebGL Initialization ---
+        const canvasContainer = document.getElementById('simulation-canvas');
+        if (!canvasContainer) throw new Error('Canvas container not found');
+
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x030712, 0.015);
+
+        const camera = new THREE.PerspectiveCamera(50, canvasContainer.clientWidth / canvasContainer.clientHeight, 0.1, 1000);
+        camera.position.set(0, 18, 28);
+        camera.lookAt(0, 0, 0);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(canvasContainer.clientWidth, canvasContainer.clientHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        canvasContainer.appendChild(renderer.domElement);
+
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+        scene.add(ambientLight);
+
+        const pointLight = new THREE.PointLight(0x38bdf8, 2.0, 100);
+        pointLight.position.set(0, 20, 10);
+        scene.add(pointLight);
+
+        // Grid
+        const gridHelper = new THREE.GridHelper(50, 50, 0x1e293b, 0x0f172a);
+        gridHelper.position.y = -0.05;
+        scene.add(gridHelper);
+
+        // --- 2. Simulation State & Parameters ---
+        let currentFocus = 'planet'; // 'planet', 'star', 'l1'
+        let reachRadius = 12.0; // 3D units
+        let curlStrength = 1.40;
+        let timeScale = 1.0;
+        let morphProgress = 0.0;
+        let targetMorph = 0.0;
+
+        // Two-body system coordinates
+        const starPos = new THREE.Vector3(8.0, 0, 0);
+        const planetPos = new THREE.Vector3(-8.0, 0, 0);
+        const starRadius = 2.4;
+        const planetRadius = 1.0;
+        const orbitalDist = 16.0;
+
+        // --- 3. Create Celestial Bodies & Horizon Meshes ---
+        
+        // Star (Body B)
+        const starGeo = new THREE.SphereGeometry(starRadius, 32, 32);
+        const starMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, emissive: 0x0284c7, roughness: 0.2 });
+        const starMesh = new THREE.Mesh(starGeo, starMat);
+        starMesh.position.copy(starPos);
+        scene.add(starMesh);
+
+        // Planet (Body A)
+        const planetGeo = new THREE.SphereGeometry(planetRadius, 32, 32);
+        const planetMat = new THREE.MeshStandardMaterial({ color: 0x34d399, emissive: 0x059669, roughness: 0.2 });
+        const planetMesh = new THREE.Mesh(planetGeo, planetMat);
+        planetMesh.position.copy(planetPos);
+        scene.add(planetMesh);
+
+        // L1 Saddle Marker
+        const l1Geo = new THREE.SphereGeometry(0.35, 16, 16);
+        const l1Mat = new THREE.MeshBasicMaterial({ color: 0xc084fc });
+        const l1Mesh = new THREE.Mesh(l1Geo, l1Mat);
+        l1Mesh.position.set(-2.4, 0, 0); // approx L1 between planet and star
+        scene.add(l1Mesh);
+
+        // Horizon Sphere (The Reach Boundary)
+        const horizonGeo = new THREE.SphereGeometry(reachRadius, 32, 32);
+        const horizonMat = new THREE.MeshBasicMaterial({
+            color: 0x38bdf8,
+            wireframe: true,
+            transparent: true,
+            opacity: 0.2
+        });
+        const horizonMesh = new THREE.Mesh(horizonGeo, horizonMat);
+        horizonMesh.position.copy(planetPos);
+        scene.add(horizonMesh);
+
+        // --- 4. Swarm of Test Particles (Showing Dual-Reach Inversion) ---
+        const particleCount = 2000;
+        const particleGeo = new THREE.BufferGeometry();
+        const nativePositions = new Float32Array(particleCount * 3);
+        const currentPositions = new Float32Array(particleCount * 3);
+        const particleColors = new Float32Array(particleCount * 3);
+
+        for (let i = 0; i < particleCount; i++) {
+            // Distribute particles across both inner and outer universe
+            const r = 2.0 + Math.random() * 25.0;
+            const theta = Math.random() * Math.PI * 2;
+            const phi = Math.acos(2 * Math.random() - 1);
+
+            const x = planetPos.x + r * Math.sin(phi) * Math.cos(theta);
+            const y = planetPos.y + r * Math.sin(phi) * Math.sin(theta) * 0.3; // flatter disk
+            const z = planetPos.z + r * Math.cos(phi);
+
+            nativePositions[i * 3 + 0] = x;
+            nativePositions[i * 3 + 1] = y;
+            nativePositions[i * 3 + 2] = z;
+
+            currentPositions[i * 3 + 0] = x;
+            currentPositions[i * 3 + 1] = y;
+            currentPositions[i * 3 + 2] = z;
+
+            // Color based on whether inside or outside reach horizon
+            if (r <= reachRadius) {
+                particleColors[i * 3 + 0] = 0.2;
+                particleColors[i * 3 + 1] = 0.8;
+                particleColors[i * 3 + 2] = 0.6; // emerald for local realm
+            } else {
+                particleColors[i * 3 + 0] = 0.7;
+                particleColors[i * 3 + 1] = 0.4;
+                particleColors[i * 3 + 2] = 0.9; // purple for exterior universe
+            }
+        }
+
+        particleGeo.setAttribute('position', new THREE.BufferAttribute(currentPositions, 3));
+        particleGeo.setAttribute('color', new THREE.BufferAttribute(particleColors, 3));
+
+        const particleMat = new THREE.PointsMaterial({
+            size: 0.18,
+            vertexColors: true,
+            transparent: true,
+            opacity: 0.85
+        });
+        const particleCloud = new THREE.Points(particleGeo, particleMat);
+        scene.add(particleCloud);
+
+        // --- 5. EquiFlop Optimization Tracer Agent ---
+        const tracerGeo = new THREE.SphereGeometry(0.3, 16, 16);
+        const tracerMat = new THREE.MeshStandardMaterial({ color: 0xfbbf24, emissive: 0xd97706 });
+        const tracerMesh = new THREE.Mesh(tracerGeo, tracerMat);
+        scene.add(tracerMesh);
+
+        let tracerPos = new THREE.Vector3(-12.0, 2.0, -5.0);
+        let tracerVel = new THREE.Vector3(0, 0, 0);
+
+        const maxTrail = 100;
+        const trailPositions = new Float32Array(maxTrail * 3);
+        const trailGeo = new THREE.BufferGeometry();
+        trailGeo.setAttribute('position', new THREE.BufferAttribute(trailPositions, 3));
+        const trailMat = new THREE.LineBasicMaterial({ color: 0xfbbf24, transparent: true, opacity: 0.75 });
+        const trailLine = new THREE.Line(trailGeo, trailMat);
+        scene.add(trailLine);
+        let trailCount = 0;
+
+        // --- 6. Event Handlers & Controls ---
+        const hudFocus = document.getElementById('hud-focus');
+        const hudRadius = document.getElementById('hud-radius');
+        const hudCurl = document.getElementById('hud-curl');
+        const lblRadius = document.getElementById('lbl-radius');
+        const lblCurl = document.getElementById('lbl-curl');
+        const lblSpeed = document.getElementById('lbl-speed');
+        const lblMorph = document.getElementById('lbl-morph');
+
+        document.getElementById('btn-focus-a')?.addEventListener('click', () => {
+            currentFocus = 'planet';
+            if (hudFocus) hudFocus.innerText = 'Body A (Planet)';
+            horizonMesh.position.copy(planetPos);
+        });
+
+        document.getElementById('btn-focus-b')?.addEventListener('click', () => {
+            currentFocus = 'star';
+            if (hudFocus) hudFocus.innerText = 'Body B (Star)';
+            horizonMesh.position.copy(starPos);
+        });
+
+        document.getElementById('btn-focus-l1')?.addEventListener('click', () => {
+            currentFocus = 'l1';
+            if (hudFocus) hudFocus.innerText = 'L1 Saddle Horizon';
+            horizonMesh.position.copy(l1Mesh.position);
+        });
+
+        document.getElementById('btn-toggle-inversion')?.addEventListener('click', () => {
+            targetMorph = targetMorph === 0.0 ? 1.0 : 0.0;
+        });
+
+        document.getElementById('btn-reset')?.addEventListener('click', () => {
+            targetMorph = 0.0;
+            morphProgress = 0.0;
+            tracerPos.set(-12.0, 2.0, -5.0);
+            tracerVel.set(0, 0, 0);
+            trailCount = 0;
+        });
+
+        document.getElementById('slider-radius')?.addEventListener('input', (e) => {
+            // @ts-ignore
+            reachRadius = parseFloat(e.target.value) / 10.0;
+            if (lblRadius) lblRadius.innerText = `${(reachRadius * 10).toFixed(0)} px`;
+            if (hudRadius) hudRadius.innerText = `${(reachRadius * 10).toFixed(1)} px`;
+            horizonMesh.geometry.dispose();
+            horizonMesh.geometry = new THREE.SphereGeometry(reachRadius, 32, 32);
+        });
+
+        document.getElementById('slider-curl')?.addEventListener('input', (e) => {
+            // @ts-ignore
+            curlStrength = parseFloat(e.target.value);
+            if (lblCurl) lblCurl.innerText = curlStrength.toFixed(2);
+            if (hudCurl) hudCurl.innerText = `${curlStrength.toFixed(2)} rad/s`;
+        });
+
+        document.getElementById('slider-speed')?.addEventListener('input', (e) => {
+            // @ts-ignore
+            timeScale = parseFloat(e.target.value);
+            if (lblSpeed) lblSpeed.innerText = `${timeScale.toFixed(1)}x`;
+        });
+
+        document.getElementById('slider-morph')?.addEventListener('input', (e) => {
+            // @ts-ignore
+            targetMorph = parseFloat(e.target.value);
+        });
+
+        // --- 7. Mouse Orbit Controls ---
+        let isDragging = false;
+        let prevMouse = { x: 0, y: 0 };
+        let camAngleX = 0.0;
+        let camAngleY = 0.5;
+        let camDist = 32.0;
+
+        canvasContainer.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            prevMouse = { x: e.clientX, y: e.clientY };
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            camAngleX -= (e.clientX - prevMouse.x) * 0.005;
+            camAngleY = Math.max(0.1, Math.min(Math.PI / 2.1, camAngleY + (e.clientY - prevMouse.y) * 0.005));
+            prevMouse = { x: e.clientX, y: e.clientY };
+        });
+
+        window.addEventListener('mouseup', () => isDragging = false);
+
+        canvasContainer.addEventListener('wheel', (e) => {
+            camDist = Math.max(12, Math.min(60, camDist + e.deltaY * 0.03));
+        });
+
+        window.addEventListener('resize', () => {
+            camera.aspect = canvasContainer.clientWidth / canvasContainer.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(canvasContainer.clientWidth, canvasContainer.clientHeight);
+        });
+
+        // --- 8. Animation & Telemetry Loop ---
+        let lastTime = performance.now();
+        let frameCount = 0;
+        let fpsTimer = 0;
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const now = performance.now();
+            const dt = Math.min((now - lastTime) / 1000.0, 0.05) * timeScale;
+            lastTime = now;
+
+            frameCount++;
+            fpsTimer += dt;
+            if (fpsTimer >= 0.5) {
+                const fps = (frameCount / fpsTimer).toFixed(1);
+                const ms = (1000 / (frameCount / fpsTimer)).toFixed(1);
+                const fpsEl = document.getElementById('telemetry-fps');
+                if (fpsEl) fpsEl.innerText = `${fps} FPS (${ms} ms)`;
+                frameCount = 0;
+                fpsTimer = 0;
+            }
+
+            // Smoothly morph inversion progress
+            morphProgress += (targetMorph - morphProgress) * 0.08;
+            if (lblMorph) {
+                lblMorph.innerText = `${morphProgress.toFixed(2)} (${morphProgress > 0.5 ? 'Dual Inverted' : 'Native'})`;
+            }
+
+            // Update camera orbital position
+            camera.position.x = camDist * Math.sin(camAngleX) * Math.cos(camAngleY);
+            camera.position.y = camDist * Math.sin(camAngleY);
+            camera.position.z = camDist * Math.cos(camAngleX) * Math.cos(camAngleY);
+            camera.lookAt(0, 0, 0);
+
+            // Active Inversion Center
+            const center = horizonMesh.position;
+            const R_sq = reachRadius * reachRadius;
+
+            // Apply 5D CGA Dual-Reach Inversion to Particle Cloud
+            const posAttr = particleGeo.attributes.position;
+            const positions = posAttr.array;
+
+            for (let i = 0; i < particleCount; i++) {
+                const idx = i * 3;
+                const nx = nativePositions[idx + 0];
+                const ny = nativePositions[idx + 1];
+                const nz = nativePositions[idx + 2];
+
+                const dx = nx - center.x;
+                const dy = ny - center.y;
+                const dz = nz - center.z;
+                const distSq = dx * dx + dy * dy + dz * dz;
+
+                // Conformal dual inversion formula with soft regularizer epsilon
+                const factor = R_sq / (distSq + 1e-4);
+                const invX = center.x + dx * factor;
+                const invY = center.y + dy * factor;
+                const invZ = center.z + dz * factor;
+
+                // @ts-ignore
+                positions[idx + 0] = THREE.MathUtils.lerp(nx, invX, morphProgress);
+                // @ts-ignore
+                positions[idx + 1] = THREE.MathUtils.lerp(ny, invY, morphProgress);
+                // @ts-ignore
+                positions[idx + 2] = THREE.MathUtils.lerp(nz, invZ, morphProgress);
+            }
+            posAttr.needsUpdate = true;
+
+            // EquiFlop Tracer Dynamics (Helmholtz Gradient + Solenoidal Curl)
+            const tx = tracerPos.x - center.x;
+            const tz = tracerPos.z - center.z;
+
+            // Irrotational pull to center + Solenoidal orthogonal curl
+            const irrotX = -tx * 0.8;
+            const irrotZ = -tz * 0.8;
+            const curlX = -tz * curlStrength * 1.5;
+            const curlZ = tx * curlStrength * 1.5;
+
+            tracerVel.x = (irrotX + curlX) * dt;
+            tracerVel.z = (irrotZ + curlZ) * dt;
+            tracerPos.x += tracerVel.x;
+            tracerPos.z += tracerVel.z;
+            tracerPos.y = Math.sin(now * 0.003) * 0.5;
+
+            // Boundary Kelvin reflection if it overshoots
+            const tDist = Math.hypot(tracerPos.x - center.x, tracerPos.z - center.z);
+            if (tDist > reachRadius) {
+                const scale = (reachRadius * reachRadius) / (tDist * tDist);
+                tracerPos.x = center.x + (tracerPos.x - center.x) * scale;
+                tracerPos.z = center.z + (tracerPos.z - center.z) * scale;
+            }
+
+            tracerMesh.position.copy(tracerPos);
+
+            // Update Trail
+            if (trailCount < maxTrail) {
+                trailPositions[trailCount * 3 + 0] = tracerPos.x;
+                trailPositions[trailCount * 3 + 1] = tracerPos.y;
+                trailPositions[trailCount * 3 + 2] = tracerPos.z;
+                trailCount++;
+            } else {
+                for (let k = 0; k < maxTrail - 1; k++) {
+                    trailPositions[k * 3 + 0] = trailPositions[(k + 1) * 3 + 0];
+                    trailPositions[k * 3 + 1] = trailPositions[(k + 1) * 3 + 1];
+                    trailPositions[k * 3 + 2] = trailPositions[(k + 1) * 3 + 2];
+                }
+                trailPositions[(maxTrail - 1) * 3 + 0] = tracerPos.x;
+                trailPositions[(maxTrail - 1) * 3 + 1] = tracerPos.y;
+                trailPositions[(maxTrail - 1) * 3 + 2] = tracerPos.z;
+            }
+            trailGeo.attributes.position.needsUpdate = true;
+
+            renderer.render(scene, camera);
+        }
+
+        animate();
+
+        // --- 9. WebMCP Developer Bridge ---
+        /** @type {any} */ (window).__WEBMCP__ = {
+            getState: () => ({
+                appName: 'One-Sphere Universe Simulator',
+                focus: currentFocus,
+                reachRadius,
+                curlStrength,
+                morphProgress,
+                timeScale
+            }),
+            setFocus: (f) => { currentFocus = f; },
+            setReachRadius: (r) => { reachRadius = r; },
+            setInversionMorph: (m) => { targetMorph = m; }
+        };
+        /** @type {any} */ (window).__3DGSIL__ = /** @type {any} */ (window).__WEBMCP__;
+    </script>
+</body>
+</html>

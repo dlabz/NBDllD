@@ -1,0 +1,859 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>N-Body Projective Clustered Engine v5 (Astrophysical Galaxies &amp; Brownian Dynamics)</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #010206; color: #e2e8f0; font-family: system-ui, -apple-system, sans-serif; overflow: hidden; }
+  #c { display: block; width: 100vw; height: 100vh; }
+  .glass {
+    background: rgba(8, 12, 26, 0.88);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(56, 189, 248, 0.25);
+    border-radius: 12px;
+    box-shadow: 0 20px 45px -15px rgba(0, 0, 0, 0.85), 0 0 30px rgba(56, 189, 248, 0.08);
+  }
+  .code-font {
+    font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  input[type="range"] {
+    accent-color: #38bdf8;
+  }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.15rem 0.5rem;
+    border-radius: 9999px;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+</style>
+</head>
+<body class="relative select-none">
+<canvas id="c"></canvas>
+
+<!-- Top Left Control & Stats Panel -->
+<div class="absolute top-4 left-4 z-10 glass p-5 max-w-md w-full pointer-events-auto space-y-3.5 max-h-[95vh] overflow-y-auto">
+  <div class="flex justify-between items-start">
+    <div>
+      <div class="flex gap-1.5 mb-1">
+        <span class="badge bg-sky-500/10 text-sky-400 border border-sky-500/30">Astrophysics v5</span>
+        <span class="badge bg-purple-500/10 text-purple-400 border border-purple-500/30">Brownian Shock</span>
+      </div>
+      <h1 class="text-lg font-bold bg-gradient-to-r from-sky-400 via-teal-300 to-purple-400 bg-clip-text text-transparent">
+        N-Body Projective Galaxy v5
+      </h1>
+    </div>
+    <div class="text-right code-font text-xs">
+      <span id="fpsDisplay" class="text-emerald-400 font-bold block text-sm">60 FPS</span>
+      <span id="gflopsDisplay" class="text-slate-400 text-[10px]">~24.8 GFLOPS</span>
+    </div>
+  </div>
+
+  <!-- Active Galaxy Catalog Selector -->
+  <div>
+    <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-1.5">Real Galaxy Catalog Preset</span>
+    <div class="grid grid-cols-2 gap-1.5 text-xs">
+      <button onclick="loadGalaxyPreset('milky_way')" id="preset-milky_way" class="py-1.5 px-2 rounded bg-sky-600 text-white font-bold text-left transition shadow flex items-center justify-between">
+        <span>Milky Way (Sgr A*)</span>
+        <span class="text-[9px] opacity-75">Barred</span>
+      </button>
+      <button onclick="loadGalaxyPreset('andromeda_merger')" id="preset-andromeda_merger" class="py-1.5 px-2 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-left transition flex items-center justify-between">
+        <span>MW &times; M31 Merger</span>
+        <span class="text-[9px] opacity-75">Tidal</span>
+      </button>
+      <button onclick="loadGalaxyPreset('sombrero')" id="preset-sombrero" class="py-1.5 px-2 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-left transition flex items-center justify-between">
+        <span>Sombrero (M104)</span>
+        <span class="text-[9px] opacity-75">Bulge</span>
+      </button>
+      <button onclick="loadGalaxyPreset('triangulum')" id="preset-triangulum" class="py-1.5 px-2 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-left transition flex items-center justify-between">
+        <span>Triangulum (M33)</span>
+        <span class="text-[9px] opacity-75">Spiral</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Live Metrics Grid -->
+  <div class="grid grid-cols-2 gap-2 text-[11px] code-font bg-slate-950/70 p-2.5 rounded-lg border border-slate-800/80">
+    <div>
+      <span class="text-slate-500 block text-[9px]">TOTAL BODIES</span>
+      <span id="bodyCountLabel" class="text-sky-300 font-bold">4,096 Bodies</span>
+    </div>
+    <div>
+      <span class="text-slate-500 block text-[9px]">CENTRAL CORE MASS</span>
+      <span id="coreMassLabel" class="text-amber-300 font-bold">4.2 &times; 10⁶ M☉</span>
+    </div>
+    <div>
+      <span class="text-slate-500 block text-[9px]">BROWNIAN COLLISION &sigma;</span>
+      <span id="metricBrownian" class="text-purple-300 font-bold">0.024 km/s</span>
+    </div>
+    <div>
+      <span class="text-slate-500 block text-[9px]">ILLUMINATION MODEL</span>
+      <span class="text-emerald-400 font-bold">Multi-Star Blinn+Dust</span>
+    </div>
+  </div>
+
+  <!-- Body Density Presets -->
+  <div class="space-y-1.5">
+    <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">Particle Density</span>
+    <div class="grid grid-cols-4 gap-1.5 text-xs">
+      <button onclick="setBodyPreset(32)" class="py-1.5 px-2 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 transition text-center font-semibold" id="btn-1k">1,024</button>
+      <button onclick="setBodyPreset(64)" class="py-1.5 px-2 rounded bg-sky-600 text-white font-bold text-center transition shadow" id="btn-4k">4,096</button>
+      <button onclick="setBodyPreset(96)" class="py-1.5 px-2 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 transition text-center font-semibold" id="btn-9k">9,216</button>
+      <button onclick="setBodyPreset(128)" class="py-1.5 px-2 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 transition text-center font-semibold" id="btn-16k">16,384</button>
+    </div>
+  </div>
+
+  <!-- Dynamic Control Sliders -->
+  <div class="space-y-2.5">
+    <!-- Brownian Motion Slider -->
+    <div>
+      <div class="flex justify-between text-xs mb-1">
+        <span class="text-slate-300 font-medium">Brownian Micro-Collisions (&sigma;)</span>
+        <span id="valBrownian" class="code-font text-purple-300">0.025</span>
+      </div>
+      <input type="range" id="sliderBrownian" min="0.0" max="0.15" step="0.005" value="0.025" class="w-full">
+    </div>
+
+    <!-- Illumination & Star Glow Slider -->
+    <div>
+      <div class="flex justify-between text-xs mb-1">
+        <span class="text-slate-300 font-medium">Stellar Illumination Radiance</span>
+        <span id="valLight" class="code-font text-amber-300">1.5x</span>
+      </div>
+      <input type="range" id="sliderLight" min="0.2" max="3.5" step="0.1" value="1.5" class="w-full">
+    </div>
+
+    <!-- CoM Asymmetry Offset Slider -->
+    <div>
+      <div class="flex justify-between text-xs mb-1">
+        <span class="text-slate-300 font-medium">Center-of-Gravity (CoM) Offset</span>
+        <span id="valCoM" class="code-font text-sky-300">12.0 px</span>
+      </div>
+      <input type="range" id="sliderCoM" min="0" max="50" step="2" value="12" class="w-full">
+    </div>
+
+    <!-- Gravitational Constant -->
+    <div>
+      <div class="flex justify-between text-xs mb-1">
+        <span class="text-slate-300 font-medium">Gravitational Constant (G)</span>
+        <span id="valG" class="code-font text-teal-300">0.045</span>
+      </div>
+      <input type="range" id="sliderG" min="0.005" max="0.12" step="0.005" value="0.045" class="w-full">
+    </div>
+  </div>
+
+  <!-- Action Buttons -->
+  <div class="flex gap-2 pt-1 border-t border-slate-800">
+    <button onclick="resetScenario()" class="flex-1 py-1.5 px-3 rounded bg-sky-600 hover:bg-sky-500 text-white font-bold transition text-xs shadow">
+      Reset Galaxy
+    </button>
+    <button id="btnToggleClusters" onclick="toggleClusterVisualization()" class="flex-1 py-1.5 px-3 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 transition text-xs font-semibold">
+      Toggle Horizons
+    </button>
+  </div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+// @ts-check
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GPUComputationRenderer } from 'three/addons/misc/GPUComputationRenderer.js';
+
+// ═══════════════════════════════════════════════════════════════
+// §1  Setup & Three.js Canvas
+// ═══════════════════════════════════════════════════════════════
+const canvas = document.getElementById('c');
+if (!canvas) throw new Error('Canvas not found');
+
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x010206);
+scene.fog = new THREE.FogExp2(0x010206, 0.002);
+
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 10000);
+camera.position.set(0, 260, 420);
+
+const controls = new OrbitControls(camera, canvas);
+controls.enableDamping = true;
+controls.dampingFactor = 0.05;
+controls.autoRotate = true;
+controls.autoRotateSpeed = 0.25;
+
+// ═══════════════════════════════════════════════════════════════
+// §2  Astrophysical Catalog Initial State & Parameters
+// ═══════════════════════════════════════════════════════════════
+let WIDTH = 64; // 64 x 64 = 4,096 bodies default
+let N_BODIES = WIDTH * WIDTH;
+let currentGalaxy = 'milky_way';
+
+let G_CONST = 0.045;
+let BROWNIAN_STRENGTH = 0.025;
+let LIGHT_INTENSITY = 1.5;
+let COM_OFFSET = 12.0;
+let REACH_RADIUS = 50.0;
+let showClusters = true;
+
+const NUM_STARS = 4;
+let gpuCompute;
+let positionVar, velocityVar;
+let dtPosition, dtVelocity, dtMassData;
+let particleMesh, clusterMeshGroup;
+
+// ═══════════════════════════════════════════════════════════════
+// §3  Galaxy Dataset Generators (Realistic Astrophysical Models)
+// ═══════════════════════════════════════════════════════════════
+
+function packColor(c) {
+  return (Math.floor(c.r * 255) << 16) | (Math.floor(c.g * 255) << 8) | Math.floor(c.b * 255);
+}
+
+// Salpeter Initial Mass Function: N(M) ~ M^(-2.35)
+function sampleSalpeterMass(minM = 0.1, maxM = 15.0) {
+  const alpha = 2.35;
+  const u = Math.random();
+  return Math.pow(u * (Math.pow(maxM, 1 - alpha) - Math.pow(minM, 1 - alpha)) + Math.pow(minM, 1 - alpha), 1 / (1 - alpha));
+}
+
+function initGalaxyData() {
+  const pA = dtPosition.image.data;
+  const vA = dtVelocity.image.data;
+  const mA = dtMassData.image.data;
+
+  // Star Spectral Colors: O-type (Blue), B-type (Cyan), G-type (Yellow/Sun), M-type (Red Dwarf)
+  const stellarSpectra = [
+    new THREE.Color(0x38bdf8), // Sgr A* Accretion Hot Core (Sky Cyan)
+    new THREE.Color(0xfbbf24), // Central Bar Bulge Star (Amber Gold)
+    new THREE.Color(0xf43f5e), // Giant Molecular Cloud / Red Supergiant (Rose)
+    new THREE.Color(0x34d399)  // Starburst Nursery (Emerald)
+  ];
+
+  const sgrMass = 42000.0; // Central Supermassive Black Hole / Core
+
+  let totalMass = 0;
+  let cx = 0, cy = 0, cz = 0;
+  let cvx = 0, cvy = 0, cvz = 0;
+
+  for (let i = 0; i < N_BODIES; i++) {
+    const isStar = i < NUM_STARS;
+    let m, r, color;
+
+    if (isStar) {
+      m = sgrMass * (i === 0 ? 1.0 : 0.4);
+      r = i === 0 ? 5.5 : 3.8;
+      color = stellarSpectra[i];
+    } else {
+      m = sampleSalpeterMass(0.08, 8.0);
+      r = 0.3 + Math.pow(m / 8.0, 0.4) * 0.5;
+
+      // Color temperature based on mass: massive stars blue/white, small dust particles orange/red
+      if (m > 4.0) {
+        color = new THREE.Color(0x93c5fd); // Hot luminous blue
+      } else if (m > 1.2) {
+        color = new THREE.Color(0xfef08a); // Yellow solar
+      } else {
+        color = new THREE.Color(0xfca5a5); // Warm reddish dust
+      }
+    }
+
+    mA[i * 4 + 0] = m;
+    mA[i * 4 + 1] = r;
+    mA[i * 4 + 2] = isStar ? 1.0 : 0.0;
+    mA[i * 4 + 3] = packColor(color);
+
+    // Initial position & velocity based on active galaxy catalog
+    let px = 0, py = 0, pz = 0;
+    let vx = 0, vy = 0, vz = 0;
+
+    if (currentGalaxy === 'milky_way') {
+      // Barred Spiral Galaxy (Hernquist Bulge + Exponential Disc + Sgr A*)
+      if (isStar) {
+        const starAngle = (i / NUM_STARS) * Math.PI * 2;
+        const starR = i === 0 ? 0 : 35.0;
+        px = starR * Math.cos(starAngle) + (i === 0 ? 0 : COM_OFFSET * 0.5);
+        pz = starR * Math.sin(starAngle);
+        const vStar = starR > 0 ? Math.sqrt((G_CONST * sgrMass) / starR) : 0;
+        vx = -vStar * Math.sin(starAngle);
+        vz = vStar * Math.cos(starAngle);
+      } else {
+        // Logarithmic Spiral Arms + Central Bulge
+        const isBulge = Math.random() < 0.22;
+        if (isBulge) {
+          const bR = 4.0 + Math.random() * 22.0;
+          const theta = Math.random() * Math.PI * 2;
+          const phi = (Math.random() - 0.5) * Math.PI * 0.7;
+          px = bR * Math.cos(theta) * Math.cos(phi);
+          py = bR * Math.sin(phi) * 0.7;
+          pz = bR * Math.sin(theta) * Math.cos(phi);
+
+          const vOrb = Math.sqrt((G_CONST * sgrMass) / (bR + 10.0));
+          vx = -vOrb * Math.sin(theta);
+          vz = vOrb * Math.cos(theta);
+        } else {
+          const arm = i % 2; // 2 primary spiral arms
+          const armAngle = arm * Math.PI;
+          const dist = 20.0 + Math.random() * 160.0;
+          const spiralAngle = armAngle + Math.log(dist / 15.0) * 2.8 + (Math.random() - 0.5) * 0.4;
+          
+          px = dist * Math.cos(spiralAngle);
+          py = (Math.random() - 0.5) * 8.0 * Math.exp(-dist / 80.0);
+          pz = dist * Math.sin(spiralAngle);
+
+          // Flat rotation curve: V_flat ~ sqrt(G * M_enc / r)
+          const vFlat = Math.sqrt((G_CONST * sgrMass) / dist) * 1.08;
+          vx = -vFlat * Math.sin(spiralAngle) + (Math.random() - 0.5) * 0.2;
+          vz = vFlat * Math.cos(spiralAngle) + (Math.random() - 0.5) * 0.2;
+        }
+      }
+    } else if (currentGalaxy === 'andromeda_merger') {
+      // Collision of Two Disks (MW vs M31)
+      const isM31 = i >= N_BODIES / 2;
+      const centerDist = 85.0;
+      const gX = isM31 ? centerDist : -centerDist;
+      const gVx = isM31 ? -0.45 : 0.45;
+      const gVz = isM31 ? 0.35 : -0.35;
+
+      const rDisk = 10.0 + Math.random() * 75.0;
+      const aDisk = Math.random() * Math.PI * 2;
+      const vDisk = Math.sqrt((G_CONST * sgrMass * 0.6) / rDisk);
+
+      px = gX + rDisk * Math.cos(aDisk);
+      py = (Math.random() - 0.5) * (isM31 ? 12.0 : 6.0);
+      pz = rDisk * Math.sin(aDisk);
+
+      vx = gVx - vDisk * Math.sin(aDisk);
+      vy = (Math.random() - 0.5) * 0.15;
+      vz = gVz + vDisk * Math.cos(aDisk);
+
+      if (isM31) {
+        // Tilt Andromeda disk by 45 degrees
+        const tilt = 0.785;
+        const ty = py * Math.cos(tilt) - pz * Math.sin(tilt);
+        const tz = py * Math.sin(tilt) + pz * Math.cos(tilt);
+        py = ty; pz = tz;
+      }
+    } else if (currentGalaxy === 'sombrero') {
+      // Massive Spherical Bulge surrounded by Ultra-Flat Dust Ring
+      const isRing = Math.random() < 0.65;
+      if (isRing) {
+        const ringR = 60.0 + Math.random() * 80.0;
+        const ringA = Math.random() * Math.PI * 2;
+        const vRing = Math.sqrt((G_CONST * sgrMass * 1.4) / ringR);
+
+        px = ringR * Math.cos(ringA);
+        py = (Math.random() - 0.5) * 2.5; // Very thin disk
+        pz = ringR * Math.sin(ringA);
+
+        vx = -vRing * Math.sin(ringA);
+        vz = vRing * Math.cos(ringA);
+      } else {
+        const bR = 5.0 + Math.random() * 55.0;
+        const theta = Math.random() * Math.PI * 2;
+        const phi = (Math.random() - 0.5) * Math.PI;
+        px = bR * Math.cos(theta) * Math.cos(phi);
+        py = bR * Math.sin(phi) * 0.8;
+        pz = bR * Math.sin(theta) * Math.cos(phi);
+
+        const vB = Math.sqrt((G_CONST * sgrMass) / (bR + 20.0));
+        vx = -vB * Math.sin(theta);
+        vz = vB * Math.cos(theta);
+      }
+    } else { // Triangulum (M33)
+      const rM33 = 12.0 + Math.random() * 110.0;
+      const aM33 = Math.random() * Math.PI * 2;
+      const vM33 = Math.sqrt((G_CONST * sgrMass * 0.75) / rM33);
+
+      px = rM33 * Math.cos(aM33);
+      py = (Math.random() - 0.5) * 14.0;
+      pz = rM33 * Math.sin(aM33);
+
+      vx = -vM33 * Math.sin(aM33);
+      vz = vM33 * Math.cos(aM33);
+    }
+
+    pA[i * 4 + 0] = px;
+    pA[i * 4 + 1] = py;
+    pA[i * 4 + 2] = pz;
+    pA[i * 4 + 3] = 1.0;
+
+    vA[i * 4 + 0] = vx;
+    vA[i * 4 + 1] = vy;
+    vA[i * 4 + 2] = vz;
+    vA[i * 4 + 3] = 1.0;
+
+    totalMass += m;
+    cx += px * m; cy += py * m; cz += pz * m;
+    cvx += vx * m; cvy += vy * m; cvz += vz * m;
+  }
+
+  // Dynamic Center of Mass (CoM) rebasing to prevent drift
+  cx /= totalMass; cy /= totalMass; cz /= totalMass;
+  cvx /= totalMass; cvy /= totalMass; cvz /= totalMass;
+
+  for (let i = 0; i < N_BODIES; i++) {
+    vA[i * 4 + 0] -= cvx;
+    vA[i * 4 + 1] -= cvy;
+    vA[i * 4 + 2] -= cvz;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// §4  GPGPU Compute Shaders (Brownian Collisions & Multi-Scale Gravity)
+// ═══════════════════════════════════════════════════════════════
+
+function initGPGPU() {
+  gpuCompute = new GPUComputationRenderer(WIDTH, WIDTH, renderer);
+
+  dtPosition = gpuCompute.createTexture();
+  dtVelocity = gpuCompute.createTexture();
+  dtMassData = gpuCompute.createTexture();
+
+  initGalaxyData();
+
+  const computeVelocityShader = `
+    uniform float dt;
+    uniform float G;
+    uniform float softening;
+    uniform float reachRadius;
+    uniform float brownianStrength;
+    uniform float time;
+    uniform sampler2D textureMassData;
+
+    // Pseudo-random hash for thermal Brownian collisions
+    float hash(vec2 p) {
+      vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+      p3 += dot(p3, p3.yzx + 33.33);
+      return fract((p3.x + p3.y) * p3.z);
+    }
+
+    vec3 randomBrownianForce(vec2 uv, float t) {
+      float h1 = hash(uv + vec2(t * 0.13, t * 0.71)) - 0.5;
+      float h2 = hash(uv + vec2(t * 0.47, t * 0.29)) - 0.5;
+      float h3 = hash(uv + vec2(t * 0.83, t * 0.61)) - 0.5;
+      return vec3(h1, h2, h3);
+    }
+
+    void main() {
+      vec2 uv = gl_FragCoord.xy / resolution.xy;
+      vec3 pos = texture2D(texturePosition, uv).xyz;
+      vec3 vel = texture2D(textureVelocity, uv).xyz;
+      vec4 myData = texture2D(textureMassData, uv);
+
+      vec3 accel = vec3(0.0);
+
+      // 1. Direct Multi-Star Gravitational Influence (Primary Stellar Foci)
+      for (int s = 0; s < 4; s++) {
+        vec2 sUv = vec2(float(s) + 0.5, 0.5) / resolution.xy;
+        vec3 sPos = texture2D(texturePosition, sUv).xyz;
+        vec4 sData = texture2D(textureMassData, sUv);
+
+        vec3 d = sPos - pos;
+        float distSq = dot(d, d) + softening;
+        float invDist = inversesqrt(distSq);
+        float invDist3 = invDist * invDist * invDist;
+
+        accel += d * (G * sData.x * invDist3);
+      }
+
+      // 2. Hierarchical Clustered Macro-Barycenters (Far-Field Acceleration)
+      float stepSize = max(1.0, resolution.x / 8.0);
+      for (float y = 0.5; y < resolution.y; y += stepSize) {
+        for (float x = 0.5; x < resolution.x; x += stepSize) {
+          vec2 cUv = vec2(x, y) / resolution.xy;
+          vec3 cPos = texture2D(texturePosition, cUv).xyz;
+          float cMass = texture2D(textureMassData, cUv).x * (stepSize * stepSize * 0.1);
+
+          vec3 cd = cPos - pos;
+          float cDistSq = dot(cd, cd) + (reachRadius * reachRadius);
+          float invCDist = inversesqrt(cDistSq);
+          float invCDist3 = invCDist * invCDist * invCDist;
+
+          accel += cd * (G * cMass * invCDist3);
+        }
+      }
+
+      // 3. Brownian Shock Waves & Micro-Collision Perturbations
+      // Light particles/gas suffer more thermal excitation than massive stars
+      if (myData.z < 0.5) {
+        vec3 brownianNoise = randomBrownianForce(uv, time);
+        accel += brownianNoise * (brownianStrength * 2.5 / sqrt(myData.x + 0.1));
+      }
+
+      vel += accel * dt;
+      gl_FragColor = vec4(vel, 1.0);
+    }
+  `;
+
+  const computePositionShader = `
+    uniform float dt;
+    void main() {
+      vec2 uv = gl_FragCoord.xy / resolution.xy;
+      vec3 pos = texture2D(texturePosition, uv).xyz;
+      vec3 vel = texture2D(textureVelocity, uv).xyz;
+      pos += vel * dt;
+      gl_FragColor = vec4(pos, 1.0);
+    }
+  `;
+
+  velocityVar = gpuCompute.addVariable("textureVelocity", computeVelocityShader, dtVelocity);
+  positionVar = gpuCompute.addVariable("texturePosition", computePositionShader, dtPosition);
+
+  gpuCompute.setVariableDependencies(velocityVar, [positionVar, velocityVar]);
+  gpuCompute.setVariableDependencies(positionVar, [positionVar, velocityVar]);
+
+  velocityVar.material.uniforms['dt'] = { value: 0.012 };
+  velocityVar.material.uniforms['G'] = { value: G_CONST };
+  velocityVar.material.uniforms['softening'] = { value: 2.5 };
+  velocityVar.material.uniforms['reachRadius'] = { value: REACH_RADIUS };
+  velocityVar.material.uniforms['brownianStrength'] = { value: BROWNIAN_STRENGTH };
+  velocityVar.material.uniforms['time'] = { value: 0.0 };
+  velocityVar.material.uniforms['textureMassData'] = { value: dtMassData };
+
+  positionVar.material.uniforms['dt'] = { value: 0.012 };
+
+  const error = gpuCompute.init();
+  if (error !== null) console.error('GPUComputationRenderer Error:', error);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// §5  Photometrically Accurate Illumination & Point Rendering
+// ═══════════════════════════════════════════════════════════════
+
+function createParticleMesh() {
+  if (particleMesh) scene.remove(particleMesh);
+
+  const geo = new THREE.BufferGeometry();
+  const positions = new Float32Array(N_BODIES * 3);
+  const uvs = new Float32Array(N_BODIES * 2);
+
+  for (let i = 0; i < N_BODIES; i++) {
+    uvs[i * 2 + 0] = (i % WIDTH + 0.5) / WIDTH;
+    uvs[i * 2 + 1] = (Math.floor(i / WIDTH) + 0.5) / WIDTH;
+  }
+
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+
+  const mat = new THREE.ShaderMaterial({
+    uniforms: {
+      uPositionTexture: { value: null },
+      uMassDataTexture: { value: dtMassData },
+      uLightIntensity: { value: LIGHT_INTENSITY },
+      uTexRes: { value: WIDTH }
+    },
+    vertexShader: `
+      uniform sampler2D uPositionTexture;
+      uniform sampler2D uMassDataTexture;
+      uniform float uTexRes;
+      uniform float uLightIntensity;
+
+      varying vec3 vColor;
+      varying float vIsStar;
+      varying vec3 vWorldPos;
+      varying float vRadius;
+
+      vec3 unpackColor(float f) {
+        int c = int(f);
+        float r = float(c / 65536) / 255.0;
+        float g = float((c / 256) - (c / 65536) * 256) / 255.0;
+        float b = float(c - (c / 256) * 256) / 255.0;
+        return vec3(r, g, b);
+      }
+
+      void main() {
+        vec3 pos = texture2D(uPositionTexture, uv).xyz;
+        vec4 massData = texture2D(uMassDataTexture, uv);
+
+        vIsStar = massData.z;
+        vRadius = massData.y;
+        vColor = unpackColor(massData.w);
+        vWorldPos = pos;
+
+        vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
+        float pSize = (vIsStar > 0.5) ? (vRadius * 5.5) : (vRadius * 2.8);
+        gl_PointSize = pSize * (350.0 / -mvPosition.z) * uLightIntensity;
+        gl_Position = projectionMatrix * mvPosition;
+      }
+    `,
+    fragmentShader: `
+      uniform sampler2D uPositionTexture;
+      uniform sampler2D uMassDataTexture;
+      uniform float uLightIntensity;
+      uniform float uTexRes;
+
+      varying vec3 vColor;
+      varying float vIsStar;
+      varying vec3 vWorldPos;
+      varying float vRadius;
+
+      void main() {
+        vec2 coord = gl_PointCoord - vec2(0.5);
+        float distSq = dot(coord, coord);
+        if (distSq > 0.25) discard;
+
+        if (vIsStar > 0.5) {
+          // Central Star Core with Exponential Optical Bloom
+          float glow = exp(-distSq * 18.0) * 1.8;
+          float core = smoothstep(0.25, 0.0, distSq);
+          vec3 finalColor = vColor * (core + glow) * uLightIntensity * 1.6;
+          gl_FragColor = vec4(finalColor, 1.0);
+          return;
+        }
+
+        // Spherical Normal Reconstruction for Asteroids & Dust Planetesimals
+        float z = sqrt(max(0.0, 0.25 - distSq));
+        vec3 N = normalize(vec3(coord.x, -coord.y, z));
+
+        // Multi-Star Photometric Illumination (Inverse Square Law + Blinn Specular)
+        vec3 totalIllum = vec3(0.06); // Ambient Starlight
+
+        for (int s = 0; s < 4; s++) {
+          vec2 sUv = vec2(float(s) + 0.5, 0.5) / uTexRes;
+          vec3 sPos = texture2D(uPositionTexture, sUv).xyz;
+          vec4 sData = texture2D(uMassDataTexture, sUv);
+          vec3 sColor = vec3(1.0, 0.9, 0.8);
+
+          vec3 lightDir = sPos - vWorldPos;
+          float d2 = dot(lightDir, lightDir) + 20.0;
+          lightDir = normalize(lightDir);
+
+          float diff = max(0.0, dot(N, lightDir));
+          vec3 viewDir = vec3(0.0, 0.0, 1.0);
+          vec3 halfV = normalize(lightDir + viewDir);
+          float spec = pow(max(0.0, dot(N, halfV)), 16.0);
+
+          float attenuation = 400.0 / d2;
+          totalIllum += (diff * sColor + spec * 0.4) * attenuation * uLightIntensity;
+        }
+
+        vec3 litColor = vColor * totalIllum;
+        float alpha = smoothstep(0.25, 0.08, distSq);
+        gl_FragColor = vec4(litColor, alpha);
+      }
+    `,
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false
+  });
+
+  particleMesh = new THREE.Points(geo, mat);
+  scene.add(particleMesh);
+}
+
+function createClusterVisualizer() {
+  if (clusterMeshGroup) scene.remove(clusterMeshGroup);
+  clusterMeshGroup = new THREE.Group();
+
+  const clusterGeo = new THREE.SphereGeometry(REACH_RADIUS, 16, 16);
+  const clusterMat = new THREE.MeshBasicMaterial({
+    color: 0x38bdf8,
+    wireframe: true,
+    transparent: true,
+    opacity: 0.06
+  });
+
+  for (let i = 0; i < NUM_STARS; i++) {
+    const mesh = new THREE.Mesh(clusterGeo, clusterMat);
+    clusterMeshGroup.add(mesh);
+  }
+  scene.add(clusterMeshGroup);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// §6  Animation & Simulation Loop
+// ═══════════════════════════════════════════════════════════════
+
+function initScene() {
+  initGPGPU();
+  createParticleMesh();
+  createClusterVisualizer();
+}
+
+initScene();
+
+let lastTime = performance.now();
+let frames = 0;
+let fpsTimer = 0;
+
+function animate() {
+  requestAnimationFrame(animate);
+
+  const now = performance.now();
+  const dt = (now - lastTime) / 1000.0;
+  lastTime = now;
+
+  frames++;
+  fpsTimer += dt;
+  if (fpsTimer >= 0.5) {
+    const fps = Math.round(frames / fpsTimer);
+    const fpsEl = document.getElementById('fpsDisplay');
+    if (fpsEl) fpsEl.innerText = `${fps} FPS`;
+
+    const gflops = ((N_BODIES * (NUM_STARS + 64) * 32 * fps) / 1e9).toFixed(1);
+    const gflopsEl = document.getElementById('gflopsDisplay');
+    if (gflopsEl) gflopsEl.innerText = `~${gflops} GFLOPS`;
+
+    frames = 0;
+    fpsTimer = 0;
+  }
+
+  controls.update();
+
+  // Step GPGPU Simulation
+  if (velocityVar) {
+    velocityVar.material.uniforms.time.value = now * 0.001;
+  }
+  gpuCompute.compute();
+
+  // Feed Position Texture to Point-Cloud Rendering Pipeline
+  const currentPosTex = gpuCompute.getCurrentRenderTarget(positionVar).texture;
+  particleMesh.material.uniforms.uPositionTexture.value = currentPosTex;
+
+  renderer.render(scene, camera);
+}
+
+animate();
+
+// ═══════════════════════════════════════════════════════════════
+// §7  Global Event Handlers & Preset Switchers
+// ═══════════════════════════════════════════════════════════════
+
+// @ts-ignore
+window.loadGalaxyPreset = function(presetName) {
+  currentGalaxy = presetName;
+
+  ['milky_way', 'andromeda_merger', 'sombrero', 'triangulum'].forEach(name => {
+    const btn = document.getElementById(`preset-${name}`);
+    if (btn) {
+      btn.className = name === presetName
+        ? "py-1.5 px-2 rounded bg-sky-600 text-white font-bold text-left transition shadow flex items-center justify-between"
+        : "py-1.5 px-2 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-left transition flex items-center justify-between";
+    }
+  });
+
+  const coreLabel = document.getElementById('coreMassLabel');
+  if (coreLabel) {
+    if (presetName === 'milky_way') coreLabel.innerText = "4.2 × 10⁶ M☉ (Sgr A*)";
+    else if (presetName === 'andromeda_merger') coreLabel.innerText = "1.4 × 10⁸ M☉ (Dual Core)";
+    else if (presetName === 'sombrero') coreLabel.innerText = "1.0 × 10⁹ M☉ (Ultra-Dense)";
+    else coreLabel.innerText = "3.0 × 10⁴ M☉ (Diffuse Core)";
+  }
+
+  initScene();
+};
+
+// @ts-ignore
+window.setBodyPreset = function(w) {
+  WIDTH = w;
+  N_BODIES = WIDTH * WIDTH;
+  const label = document.getElementById('bodyCountLabel');
+  if (label) label.innerText = `${N_BODIES.toLocaleString()} Bodies`;
+
+  ['btn-1k', 'btn-4k', 'btn-9k', 'btn-16k'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.className = "py-1.5 px-2 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 transition text-center font-semibold";
+    }
+  });
+
+  const activeId = w === 32 ? 'btn-1k' : w === 64 ? 'btn-4k' : w === 96 ? 'btn-9k' : 'btn-16k';
+  const activeEl = document.getElementById(activeId);
+  if (activeEl) {
+    activeEl.className = "py-1.5 px-2 rounded bg-sky-600 text-white font-bold text-center transition shadow";
+  }
+
+  initScene();
+};
+
+// @ts-ignore
+window.resetScenario = function() {
+  initScene();
+};
+
+// @ts-ignore
+window.toggleClusterVisualization = function() {
+  showClusters = !showClusters;
+  if (clusterMeshGroup) clusterMeshGroup.visible = showClusters;
+  const btn = document.getElementById('btnToggleClusters');
+  if (btn) {
+    btn.className = showClusters
+      ? "flex-1 py-1.5 px-3 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 transition text-xs font-semibold"
+      : "flex-1 py-1.5 px-3 rounded bg-purple-900/60 border border-purple-500/40 text-purple-200 transition text-xs font-bold";
+  }
+};
+
+// Sliders Listeners
+document.getElementById('sliderBrownian')?.addEventListener('input', (e) => {
+  // @ts-ignore
+  BROWNIAN_STRENGTH = parseFloat(e.target.value);
+  const vEl = document.getElementById('valBrownian');
+  if (vEl) vEl.innerText = BROWNIAN_STRENGTH.toFixed(3);
+  const mEl = document.getElementById('metricBrownian');
+  if (mEl) mEl.innerText = `${(BROWNIAN_STRENGTH * 0.96).toFixed(3)} km/s`;
+  if (velocityVar) velocityVar.material.uniforms.brownianStrength.value = BROWNIAN_STRENGTH;
+});
+
+document.getElementById('sliderLight')?.addEventListener('input', (e) => {
+  // @ts-ignore
+  LIGHT_INTENSITY = parseFloat(e.target.value);
+  const lEl = document.getElementById('valLight');
+  if (lEl) lEl.innerText = `${LIGHT_INTENSITY.toFixed(1)}x`;
+  if (particleMesh) particleMesh.material.uniforms.uLightIntensity.value = LIGHT_INTENSITY;
+});
+
+document.getElementById('sliderCoM')?.addEventListener('input', (e) => {
+  // @ts-ignore
+  COM_OFFSET = parseFloat(e.target.value);
+  const cEl = document.getElementById('valCoM');
+  if (cEl) cEl.innerText = `${COM_OFFSET.toFixed(1)} px`;
+});
+
+document.getElementById('sliderG')?.addEventListener('input', (e) => {
+  // @ts-ignore
+  G_CONST = parseFloat(e.target.value);
+  const gEl = document.getElementById('valG');
+  if (gEl) gEl.innerText = G_CONST.toFixed(3);
+  if (velocityVar) velocityVar.material.uniforms.G.value = G_CONST;
+});
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// WebMCP Developer Bridge
+// @ts-ignore
+window.__WEBMCP__ = {
+  getState: () => ({
+    appName: 'N-Body Projective Clustered Engine v5',
+    galaxy: currentGalaxy,
+    bodyCount: N_BODIES,
+    brownianStrength: BROWNIAN_STRENGTH,
+    lightIntensity: LIGHT_INTENSITY,
+    G: G_CONST
+  }),
+  setGalaxy: (g) => window.loadGalaxyPreset(g),
+  setBodyCount: (w) => window.setBodyPreset(w)
+};
+// @ts-ignore
+window.__3DGSIL__ = window.__WEBMCP__;
+</script>
+</body>
+</html>

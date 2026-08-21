@@ -35,7 +35,7 @@
             border: 1px solid #2a3558;
             border-radius: 10px;
             padding: 16px 20px;
-            max-width: 460px;
+            max-width: 480px;
             font-size: 13px;
             line-height: 1.45;
             backdrop-filter: blur(10px);
@@ -59,6 +59,58 @@
             margin-top: 10px;
             color: #78a2e8;
             font-size: 11px
+        }
+
+        .webmcp-panel {
+            margin-top: 12px;
+            padding-top: 10px;
+            border-top: 1px solid #232c49;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .webmcp-title {
+            font-size: 11px;
+            font-weight: 700;
+            color: #38bdf8;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .webmcp-row {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .webmcp-btn {
+            background: rgba(26, 38, 70, 0.8);
+            border: 1px solid #334470;
+            color: #d1dcfa;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            font-family: inherit;
+        }
+
+        .webmcp-btn:hover {
+            background: #2b3d73;
+            border-color: #5572b8;
+            color: #ffffff;
+        }
+
+        .webmcp-btn.active {
+            background: #1d4ed8;
+            border-color: #3b82f6;
+            color: #ffffff;
+            font-weight: 600;
         }
 
         #status {
@@ -86,42 +138,161 @@
         <p class="dim">
             Soft inclusive density (allegorical CGA-Gaussian).<br>
             Approximate L4/L5 markers for dominant pair.<br>
-            Gravity &amp; illumination begin to share dual mathematical structure.<br>
+            Gravity &amp; illumination share dual mathematical structure.<br>
             Mesh-free analytic rays.
         </p>
+
+        <div class="webmcp-panel">
+            <div class="webmcp-title">
+                <span>WebMCP Interactive Bridge</span>
+                <span id="webmcp-badge" style="color: #4ade80; font-size: 10px;">● ACTIVE</span>
+            </div>
+            <div class="webmcp-row">
+                <button id="btn-pause" class="webmcp-btn">⏸ Pause (Space)</button>
+                <button id="btn-step" class="webmcp-btn">⏭ Step ( . )</button>
+                <button id="btn-diag" class="webmcp-btn">🩺 Diag (D)</button>
+            </div>
+            <div class="webmcp-row">
+                <span style="font-size: 11px; color: #8ba2d4;">Camera:</span>
+                <button id="cam-sys" class="webmcp-btn active">1: System</button>
+                <button id="cam-planet" class="webmcp-btn">2: Planet</button>
+                <button id="cam-moon" class="webmcp-btn">3: Moon</button>
+                <button id="cam-core" class="webmcp-btn">4: Core</button>
+            </div>
+            <div class="webmcp-row">
+                <span style="font-size: 11px; color: #8ba2d4;">Speed:</span>
+                <button id="spd-025" class="webmcp-btn">0.25x</button>
+                <button id="spd-100" class="webmcp-btn active">1.0x</button>
+                <button id="spd-250" class="webmcp-btn">2.5x</button>
+            </div>
+        </div>
+
         <p id="controls-hint">Orbit: LMB · Pan: RMB / Shift+LMB · Zoom: Wheel</p>
     </div>
     <div id="status">Initializing…</div>
 
     <script type="module">
+        // @ts-check
+        /// <reference path="./types/webgpu.d.ts" />
+        /// <reference path="./types/cga_fourier.d.ts" />
+        /// <reference path="./types/webmcp.d.ts" />
+        /// <reference path="./types/gpu_memory_layout.d.ts" />
+
         /**
-         * Next leap artifact
-         * - Soft inclusive spheres (Gaussian-like density)
-         * - Explicit dual contribution in force + shading
-         * - Visible omnidirectional infinity + approximate L4/L5
-         * - Gravity / illumination treated as dual operations
-         * - Still pure WebGPU + vanilla JS
+         * @file 5DCGA.html - Omnidirectional Infinity · CGA Dual Leap Raytracer
+         * WebGPU-based analytic raytracer modeling 5D Conformal Geometric Algebra dual inversion
+         * and N-body gravitational celestial mechanics.
          */
 
-        const canvas = document.getElementById('c');
-        const statusEl = document.getElementById('status');
+        const GPUBufferUsageFlags = {
+            MAP_READ: 0x01,
+            MAP_WRITE: 0x02,
+            COPY_SRC: 0x04,
+            COPY_DST: 0x08,
+            INDEX: 0x10,
+            VERTEX: 0x20,
+            UNIFORM: 0x40,
+            STORAGE: 0x80,
+            INDIRECT: 0x100,
+            QUERY_RESOLVE: 0x200
+        };
+
+        const GPUShaderStageFlags = {
+            VERTEX: 0x1,
+            FRAGMENT: 0x2,
+            COMPUTE: 0x4
+        };
+
+        /**
+         * @typedef {Object} BodyConfig
+         * @property {[number, number, number]} [pos] - Initial 3D Cartesian coordinates [x, y, z] (default: [0, 0, 0])
+         * @property {number} [radius] - Physical bounding radius of the celestial body (default: 0.05)
+         * @property {[number, number, number]} [dual] - Initial 5D CGA dual coordinates (default: [0, 0, 0])
+         * @property {number} [mass] - Gravitational mass parameter (default: 1.0)
+         * @property {[number, number, number]} [vel] - Initial linear velocity vector [vx, vy, vz] (default: [0, 0, 0])
+         * @property {number} [life] - Vitality / luminescence attenuation factor (default: 1.0)
+         * @property {number} [type] - Entity classification (0: Radiant Star, 1: Primary Planet, 2: Satellite, 3: Asteroid)
+         */
+
+        /**
+         * @typedef {Object} CameraController
+         * @property {[number, number, number]} target - Look-at focus coordinate in world space
+         * @property {number} distance - Orbital distance from the camera eye to the target
+         * @property {number} azimuth - Azimuthal rotation angle (radians) in the X-Z plane
+         * @property {number} elevation - Polar inclination angle (radians) relative to the horizon
+         * @property {[number, number, number]} eye - Computed 3D position of the camera in world space
+         * @property {() => void} update - Recomputes the camera eye position from spherical coordinates
+         */
+
+        const canvas = /** @type {HTMLCanvasElement} */ (document.getElementById('c'));
+        const statusEl = /** @type {HTMLElement} */ (document.getElementById('status'));
+
+        if (!canvas || !statusEl) {
+            throw new Error('Required canvas or status element not found in DOM.');
+        }
 
         const NUM_BODIES = 18;
         const WORKGROUP = 64;
-        const FLOATS_PER_BODY = 16; // pos.xyz, radius, dual.xyz, mass, vel.xyz, life, type, pad
+        const FLOATS_PER_BODY = 16; // pos.xyz, radius, dual.xyz, mass, vel.xyz, life, type, pad[3]
 
-        const setBody = (data, idx, o) => {
+        // Simulation state variables
+        let isPaused = false;
+        let timeScale = 1.0;
+        let simTime = 0.0;
+        let manualStepDt = 0.0;
+        let frameCount = 0;
+        let currentFps = 60;
+        let fpsFrameCounter = 0;
+        let lastFpsTimestamp = performance.now();
+
+        // Pre-allocated scratch buffers for zero-allocation hot loops (Rule 1.4)
+        const matView = new Float32Array(16);
+        const matProj = new Float32Array(16);
+        const matVP = new Float32Array(16);
+        const matInvVP = new Float32Array(16);
+        const computeUniformArray = new Float32Array(4);
+        const renderUniformArray = new Float32Array(32);
+
+        /**
+         * Serializes a celestial body entity into the contiguous Float32 buffer at the specified index.
+         * Explicit parameter decomposition and defaults as per Rule 7.3.
+         * @param {Float32Array} data - Target buffer storing serialized body attributes
+         * @param {number} idx - Zero-based index of the body entity
+         * @param {BodyConfig} [config] - Source configuration and orbital parameters
+         * @returns {void}
+         */
+        const setBody = (data, idx, {
+            pos = [0, 0, 0],
+            radius = 0.05,
+            dual = [0, 0, 0],
+            mass = 1.0,
+            vel = [0, 0, 0],
+            life = 1.0,
+            type = 1
+        } = {}) => {
             const b = idx * FLOATS_PER_BODY;
-            data[b + 0] = o.pos[0]; data[b + 1] = o.pos[1]; data[b + 2] = o.pos[2];
-            data[b + 3] = o.radius ?? 0.05;
-            data[b + 4] = 0; data[b + 5] = 0; data[b + 6] = 0; // dual written by compute
-            data[b + 7] = o.mass ?? 1;
-            data[b + 8] = o.vel?.[0] ?? 0; data[b + 9] = o.vel?.[1] ?? 0; data[b + 10] = o.vel?.[2] ?? 0;
-            data[b + 11] = o.life ?? 1;
-            data[b + 12] = o.type ?? 1;
-            data[b + 13] = data[b + 14] = data[b + 15] = 0;
+            data[b + 0] = pos[0];
+            data[b + 1] = pos[1];
+            data[b + 2] = pos[2];
+            data[b + 3] = radius;
+            data[b + 4] = dual[0];
+            data[b + 5] = dual[1];
+            data[b + 6] = dual[2]; // dual updated dynamically by compute shader
+            data[b + 7] = mass;
+            data[b + 8] = vel[0];
+            data[b + 9] = vel[1];
+            data[b + 10] = vel[2];
+            data[b + 11] = life;
+            data[b + 12] = type;
+            data[b + 13] = 0;
+            data[b + 14] = 0;
+            data[b + 15] = 0;
         };
 
+        /**
+         * Initializes the initial celestial bodies configuration for the N-body gravitational simulation.
+         * @returns {Float32Array} Contiguous Float32 buffer containing all body entities
+         */
         function initBodies() {
             const data = new Float32Array(NUM_BODIES * FLOATS_PER_BODY);
             let i = 0;
@@ -146,29 +317,44 @@
             return data;
         }
 
-        // ---------- Camera ----------
+        // ---------- Camera Controller ----------
+        /** @type {CameraController} */
         const camera = {
-            target: [0, 0, 0], distance: 3.2, azimuth: 0.7, elevation: 0.4, eye: [0, 0, 0],
+            target: [0, 0, 0],
+            distance: 3.2,
+            azimuth: 0.7,
+            elevation: 0.4,
+            eye: [0, 0, 0],
             update() {
                 this.elevation = Math.max(-1.5, Math.min(1.5, this.elevation));
                 const x = this.distance * Math.cos(this.elevation) * Math.sin(this.azimuth);
                 const y = this.distance * Math.sin(this.elevation);
                 const z = this.distance * Math.cos(this.elevation) * Math.cos(this.azimuth);
-                this.eye = [this.target[0] + x, this.target[1] + y, this.target[2] + z];
+                this.eye[0] = this.target[0] + x;
+                this.eye[1] = this.target[1] + y;
+                this.eye[2] = this.target[2] + z;
             }
         };
         camera.update();
 
-        let dragging = false, panning = false, lastX = 0, lastY = 0;
-        window.addEventListener('mousedown', e => {
+        let dragging = false;
+        let panning = false;
+        let lastX = 0;
+        let lastY = 0;
+
+        window.addEventListener('mousedown', (/** @type {MouseEvent} */ e) => {
             if (e.target !== canvas) return;
             if (e.button === 0 && !e.shiftKey) dragging = true;
             if (e.button === 2 || (e.button === 0 && e.shiftKey)) panning = true;
-            lastX = e.clientX; lastY = e.clientY;
+            lastX = e.clientX;
+            lastY = e.clientY;
         });
-        window.addEventListener('mousemove', e => {
-            const dx = e.clientX - lastX, dy = e.clientY - lastY;
-            lastX = e.clientX; lastY = e.clientY;
+
+        window.addEventListener('mousemove', (/** @type {MouseEvent} */ e) => {
+            const dx = e.clientX - lastX;
+            const dy = e.clientY - lastY;
+            lastX = e.clientX;
+            lastY = e.clientY;
             if (dragging) {
                 camera.azimuth -= dx * 0.006;
                 camera.elevation += dy * 0.006;
@@ -180,49 +366,108 @@
                 camera.update();
             }
         });
-        window.addEventListener('mouseup', () => { dragging = panning = false });
-        window.addEventListener('contextmenu', e => e.preventDefault());
-        window.addEventListener('wheel', e => {
+
+        window.addEventListener('mouseup', () => {
+            dragging = false;
+            panning = false;
+        });
+
+        window.addEventListener('contextmenu', (/** @type {MouseEvent} */ e) => e.preventDefault());
+
+        window.addEventListener('wheel', (/** @type {WheelEvent} */ e) => {
             camera.distance = Math.max(0.6, Math.min(18, camera.distance * (1 + e.deltaY * 0.001)));
             camera.update();
         }, { passive: true });
 
-        // ---------- Matrices ----------
-        function lookAt(eye, target, up = [0, 1, 0]) {
+        // ---------- Matrix Utilities ----------
+
+        /**
+         * Computes a 4x4 right-handed view matrix looking from eye towards target.
+         * @param {[number, number, number] | number[]} eye - Camera eye location
+         * @param {[number, number, number] | number[]} target - Target focus location
+         * @param {[number, number, number] | number[]} [up=[0, 1, 0]] - World up direction vector
+         * @param {Float32Array} [out] - Optional destination matrix for zero-allocation performance
+         * @returns {Float32Array} 16-element column-major View matrix
+         */
+        function lookAt(eye, target, up = [0, 1, 0], out = matView) {
             let zx = eye[0] - target[0], zy = eye[1] - target[1], zz = eye[2] - target[2];
-            let zl = Math.hypot(zx, zy, zz) || 1; zx /= zl; zy /= zl; zz /= zl;
+            let zl = Math.hypot(zx, zy, zz);
+            zl = zl > 1e-6 ? zl : 1.0;
+            zx /= zl; zy /= zl; zz /= zl;
+
             let xx = up[1] * zz - up[2] * zy, xy = up[2] * zx - up[0] * zz, xz = up[0] * zy - up[1] * zx;
-            let xl = Math.hypot(xx, xy, xz) || 1; xx /= xl; xy /= xl; xz /= xl;
+            let xl = Math.hypot(xx, xy, xz);
+            xl = xl > 1e-6 ? xl : 1.0;
+            xx /= xl; xy /= xl; xz /= xl;
+
             let yx = zy * xz - zz * xy, yy = zz * xx - zx * xz, yz = zx * xy - zy * xx;
-            return new Float32Array([
-                xx, yx, zx, 0, xy, yy, zy, 0, xz, yz, zz, 0,
-                -(xx * eye[0] + xy * eye[1] + xz * eye[2]),
-                -(yx * eye[0] + yy * eye[1] + yz * eye[2]),
-                -(zx * eye[0] + zy * eye[1] + zz * eye[2]), 1
-            ]);
+
+            out[0] = xx; out[1] = yx; out[2] = zx; out[3] = 0;
+            out[4] = xy; out[5] = yy; out[6] = zy; out[7] = 0;
+            out[8] = xz; out[9] = yz; out[10] = zz; out[11] = 0;
+            out[12] = -(xx * eye[0] + xy * eye[1] + xz * eye[2]);
+            out[13] = -(yx * eye[0] + yy * eye[1] + yz * eye[2]);
+            out[14] = -(zx * eye[0] + zy * eye[1] + zz * eye[2]);
+            out[15] = 1;
+            return out;
         }
-        function perspective(fov, aspect, near, far) {
-            const f = 1 / Math.tan(fov / 2), nf = 1 / (near - far);
-            const m = new Float32Array(16);
-            m[0] = f / aspect; m[5] = f; m[10] = (far + near) * nf; m[11] = -1; m[14] = 2 * far * near * nf;
-            return m;
+
+        /**
+         * Computes a 4x4 perspective projection matrix with WebGPU [0, 1] clip depth.
+         * @param {number} fov - Vertical field of view in radians
+         * @param {number} aspect - Viewport aspect ratio (width / height)
+         * @param {number} near - Near clipping plane distance
+         * @param {number} far - Far clipping plane distance
+         * @param {Float32Array} [out] - Optional destination matrix for zero-allocation performance
+         * @returns {Float32Array} 16-element column-major Projection matrix
+         */
+        function perspective(fov, aspect, near, far, out = matProj) {
+            const f = 1 / Math.tan(fov / 2);
+            const nf = 1 / (near - far);
+            out.fill(0);
+            out[0] = f / aspect;
+            out[5] = f;
+            out[10] = (far + near) * nf;
+            out[11] = -1;
+            out[14] = 2 * far * near * nf;
+            return out;
         }
-        function mul4(a, b) {
-            const o = new Float32Array(16);
-            for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++)
-                o[j * 4 + i] = a[i] * b[j * 4] + a[4 + i] * b[j * 4 + 1] + a[8 + i] * b[j * 4 + 2] + a[12 + i] * b[j * 4 + 3];
-            return o;
+
+        /**
+         * Multiplies two 4x4 column-major matrices (a * b).
+         * @param {Float32Array | number[]} a - Left 4x4 matrix
+         * @param {Float32Array | number[]} b - Right 4x4 matrix
+         * @param {Float32Array} [out] - Optional destination matrix for zero-allocation performance
+         * @returns {Float32Array} Resulting 4x4 matrix
+         */
+        function mul4(a, b, out = matVP) {
+            for (let i = 0; i < 4; i++) {
+                const a0 = a[i], a1 = a[4 + i], a2 = a[8 + i], a3 = a[12 + i];
+                for (let j = 0; j < 4; j++) {
+                    const j4 = j * 4;
+                    out[j4 + i] = a0 * b[j4] + a1 * b[j4 + 1] + a2 * b[j4 + 2] + a3 * b[j4 + 3];
+                }
+            }
+            return out;
         }
-        function invert4(m) {
-            // (standard invert – same as previous working version)
-            const out = new Float32Array(16);
+
+        /**
+         * Computes the analytic inverse of a 4x4 column-major matrix.
+         * @param {Float32Array | number[]} m - Input 4x4 matrix
+         * @param {Float32Array} [out] - Optional destination matrix for zero-allocation performance
+         * @returns {Float32Array} Inverted 4x4 matrix (or zero matrix if singular)
+         */
+        function invert4(m, out = matInvVP) {
             const [m00, m01, m02, m03, m10, m11, m12, m13, m20, m21, m22, m23, m30, m31, m32, m33] = m;
             const b00 = m00 * m11 - m01 * m10, b01 = m00 * m12 - m02 * m10, b02 = m00 * m13 - m03 * m10;
             const b03 = m01 * m12 - m02 * m11, b04 = m01 * m13 - m03 * m11, b05 = m02 * m13 - m03 * m12;
             const b06 = m20 * m31 - m21 * m30, b07 = m20 * m32 - m22 * m30, b08 = m20 * m33 - m23 * m30;
             const b09 = m21 * m32 - m22 * m31, b10 = m21 * m33 - m23 * m31, b11 = m22 * m33 - m23 * m32;
             let det = b00 * b11 - b01 * b10 + b02 * b09 + b03 * b08 - b04 * b07 + b05 * b06;
-            if (!det) return out;
+            if (!det) {
+                out.fill(0);
+                return out;
+            }
             det = 1 / det;
             out[0] = (m11 * b11 - m12 * b10 + m13 * b09) * det;
             out[1] = (-m01 * b11 + m02 * b10 - m03 * b09) * det;
@@ -243,24 +488,288 @@
             return out;
         }
 
-        // ---------- WebGPU ----------
-        let device, context, computePipeline, renderPipeline;
-        let bodyBuffer, bodyBufferRead, uniCompute, uniRender;
-        let computeBG, renderBG;
+        // ---------- WebGPU Resources & Pipelines ----------
+        /** @type {GPUDevice} */
+        let device;
+        /** @type {GPUCanvasContext} */
+        let context;
+        /** @type {GPUComputePipeline} */
+        let computePipeline;
+        /** @type {GPURenderPipeline} */
+        let renderPipeline;
+        /** @type {GPUBuffer} */
+        let bodyBuffer;
+        /** @type {GPUBuffer} */
+        let bodyBufferRead;
+        /** @type {GPUBuffer} */
+        let uniCompute;
+        /** @type {GPUBuffer} */
+        let uniRender;
+        /** @type {GPUBindGroup} */
+        let computeBG;
+        /** @type {GPUBindGroup} */
+        let renderBG;
+
         const bodyData = initBodies();
 
+        // ---------- WebMCP Implementation ----------
+
+        /**
+         * Runs health diagnostics on active body buffers.
+         * @returns {WebMCP.DiagnosticReport}
+         */
+        function runDiagnostics() {
+            let valid = true;
+            let maxSpeed = 0;
+            let totalKineticEnergy = 0;
+            /** @type {string[]} */
+            const warnings = [];
+            /** @type {string[]} */
+            const errors = [];
+
+            for (let i = 0; i < NUM_BODIES; i++) {
+                const b = i * FLOATS_PER_BODY;
+                const px = bodyData[b + 0], py = bodyData[b + 1], pz = bodyData[b + 2];
+                const vx = bodyData[b + 8], vy = bodyData[b + 9], vz = bodyData[b + 10];
+                const mass = bodyData[b + 7];
+
+                if (!Number.isFinite(px) || !Number.isFinite(py) || !Number.isFinite(pz)) {
+                    valid = false;
+                    errors.push(`Body #${i} has non-finite position [${px}, ${py}, ${pz}]`);
+                }
+
+                if (!Number.isFinite(vx) || !Number.isFinite(vy) || !Number.isFinite(vz)) {
+                    valid = false;
+                    errors.push(`Body #${i} has non-finite velocity [${vx}, ${vy}, ${vz}]`);
+                }
+
+                const speed = Math.hypot(vx, vy, vz);
+                if (speed > maxSpeed) maxSpeed = speed;
+                totalKineticEnergy += 0.5 * mass * speed * speed;
+
+                const dist = Math.hypot(px, py, pz);
+                if (dist > 30.0) {
+                    warnings.push(`Body #${i} escaped boundary (r=${dist.toFixed(2)})`);
+                }
+            }
+
+            return {
+                valid,
+                bodyCount: NUM_BODIES,
+                maxSpeed,
+                totalKineticEnergy,
+                warnings,
+                errors
+            };
+        }
+
+        /** @type {WebMCP.BridgeAPI} */
+        const webmcp = {
+            getState() {
+                /** @type {WebMCP.BodyEntity[]} */
+                const bodies = [];
+                for (let i = 0; i < NUM_BODIES; i++) {
+                    const b = i * FLOATS_PER_BODY;
+                    const type = bodyData[b + 12];
+                    const name = type === 0 ? (i === 0 ? 'Primary Star' : 'Secondary Star') : (type === 1 ? 'Planet' : (type === 2 ? 'Moon' : 'Asteroid'));
+                    bodies.push({
+                        index: i,
+                        type,
+                        name,
+                        pos: [bodyData[b + 0], bodyData[b + 1], bodyData[b + 2]],
+                        radius: bodyData[b + 3],
+                        mass: bodyData[b + 7],
+                        vel: [bodyData[b + 8], bodyData[b + 9], bodyData[b + 10]],
+                        life: bodyData[b + 11]
+                    });
+                }
+
+                return {
+                    time: simTime,
+                    dt: isPaused ? 0 : 0.016 * timeScale,
+                    fps: currentFps,
+                    isPaused,
+                    timeScale,
+                    frameCount,
+                    camera: {
+                        target: [camera.target[0], camera.target[1], camera.target[2]],
+                        distance: camera.distance,
+                        azimuth: camera.azimuth,
+                        elevation: camera.elevation,
+                        eye: [camera.eye[0], camera.eye[1], camera.eye[2]]
+                    },
+                    bodies,
+                    diagnostics: runDiagnostics()
+                };
+            },
+            pause() {
+                isPaused = true;
+                updateButtonStates();
+            },
+            resume() {
+                isPaused = false;
+                updateButtonStates();
+            },
+            togglePause() {
+                isPaused = !isPaused;
+                updateButtonStates();
+                return isPaused;
+            },
+            step(dt = 0.033) {
+                isPaused = true;
+                manualStepDt = dt;
+                updateButtonStates();
+            },
+            setTimeScale(scale) {
+                timeScale = Math.max(0.01, Math.min(10.0, scale));
+                updateButtonStates();
+            },
+            setCameraPreset(mode) {
+                if (mode === 'system') {
+                    camera.target = [0, 0, 0];
+                    camera.distance = 3.2;
+                    camera.azimuth = 0.7;
+                    camera.elevation = 0.4;
+                } else if (mode === 'planet') {
+                    camera.target = [bodyData[FLOATS_PER_BODY + 0], bodyData[FLOATS_PER_BODY + 1], bodyData[FLOATS_PER_BODY + 2]];
+                    camera.distance = 0.8;
+                    camera.azimuth = 1.2;
+                    camera.elevation = 0.2;
+                } else if (mode === 'moon') {
+                    camera.target = [bodyData[2 * FLOATS_PER_BODY + 0], bodyData[2 * FLOATS_PER_BODY + 1], bodyData[2 * FLOATS_PER_BODY + 2]];
+                    camera.distance = 0.4;
+                    camera.azimuth = 0.0;
+                    camera.elevation = 0.5;
+                } else if (mode === 'core') {
+                    camera.target = [0, 0, 0];
+                    camera.distance = 0.9;
+                    camera.azimuth = 0.0;
+                    camera.elevation = 1.45;
+                }
+                camera.update();
+                updateButtonStates();
+            },
+            setCameraOrbit(azimuth, elevation, distance) {
+                camera.azimuth = azimuth;
+                camera.elevation = elevation;
+                camera.distance = distance;
+                camera.update();
+            },
+            runDiagnostics() {
+                const report = runDiagnostics();
+                console.table(report);
+                return report;
+            },
+            exec(cmd, ...args) {
+                // @ts-ignore
+                if (typeof webmcp[cmd] === 'function') {
+                    // @ts-ignore
+                    return webmcp[cmd](...args);
+                }
+                throw new Error(`Unknown WebMCP command: ${cmd}`);
+            }
+        };
+
+        // Expose to window for external MCP tools / Chrome DevTools
+        window.__WEBMCP__ = webmcp;
+        window.__3DGSIL__ = webmcp;
+
+        function updateButtonStates() {
+            const btnPause = document.getElementById('btn-pause');
+            if (btnPause) {
+                btnPause.textContent = isPaused ? '▶ Resume (Space)' : '⏸ Pause (Space)';
+                if (isPaused) btnPause.classList.add('active');
+                else btnPause.classList.remove('active');
+            }
+
+            document.querySelectorAll('[id^="spd-"]').forEach(el => el.classList.remove('active'));
+            if (timeScale <= 0.3) document.getElementById('spd-025')?.classList.add('active');
+            else if (timeScale >= 2.0) document.getElementById('spd-250')?.classList.add('active');
+            else document.getElementById('spd-100')?.classList.add('active');
+        }
+
+        // Setup UI Event Listeners
+        document.getElementById('btn-pause')?.addEventListener('click', () => webmcp.togglePause());
+        document.getElementById('btn-step')?.addEventListener('click', () => webmcp.step(0.05));
+        document.getElementById('btn-diag')?.addEventListener('click', () => webmcp.runDiagnostics());
+
+        document.getElementById('cam-sys')?.addEventListener('click', () => {
+            webmcp.setCameraPreset('system');
+            document.querySelectorAll('[id^="cam-"]').forEach(el => el.classList.remove('active'));
+            document.getElementById('cam-sys')?.classList.add('active');
+        });
+        document.getElementById('cam-planet')?.addEventListener('click', () => {
+            webmcp.setCameraPreset('planet');
+            document.querySelectorAll('[id^="cam-"]').forEach(el => el.classList.remove('active'));
+            document.getElementById('cam-planet')?.classList.add('active');
+        });
+        document.getElementById('cam-moon')?.addEventListener('click', () => {
+            webmcp.setCameraPreset('moon');
+            document.querySelectorAll('[id^="cam-"]').forEach(el => el.classList.remove('active'));
+            document.getElementById('cam-moon')?.classList.add('active');
+        });
+        document.getElementById('cam-core')?.addEventListener('click', () => {
+            webmcp.setCameraPreset('core');
+            document.querySelectorAll('[id^="cam-"]').forEach(el => el.classList.remove('active'));
+            document.getElementById('cam-core')?.classList.add('active');
+        });
+
+        document.getElementById('spd-025')?.addEventListener('click', () => webmcp.setTimeScale(0.25));
+        document.getElementById('spd-100')?.addEventListener('click', () => webmcp.setTimeScale(1.0));
+        document.getElementById('spd-250')?.addEventListener('click', () => webmcp.setTimeScale(2.5));
+
+        // Keyboard navigation shortcuts
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') {
+                e.preventDefault();
+                webmcp.togglePause();
+            } else if (e.key === '.' || e.code === 'Period') {
+                webmcp.step(0.05);
+            } else if (e.key === '1') {
+                webmcp.setCameraPreset('system');
+            } else if (e.key === '2') {
+                webmcp.setCameraPreset('planet');
+            } else if (e.key === '3') {
+                webmcp.setCameraPreset('moon');
+            } else if (e.key === '4') {
+                webmcp.setCameraPreset('core');
+            } else if (e.key === 'd' || e.key === 'D') {
+                webmcp.runDiagnostics();
+            } else if (e.key === '[') {
+                webmcp.setTimeScale(Math.max(0.1, timeScale * 0.5));
+            } else if (e.key === ']') {
+                webmcp.setTimeScale(Math.min(5.0, timeScale * 2.0));
+            }
+        });
+
+        /**
+         * Initializes the WebGPU device, pipelines, storage buffers, and starts the render loop.
+         * @returns {Promise<void>}
+         */
         async function init() {
-            if (!navigator.gpu) { statusEl.textContent = 'WebGPU not supported'; return; }
-            const adapter = await navigator.gpu.requestAdapter();
-            if (!adapter) { statusEl.textContent = 'No adapter'; return; }
+            const gpu = /** @type {any} */ (navigator).gpu;
+            if (!gpu) {
+                statusEl.textContent = 'WebGPU not supported on this browser/platform';
+                return;
+            }
+            const adapter = await gpu.requestAdapter();
+            if (!adapter) {
+                statusEl.textContent = 'No suitable WebGPU adapter found';
+                return;
+            }
             device = await adapter.requestDevice();
-            context = canvas.getContext('webgpu');
-            const format = navigator.gpu.getPreferredCanvasFormat();
+            const ctx = /** @type {GPUCanvasContext | null} */ (canvas.getContext('webgpu'));
+            if (!ctx) {
+                statusEl.textContent = 'Failed to acquire WebGPU canvas context';
+                return;
+            }
+            context = ctx;
+            const format = gpu.getPreferredCanvasFormat();
             context.configure({ device, format, alphaMode: 'premultiplied' });
 
             bodyBuffer = device.createBuffer({
                 size: bodyData.byteLength,
-                usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC,
+                usage: GPUBufferUsageFlags.STORAGE | GPUBufferUsageFlags.COPY_DST | GPUBufferUsageFlags.COPY_SRC,
                 mappedAtCreation: true
             });
             new Float32Array(bodyBuffer.getMappedRange()).set(bodyData);
@@ -268,11 +777,11 @@
 
             bodyBufferRead = device.createBuffer({
                 size: bodyData.byteLength,
-                usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
+                usage: GPUBufferUsageFlags.STORAGE | GPUBufferUsageFlags.COPY_DST
             });
 
-            uniCompute = device.createBuffer({ size: 16, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
-            uniRender = device.createBuffer({ size: 128, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+            uniCompute = device.createBuffer({ size: 16, usage: GPUBufferUsageFlags.UNIFORM | GPUBufferUsageFlags.COPY_DST });
+            uniRender = device.createBuffer({ size: 128, usage: GPUBufferUsageFlags.UNIFORM | GPUBufferUsageFlags.COPY_DST });
 
             // ===== Compute: dual + soft N-body + central infinity =====
             const computeMod = device.createShaderModule({
@@ -286,52 +795,62 @@ struct Body {
 @group(0) @binding(0) var<storage, read_write> bodies: array<Body>;
 @group(0) @binding(1) var<uniform> u: vec4f;
 
+fn safeNormalize(v: vec3f, fallback: vec3f) -> vec3f {
+  let len = length(v);
+  return select(fallback, v / len, len > 1e-5);
+}
+
 @compute @workgroup_size(64)
 fn main(@builtin(global_invocation_id) id: vec3u) {
   let i = id.x;
   if (i >= arrayLength(&bodies)) { return; }
   var b = bodies[i];
-  let dt = max(u.y, 0.003);
+  let dt = max(u.y, 0.0);
 
-  // Dual inversion (CGA spirit)
+  // Dual inversion in 5D CGA conformal space (Rs = 1.0)
   let r2 = dot(b.pos, b.pos) + 1e-6;
   b.dual = b.pos / r2;
 
-  var force = vec3f(0.0);
-  for (var j=0u; j<arrayLength(&bodies); j++) {
-    if (j==i) { continue; }
-    let o = bodies[j];
-    let d = o.pos - b.pos;
-    let dist2 = dot(d,d) + 0.003;
-    let inv = inverseSqrt(dist2);
-    // Classical gravity
-    force += d * (o.mass * inv*inv*inv) * 0.00004;
-    // Dual contribution (opposite logical flavour)
-    let dd = o.dual - b.dual;
-    force += dd * (o.mass * 0.00001 / (dot(dd,dd)+0.004));
-  }
+  if (dt > 1e-6) {
+    var force = vec3f(0.0);
+    for (var j=0u; j<arrayLength(&bodies); j++) {
+      if (j==i) { continue; }
+      let o = bodies[j];
+      let d = o.pos - b.pos;
+      let dist2 = dot(d,d) + 0.003;
+      let inv = inverseSqrt(dist2);
+      // Gravitational acceleration per unit mass
+      force += d * (o.mass * inv*inv*inv) * 0.00004;
+      // Dual contribution (opposite logical flavour in conformal space)
+      let dd = o.dual - b.dual;
+      force += dd * (o.mass * 0.00001 / (dot(dd,dd)+0.004));
+    }
 
-  // Omnidirectional infinity / collapsed L1 attraction
-  let toC = -b.pos;
-  let cd = length(toC) + 1e-5;
-  force += toC * (0.00005 / (cd*cd));
+    // Omnidirectional infinity / collapsed L1 attraction
+    let toC = -b.pos;
+    let cd = length(toC) + 1e-5;
+    force += toC * (0.00005 / (cd*cd));
 
-  b.vel += force * dt;
-  b.pos += b.vel * dt;
-  let spd = length(b.vel);
-  if (spd > 1.6) { b.vel *= 1.6/spd; }
-  b.vel *= 0.996;
+    // Symplectic velocity update
+    b.vel += force * dt;
+    b.pos += b.vel * dt;
+    let spd = length(b.vel);
+    if (spd > 1.6) { b.vel *= 1.6/spd; }
+    b.vel *= 0.996;
 
-  // Soft contraction near infinity
-  if (b.type_ > 0.5) {
-    let near = smoothstep(0.4, 0.03, cd);
-    b.life = mix(b.life, b.life*0.998, near);
-  }
+    // Soft contraction near infinity
+    if (b.type_ > 0.5) {
+      let near = smoothstep(0.4, 0.03, cd);
+      b.life = mix(b.life, b.life*0.998, near);
+    }
 
-  let maxR = 2.6;
-  if (length(b.pos) > maxR) {
-    b.pos = normalize(b.pos)*maxR;
-    b.vel -= normalize(b.pos)*dot(b.vel,normalize(b.pos))*1.2;
+    let maxR = 2.6;
+    let posLen = length(b.pos);
+    if (posLen > maxR) {
+      let normPos = safeNormalize(b.pos, vec3f(0.0, 1.0, 0.0));
+      b.pos = normPos * maxR;
+      b.vel -= normPos * dot(b.vel, normPos) * 1.2;
+    }
   }
   bodies[i] = b;
 }`
@@ -339,8 +858,8 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
 
             const cLayout = device.createBindGroupLayout({
                 entries: [
-                    { binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },
-                    { binding: 1, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'uniform' } }
+                    { binding: 0, visibility: GPUShaderStageFlags.COMPUTE, buffer: { type: 'storage' } },
+                    { binding: 1, visibility: GPUShaderStageFlags.COMPUTE, buffer: { type: 'uniform' } }
                 ]
             });
             computePipeline = device.createComputePipeline({
@@ -367,7 +886,8 @@ struct Body {
 struct Uni {
   invVP: mat4x4f,
   eye: vec3f, time: f32,
-  res: vec2f, pad: vec2f
+  res: vec2f, pad: vec2f,
+  extra: vec4f, extra2: vec4f
 };
 @group(0) @binding(0) var<storage, read> bodies: array<Body>;
 @group(0) @binding(1) var<uniform> u: Uni;
@@ -385,17 +905,22 @@ fn vs(@builtin(vertex_index) vid: u32) -> VSOut {
   return o;
 }
 
+fn safeNormalize(v: vec3f, fallback: vec3f) -> vec3f {
+  let len = length(v);
+  return select(fallback, v / len, len > 1e-5);
+}
+
 fn softSphere(rayOrig: vec3f, rayDir: vec3f, center: vec3f, radius: f32) -> vec2f {
-  // returns (t, density) – soft inclusive falloff
+  // Analytic Ray-Sphere Half-b quadratic discriminant
   let oc = rayOrig - center;
   let b = dot(oc, rayDir);
-  let c = dot(oc,oc) - radius*radius;
-  let disc = b*b - c;
+  let c = dot(oc, oc) - radius * radius;
+  let disc = b * b - c;
   if (disc < 0.0) { return vec2f(-1.0, 0.0); }
   let s = sqrt(disc);
   let t = -b - s;
   if (t < 0.001) { return vec2f(-1.0, 0.0); }
-  let dens = exp(-max(0.0, (length(oc + rayDir*t) - radius*0.7)) * 4.0);
+  let dens = exp(-max(0.0, (length(oc + rayDir * t) - radius * 0.7)) * 4.0);
   return vec2f(t, dens);
 }
 
@@ -404,14 +929,14 @@ fn fs(in: VSOut) -> @location(0) vec4f {
   let ndc = vec4f(in.uv, 0.0, 1.0);
   let worldH = u.invVP * ndc;
   let world = worldH.xyz / max(abs(worldH.w), 1e-8);
-  let rayDir = normalize(world - u.eye);
+  let rayDir = safeNormalize(world - u.eye, vec3f(0.0, 0.0, -1.0));
   let rayOrig = u.eye;
 
   var closestT = 1e20;
-  var hitPos = vec3f(0);
-  var hitNormal = vec3f(0);
+  var hitPos = vec3f(0.0);
+  var hitNormal = vec3f(0.0, 1.0, 0.0);
   var hitType = -1.0;
-  var hitDual = vec3f(0);
+  var hitDual = vec3f(0.0);
   var hitLife = 1.0;
   var hitDens = 0.0;
   var hitIdx = 0u;
@@ -423,7 +948,7 @@ fn fs(in: VSOut) -> @location(0) vec4f {
     if (h.x > 0.0 && h.x < closestT) {
       closestT = h.x;
       hitPos = rayOrig + rayDir * h.x;
-      hitNormal = normalize(hitPos - b.pos);
+      hitNormal = safeNormalize(hitPos - b.pos, vec3f(0.0, 1.0, 0.0));
       hitType = b.type_;
       hitDual = b.dual;
       hitLife = b.life;
@@ -438,14 +963,14 @@ fn fs(in: VSOut) -> @location(0) vec4f {
     let peri = length(rayOrig + rayDir*tC);
     let glow = 0.11 / (peri*peri + 0.09);
     let col = vec3f(0.012,0.018,0.04) + vec3f(0.35,0.55,1.0)*glow;
-    return vec4f(col,1);
+    return vec4f(col,1.0);
   }
 
-  var col = vec3f(0);
+  var col = vec3f(0.0);
 
   if (hitType < 0.5) {
     // Star – emissive (illumination side of the dual)
-    let vd = max(dot(-rayDir, hitNormal), 0.0);
+    let vd = clamp(dot(-rayDir, hitNormal), 0.0, 1.0);
     col = vec3f(1.0,0.9,0.65) * (1.6 + 0.8*pow(vd,0.6));
   } else {
     var albedo = vec3f(0.4,0.6,0.95);
@@ -457,7 +982,7 @@ fn fs(in: VSOut) -> @location(0) vec4f {
       if (star.type_ > 0.5) { continue; }
       let toL = star.pos - hitPos;
       let dist = length(toL);
-      let L = toL / max(dist,1e-4);
+      let L = select(vec3f(0.0, 1.0, 0.0), toL / max(dist, 1e-5), dist > 1e-5);
 
       // Soft shadow (analytic)
       var shadow = 1.0;
@@ -482,22 +1007,21 @@ fn fs(in: VSOut) -> @location(0) vec4f {
   }
 
   // Approximate L4/L5 markers for the two heaviest bodies (simple visual)
-  // (computed on CPU would be better long-term; here a soft field hint)
   let d0 = length(hitPos - bodies[0].pos);
   let d1 = length(hitPos - bodies[1].pos);
   if (abs(d0 - d1) < 0.15 && d0 > 0.4) {
     col += vec3f(0.3,1.0,0.5) * 0.15; // soft L4/L5 hint
   }
 
-  col = pow(col, vec3f(0.85));
+  col = pow(clamp(col, vec3f(0.0), vec3f(10.0)), vec3f(0.85));
   return vec4f(col, 1.0);
 }`
             });
 
             const rLayout = device.createBindGroupLayout({
                 entries: [
-                    { binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'read-only-storage' } },
-                    { binding: 1, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } }
+                    { binding: 0, visibility: GPUShaderStageFlags.FRAGMENT, buffer: { type: 'read-only-storage' } },
+                    { binding: 1, visibility: GPUShaderStageFlags.FRAGMENT, buffer: { type: 'uniform' } }
                 ]
             });
             renderPipeline = device.createRenderPipeline({
@@ -518,34 +1042,74 @@ fn fs(in: VSOut) -> @location(0) vec4f {
             requestAnimationFrame(frame);
         }
 
+        /**
+         * Synchronizes canvas internal pixel dimensions with window dimensions.
+         * @returns {void}
+         */
         function resize() {
-            const w = innerWidth, h = innerHeight;
+            const w = window.innerWidth;
+            const h = window.innerHeight;
             if (canvas.width !== w || canvas.height !== h) {
-                canvas.width = w; canvas.height = h;
+                canvas.width = w;
+                canvas.height = h;
             }
         }
-        addEventListener('resize', resize);
+        window.addEventListener('resize', resize);
         resize();
 
         let t0 = performance.now();
+
+        /**
+         * Main animation loop executing compute and render passes per frame.
+         * Enforces zero-allocation hot loop invariants as per Rule 1.4.
+         * @param {number} now - High-resolution timestamp in milliseconds from requestAnimationFrame
+         * @returns {void}
+         */
         function frame(now) {
             resize();
-            const dt = Math.min((now - t0) * 0.001, 0.033);
-            t0 = now;
+            frameCount++;
+            fpsFrameCounter++;
+            if (now - lastFpsTimestamp >= 500) {
+                currentFps = Math.round((fpsFrameCounter * 1000) / (now - lastFpsTimestamp));
+                fpsFrameCounter = 0;
+                lastFpsTimestamp = now;
+            }
 
-            device.queue.writeBuffer(uniCompute, 0, new Float32Array([now * 0.001, dt, 0, 0]));
+            let dt = 0.0;
+            if (manualStepDt > 0.0) {
+                dt = manualStepDt;
+                manualStepDt = 0.0;
+            } else if (!isPaused) {
+                const rawDt = Math.min((now - t0) * 0.001, 0.033);
+                dt = rawDt * timeScale;
+            }
+            t0 = now;
+            simTime += dt;
+
+            // Zero-allocation write to compute uniforms
+            computeUniformArray[0] = simTime;
+            computeUniformArray[1] = dt;
+            computeUniformArray[2] = 0;
+            computeUniformArray[3] = 0;
+            device.queue.writeBuffer(uniCompute, 0, computeUniformArray);
 
             const aspect = canvas.width / (canvas.height || 1);
-            const view = lookAt(camera.eye, camera.target);
-            const proj = perspective(45 * Math.PI / 180, aspect, 0.08, 80);
-            const invVP = invert4(mul4(proj, view));
+            lookAt(camera.eye, camera.target, [0, 1, 0], matView);
+            perspective(45 * Math.PI / 180, aspect, 0.08, 80, matProj);
+            mul4(matProj, matView, matVP);
+            invert4(matVP, matInvVP);
 
-            const u = new Float32Array(32);
-            u.set(invVP, 0);
-            u[16] = camera.eye[0]; u[17] = camera.eye[1]; u[18] = camera.eye[2];
-            u[19] = now * 0.001;
-            u[20] = canvas.width; u[21] = canvas.height;
-            device.queue.writeBuffer(uniRender, 0, u);
+            // Zero-allocation write to render uniforms
+            renderUniformArray.set(matInvVP, 0);
+            renderUniformArray[16] = camera.eye[0];
+            renderUniformArray[17] = camera.eye[1];
+            renderUniformArray[18] = camera.eye[2];
+            renderUniformArray[19] = simTime;
+            renderUniformArray[20] = canvas.width;
+            renderUniformArray[21] = canvas.height;
+            renderUniformArray[22] = 0;
+            renderUniformArray[23] = 0;
+            device.queue.writeBuffer(uniRender, 0, renderUniformArray);
 
             const enc = device.createCommandEncoder();
 
@@ -564,7 +1128,8 @@ fn fs(in: VSOut) -> @location(0) vec4f {
                     colorAttachments: [{
                         view: context.getCurrentTexture().createView(),
                         clearValue: { r: 0.01, g: 0.015, b: 0.03, a: 1 },
-                        loadOp: 'clear', storeOp: 'store'
+                        loadOp: 'clear',
+                        storeOp: 'store'
                     }]
                 });
                 p.setPipeline(renderPipeline);
@@ -574,6 +1139,9 @@ fn fs(in: VSOut) -> @location(0) vec4f {
             }
 
             device.queue.submit([enc.finish()]);
+
+            statusEl.textContent = `Ready · ${NUM_BODIES} dual bodies · ${currentFps} FPS · t: ${simTime.toFixed(2)}s · ${timeScale}x ${isPaused ? '⏸ (PAUSED)' : ''}`;
+
             requestAnimationFrame(frame);
         }
 

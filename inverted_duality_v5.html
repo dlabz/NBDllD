@@ -1,0 +1,1227 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Omnidirectional Infinity Duality — 3D Analytic Raymarching</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #020308;
+            color: #c8d0e0;
+            font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+            overflow: hidden;
+            height: 100vh;
+            user-select: none;
+        }
+
+        canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        #ui {
+            position: absolute;
+            top: 14px;
+            left: 14px;
+            background: rgba(8, 10, 22, 0.88);
+            border: 1px solid #2a3558;
+            border-radius: 10px;
+            padding: 16px 20px;
+            max-width: 440px;
+            font-size: 13px;
+            line-height: 1.45;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+            z-index: 10;
+        }
+
+        #ui h1 {
+            font-size: 16px;
+            color: #9eb6ff;
+            margin-bottom: 6px;
+            letter-spacing: 0.03em;
+            font-weight: 600;
+        }
+
+        #ui .dim {
+            color: #6a7a9a;
+            font-size: 11px;
+            margin-top: 4px;
+        }
+
+        .section-title {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: #899ec7;
+            margin-top: 12px;
+            margin-bottom: 6px;
+            font-weight: 600;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 6px;
+            margin-bottom: 6px;
+            flex-wrap: wrap;
+        }
+
+        button {
+            background: #141b33;
+            border: 1px solid #33426b;
+            color: #c2d0f0;
+            padding: 6px 11px;
+            border-radius: 6px;
+            font-size: 11.5px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        button:hover {
+            background: #202b52;
+            border-color: #5873b8;
+            color: #ffffff;
+        }
+
+        button.active {
+            background: #2b3e7a;
+            border-color: #7b9ef8;
+            color: #ffffff;
+            font-weight: 600;
+            box-shadow: 0 0 10px rgba(123, 158, 248, 0.35);
+        }
+
+        #controls-hint {
+            margin-top: 10px;
+            color: #78a2e8;
+            font-size: 11px;
+            line-height: 1.4;
+        }
+
+        #status {
+            position: absolute;
+            bottom: 12px;
+            left: 14px;
+            font-size: 12px;
+            color: #7084aa;
+            background: rgba(8, 10, 22, 0.85);
+            padding: 6px 14px;
+            border-radius: 6px;
+            border: 1px solid #232c49;
+            backdrop-filter: blur(8px);
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .star-badge {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 4px;
+            vertical-align: middle;
+        }
+    </style>
+</head>
+
+<body>
+    <canvas id="c"></canvas>
+    <div id="ui">
+        <h1>Omnidirectional Infinity Duality</h1>
+        <p>Center = omnidirectional infinity.<br>
+            Every particle carries its Euclidean locus <em>and</em> its inverted dual
+            (<math display="inline">
+                <mi>x</mi>
+                <mo>↔</mo>
+                <mfrac>
+                    <mrow>
+                        <msubsup>
+                            <mi>R</mi>
+                            <mi>scale</mi>
+                            <mn>2</mn>
+                        </msubsup>
+                        <mo>·</mo>
+                        <mi>x</mi>
+                    </mrow>
+                    <msup>
+                        <mrow>
+                            <mo>‖</mo>
+                            <mi>x</mi>
+                            <mo>‖</mo>
+                        </mrow>
+                        <mn>2</mn>
+                    </msup>
+                </mfrac>
+            </math>).
+        </p>
+        <p class="dim">
+            Mesh-free: Exact per-pixel ray-sphere discriminant intersections &amp; soft penumbra shadows.<br>
+            Colored stars:
+            <span class="star-badge" style="background:#ff4444;"></span>Red,
+            <span class="star-badge" style="background:#44ff44;"></span>Green,
+            <span class="star-badge" style="background:#4444ff;"></span>Blue.
+        </p>
+
+        <div class="section-title">Camera Mode</div>
+        <div class="btn-group">
+            <button id="btnCamFree" class="active">🔭 Free Orbit</button>
+            <button id="btnCamPrince">👑 Little Prince</button>
+            <button id="btnCamComet">☄️ Comet Rider</button>
+        </div>
+
+        <div class="section-title">Scenarios</div>
+        <div class="btn-group">
+            <button id="btnChaos" class="active">Chaos</button>
+            <button id="btnLagrange">Lagrange Co-Orbital</button>
+            <button id="btnFig8">Figure-8</button>
+        </div>
+
+        <p id="controls-hint">
+            <strong>Free Cam:</strong> Left Click + Drag to Orbit | Right Click / Shift + Drag to Pan | Scroll to Zoom<br>
+            <strong>Prince / Comet:</strong> Click + Drag to Look Around (FPV)
+        </p>
+    </div>
+
+    <div id="status">Initializing WebGPU…</div>
+
+    <script type="module">
+        /**
+         * @file nverted_duality_v5.html
+         * @description WebGPU 3D analytic raymarching demo with exact per-pixel ray-sphere intersections,
+         *              multi-star colored lighting, analytic soft penumbra shadows, Little Prince & Comet Rider modes,
+         *              and inverted dual coordinates mapping center to omnidirectional infinity.
+         */
+
+        const canvas = document.getElementById('c');
+        const statusEl = document.getElementById('status');
+
+        // =========================================================================
+        // §1  Celestial Body Layout (16 floats = 64 bytes) & Macroscale Setup
+        // =========================================================================
+        const MAX_BODIES = 30; // 3 stars + 15 planets + 2 moons + 10 comets
+        const NUM_BODIES = 30;
+        const WORKGROUP = 64;
+        const PARTICLE_FLOATS = 16;
+
+        // Gravitational & geometric constants (matching nbody_projective_v2 scales)
+        const G = 0.035;
+        const SOFTENING = 0.5;
+        const R_SCALE_DUAL = 60.0; // scale factor for dual inversion
+
+        /**
+         * Layout (16 floats = 64 bytes, aligned):
+         * 0-2   pos.xyz
+         * 3     radius
+         * 4-6   dual.xyz          // inverted dual (R_scale^2 * x / ||x||^2)
+         * 7     mass
+         * 8-10  vel.xyz
+         * 11    life
+         * 12    type              // 0=star, 1=planet, 2=moon, 3=comet
+         * 13-15 color.rgb
+         */
+        const setBodyData = (data, idx, {
+            pos = [0, 0, 0],
+            dual = [0, 0, 0],
+            vel = [0, 0, 0],
+            mass = 1,
+            life = 1,
+            radius = 1.0,
+            type = 1,
+            color = [1.0, 1.0, 1.0]
+        }) => {
+            const base = idx * PARTICLE_FLOATS;
+            data[base + 0] = pos[0]; data[base + 1] = pos[1]; data[base + 2] = pos[2];
+            data[base + 3] = radius;
+            data[base + 4] = dual[0]; data[base + 5] = dual[1]; data[base + 6] = dual[2];
+            data[base + 7] = mass;
+            data[base + 8] = vel[0]; data[base + 9] = vel[1]; data[base + 10] = vel[2];
+            data[base + 11] = life;
+            data[base + 12] = type;
+            data[base + 13] = color[0];
+            data[base + 14] = color[1];
+            data[base + 15] = color[2];
+        };
+
+        const STAR_COLORS = [
+            [1.0, 0.28, 0.28], // Star 0: Red
+            [0.28, 1.0, 0.28], // Star 1: Green
+            [0.35, 0.45, 1.0]  // Star 2: Blue
+        ];
+
+        let currentScenario = 'Chaos';
+
+        function solveKepler(M0, e, n, t) {
+            const M = M0 + t * n;
+            let E = M;
+            for (let k = 0; k < 5; k++) {
+                E -= (E - e * Math.sin(E) - M) / (1 - e * Math.cos(E));
+            }
+            return E;
+        }
+
+        function keplerToCartesian(a, e, i, omega, w, M0, n, t) {
+            if (a === 0) return [0, 0, 0];
+            const E = solveKepler(M0, e, n, t);
+            const x = a * (Math.cos(E) - e);
+            const z = a * Math.sqrt(Math.max(0, 1 - e * e)) * Math.sin(E);
+
+            // Orbit orientation rotations: Rz(w) * Rx(i) * Ry(omega)
+            const cw = Math.cos(w), sw = Math.sin(w);
+            const ci = Math.cos(i), si = Math.sin(i);
+            const co = Math.cos(omega), so = Math.sin(omega);
+
+            // 1. Rotate in orbital plane (w)
+            const x1 = x * cw - z * sw;
+            const z1 = x * sw + z * cw;
+            const y1 = 0;
+
+            // 2. Inclination (i)
+            const y2 = y1 * ci - z1 * si;
+            const z2 = y1 * si + z1 * ci;
+            const x2 = x1;
+
+            // 3. Longitude of ascending node (omega)
+            const x3 = x2 * co + z2 * so;
+            const y3 = y2;
+            const z3 = -x2 * so + z2 * co;
+
+            return [x3, y3, z3];
+        }
+
+        function initCelestialBodies(scenario = 'Chaos') {
+            const data = new Float32Array(MAX_BODIES * PARTICLE_FLOATS);
+            let i = 0;
+
+            if (scenario === 'Chaos') {
+                // 3 Stars (Mass = 10000, Radius = 2.5)
+                const starElements = [
+                    { a: 60, e: 0.15, i: 0.1, omega: 0, w: 0, M0: 0, n: 0.2 },
+                    { a: 60, e: 0.15, i: 0.25, omega: (Math.PI * 2 / 3), w: 0, M0: (Math.PI * 2 / 3), n: 0.2 },
+                    { a: 60, e: 0.15, i: 0.35, omega: (Math.PI * 4 / 3), w: 0, M0: (Math.PI * 4 / 3), n: 0.2 }
+                ];
+                const starPos = [];
+                const starVel = [];
+                const dt0 = 0.0001;
+
+                for (let s = 0; s < 3; s++) {
+                    const el = starElements[s];
+                    const p0 = keplerToCartesian(el.a, el.e, el.i, el.omega, el.w, el.M0, el.n, 0);
+                    const p1 = keplerToCartesian(el.a, el.e, el.i, el.omega, el.w, el.M0, el.n, dt0);
+                    const vel = [(p1[0] - p0[0]) / dt0, (p1[1] - p0[1]) / dt0, (p1[2] - p0[2]) / dt0];
+                    starPos.push(p0);
+                    starVel.push(vel);
+                    setBodyData(data, i++, {
+                        pos: p0, vel: vel, mass: 10000, radius: 2.5, type: 0, color: STAR_COLORS[s]
+                    });
+                }
+
+                // 15 Planets (5 around each star)
+                for (let si = 0; si < 3; si++) {
+                    for (let p = 0; p < 5; p++) {
+                        const a = 15 + p * 8;
+                        const e = 0.05 + Math.random() * 0.2;
+                        const inc = Math.random() * Math.PI;
+                        const omega = Math.random() * Math.PI * 2;
+                        const w = Math.random() * Math.PI * 2;
+                        const M0 = Math.random() * Math.PI * 2;
+                        const n = (1.5 - p * 0.2) * (Math.random() > 0.5 ? 1 : -1);
+
+                        const lp0 = keplerToCartesian(a, e, inc, omega, w, M0, n, 0);
+                        const lp1 = keplerToCartesian(a, e, inc, omega, w, M0, n, dt0);
+                        const lvel = [(lp1[0] - lp0[0]) / dt0, (lp1[1] - lp0[1]) / dt0, (lp1[2] - lp0[2]) / dt0];
+
+                        const wp0 = [starPos[si][0] + lp0[0], starPos[si][1] + lp0[1], starPos[si][2] + lp0[2]];
+                        const wvel = [starVel[si][0] + lvel[0], starVel[si][1] + lvel[1], starVel[si][2] + lvel[2]];
+
+                        setBodyData(data, i++, {
+                            pos: wp0,
+                            vel: wvel,
+                            mass: p >= 3 ? 0.05 : 0.005,
+                            radius: 0.6 + Math.random() * 0.6,
+                            type: 1,
+                            color: [0.45, 0.55, 0.85]
+                        });
+                    }
+                }
+
+                // 2 Moons orbiting Planet 0
+                const planet0Pos = [data[3 * PARTICLE_FLOATS], data[3 * PARTICLE_FLOATS + 1], data[3 * PARTICLE_FLOATS + 2]];
+                const planet0Vel = [data[3 * PARTICLE_FLOATS + 8], data[3 * PARTICLE_FLOATS + 9], data[3 * PARTICLE_FLOATS + 10]];
+                data[3 * PARTICLE_FLOATS + 7] = 1.0; // Planet 0 mass boost for moon stability
+
+                for (let m = 0; m < 2; m++) {
+                    const rm = 1.8 + m * 1.0;
+                    const vm = Math.sqrt(G * 1.0 / rm);
+                    const a = Math.random() * Math.PI * 2;
+                    setBodyData(data, i++, {
+                        pos: [planet0Pos[0] + rm * Math.cos(a), planet0Pos[1] + rm * Math.sin(a), planet0Pos[2]],
+                        vel: [planet0Vel[0] - vm * Math.sin(a), planet0Vel[1] + vm * Math.cos(a), planet0Vel[2]],
+                        mass: 0.0001,
+                        radius: 0.25,
+                        type: 2,
+                        color: [0.72, 0.72, 0.76]
+                    });
+                }
+            } else if (scenario === 'Lagrange') {
+                const R = 35, m = 10000;
+                const v = Math.sqrt((Math.sqrt(3) / 3) * G * m / R);
+                const starPos = [], starVel = [];
+
+                for (let s = 0; s < 3; s++) {
+                    const a = (Math.PI * 2 / 3) * s;
+                    const sp = [R * Math.cos(a), 0, R * Math.sin(a)];
+                    const sv = [-v * Math.sin(a), 0, v * Math.cos(a)];
+                    starPos.push(sp);
+                    starVel.push(sv);
+                    setBodyData(data, i++, {
+                        pos: sp, vel: sv, mass: m, radius: 2.5, type: 0, color: STAR_COLORS[s]
+                    });
+                }
+
+                // 15 Planets + 2 Moons
+                for (let si = 0; si < 3; si++) {
+                    for (let p = 0; p < 5; p++) {
+                        const rp = 15 + p * 8, vp = Math.sqrt(G * m / rp);
+                        const a = Math.random() * Math.PI * 2;
+                        const off = [rp * Math.cos(a), (Math.random() - 0.5) * 3.0, rp * Math.sin(a)];
+                        const vel = [-vp * Math.sin(a), (Math.random() - 0.5) * 0.2, vp * Math.cos(a)];
+                        setBodyData(data, i++, {
+                            pos: [starPos[si][0] + off[0], starPos[si][1] + off[1], starPos[si][2] + off[2]],
+                            vel: [starVel[si][0] + vel[0], starVel[si][1] + vel[1], starVel[si][2] + vel[2]],
+                            mass: p >= 3 ? 0.05 : 0.005,
+                            radius: 0.6 + Math.random() * 0.6,
+                            type: 1,
+                            color: [0.45, 0.55, 0.85]
+                        });
+                    }
+                }
+                for (let m = 0; m < 2; m++) {
+                    const p0Base = 3 * PARTICLE_FLOATS;
+                    const rm = 1.8 + m * 1.0, vm = Math.sqrt(G * 1.0 / rm);
+                    const a = Math.random() * Math.PI * 2;
+                    setBodyData(data, i++, {
+                        pos: [data[p0Base] + rm * Math.cos(a), data[p0Base + 1] + rm * Math.sin(a), data[p0Base + 2]],
+                        vel: [data[p0Base + 8] - vm * Math.sin(a), data[p0Base + 9] + vm * Math.cos(a), data[p0Base + 10]],
+                        mass: 0.0001,
+                        radius: 0.25,
+                        type: 2,
+                        color: [0.72, 0.72, 0.76]
+                    });
+                }
+            } else if (scenario === 'Figure8') {
+                const m = 10000, Rs = 35, Vs = Math.sqrt(G * m / Rs);
+                const x1 = [0.97000436 * Rs, 0, -0.24308753 * Rs];
+                const v1 = [-0.466203685 * Vs, 0, -0.43236573 * Vs];
+
+                setBodyData(data, i++, { pos: x1, vel: v1, mass: m, radius: 2.5, type: 0, color: STAR_COLORS[0] });
+                setBodyData(data, i++, { pos: [-x1[0], 0, -x1[2]], vel: v1, mass: m, radius: 2.5, type: 0, color: STAR_COLORS[1] });
+                setBodyData(data, i++, { pos: [0, 0, 0], vel: [-v1[0] * 2, 0, -v1[2] * 2], mass: m, radius: 2.5, type: 0, color: STAR_COLORS[2] });
+
+                // 15 Planets + 2 Moons
+                for (let p = 0; p < 15; p++) {
+                    const rp = 20 + p * 4, vp = Math.sqrt(G * m / rp);
+                    const a = Math.random() * Math.PI * 2;
+                    setBodyData(data, i++, {
+                        pos: [rp * Math.cos(a), (Math.random() - 0.5) * 4.0, rp * Math.sin(a)],
+                        vel: [-vp * Math.sin(a), (Math.random() - 0.5) * 0.3, vp * Math.cos(a)],
+                        mass: 0.01,
+                        radius: 0.6 + Math.random() * 0.5,
+                        type: 1,
+                        color: [0.45, 0.55, 0.85]
+                    });
+                }
+                for (let m = 0; m < 2; m++) {
+                    const p0Base = 3 * PARTICLE_FLOATS;
+                    const rm = 1.8 + m * 1.0, vm = Math.sqrt(G * 1.0 / rm);
+                    const a = Math.random() * Math.PI * 2;
+                    setBodyData(data, i++, {
+                        pos: [data[p0Base] + rm * Math.cos(a), data[p0Base + 1] + rm * Math.sin(a), data[p0Base + 2]],
+                        vel: [data[p0Base + 8] - vm * Math.sin(a), data[p0Base + 9] + vm * Math.cos(a), data[p0Base + 10]],
+                        mass: 0.0001,
+                        radius: 0.25,
+                        type: 2,
+                        color: [0.72, 0.72, 0.76]
+                    });
+                }
+            }
+
+            // 10 Comets (r ~ 80-140, fast inbound orbits)
+            for (let c = 0; c < 10; c++) {
+                const r = 80 + Math.random() * 60;
+                const θ = Math.random() * Math.PI * 2;
+                const φ = (Math.random() - 0.5) * Math.PI * 0.6;
+                const pos = [r * Math.cos(θ), r * Math.sin(φ), r * Math.sin(θ)];
+
+                const vMag = Math.sqrt(G * 30000 / r) * (0.8 + Math.random() * 0.7);
+                const d = [-pos[0] / r, -pos[1] / r, -pos[2] / r];
+                const f = [-Math.sin(θ), Math.cos(φ), Math.cos(θ)];
+                const vMix = [
+                    d[0] * 0.6 + f[0] * 0.4,
+                    d[1] * 0.6 + f[1] * 0.4,
+                    d[2] * 0.6 + f[2] * 0.4
+                ];
+                const vLen = Math.hypot(...vMix) || 1;
+                const vel = [(vMix[0] / vLen) * vMag, (vMix[1] / vLen) * vMag, (vMix[2] / vLen) * vMag];
+
+                setBodyData(data, i++, {
+                    pos: pos,
+                    vel: vel,
+                    mass: 0.000001,
+                    radius: 0.35,
+                    type: 3,
+                    color: [0.55, 0.9, 1.0]
+                });
+            }
+
+            // Precalculate initial dual coordinates
+            const R2 = R_SCALE_DUAL * R_SCALE_DUAL;
+            for (let k = 0; k < MAX_BODIES; k++) {
+                const base = k * PARTICLE_FLOATS;
+                const px = data[base], py = data[base + 1], pz = data[base + 2];
+                const r2 = px * px + py * py + pz * pz + 1e-4;
+                data[base + 4] = (px * R2) / r2;
+                data[base + 5] = (py * R2) / r2;
+                data[base + 6] = (pz * R2) / r2;
+            }
+
+            return data;
+        }
+
+        // =========================================================================
+        // §2  Orbit Camera with Free Orbit, Little Prince, and Comet Rider
+        // =========================================================================
+        let camMode = 'Free'; // 'Free' | 'LittlePrince' | 'CometRide'
+        let trackedIndex = 3;
+        let fpvYaw = 0;
+        let fpvPitch = 0;
+
+        const camera = {
+            target: [0, 0, 0],
+            distance: 200.0, // calibrated for ~60-120 system scale
+            azimuth: 0.65,
+            elevation: 0.45,
+            eye: [0, 80, 180],
+            up: [0, 1, 0],
+            fov: 50,
+
+            update() {
+                if (camMode === 'Free') {
+                    this.elevation = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, this.elevation));
+                    const x = this.distance * Math.cos(this.elevation) * Math.sin(this.azimuth);
+                    const y = this.distance * Math.sin(this.elevation);
+                    const z = this.distance * Math.cos(this.elevation) * Math.cos(this.azimuth);
+                    this.eye = [this.target[0] + x, this.target[1] + y, this.target[2] + z];
+                    this.up = [0, 1, 0];
+                    this.fov = 50;
+                }
+            }
+        };
+        camera.update();
+
+        let isDragging = false;
+        let isPanning = false;
+        let lastMouseX = 0;
+        let lastMouseY = 0;
+
+        window.addEventListener('mousedown', (e) => {
+            if (e.target !== canvas) return;
+            if (e.button === 0 && !e.shiftKey) isDragging = true;
+            if (e.button === 2 || (e.button === 0 && e.shiftKey)) isPanning = true;
+            lastMouseX = e.clientX;
+            lastMouseY = e.clientY;
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            const dx = e.clientX - lastMouseX;
+            const dy = e.clientY - lastMouseY;
+            lastMouseX = e.clientX;
+            lastMouseY = e.clientY;
+
+            if (camMode === 'Free') {
+                if (isDragging) {
+                    camera.azimuth -= dx * 0.006;
+                    camera.elevation += dy * 0.006;
+                    camera.update();
+                } else if (isPanning) {
+                    const forward = [
+                        camera.target[0] - camera.eye[0],
+                        camera.target[1] - camera.eye[1],
+                        camera.target[2] - camera.eye[2]
+                    ];
+                    const fLen = Math.hypot(...forward);
+                    const fNorm = forward.map(v => v / (fLen || 1));
+                    const right = [fNorm[2], 0, -fNorm[0]];
+                    const rLen = Math.hypot(...right);
+                    const rNorm = right.map(v => v / (rLen || 1));
+                    const up = [
+                        rNorm[1] * fNorm[2] - rNorm[2] * fNorm[1],
+                        rNorm[2] * fNorm[0] - rNorm[0] * fNorm[2],
+                        rNorm[0] * fNorm[1] - rNorm[1] * fNorm[0]
+                    ];
+
+                    const panSpeed = camera.distance * 0.0015;
+                    camera.target[0] -= (rNorm[0] * dx - up[0] * dy) * panSpeed;
+                    camera.target[1] -= (rNorm[1] * dx - up[1] * dy) * panSpeed;
+                    camera.target[2] -= (rNorm[2] * dx - up[2] * dy) * panSpeed;
+                    camera.update();
+                }
+            } else if (camMode === 'LittlePrince' || camMode === 'CometRide') {
+                if (isDragging || isPanning || e.buttons === 1) {
+                    fpvYaw -= dx * 0.005;
+                    fpvPitch -= dy * 0.005;
+                    fpvPitch = Math.max(-1.45, Math.min(1.45, fpvPitch));
+                }
+            }
+        });
+
+        window.addEventListener('mouseup', () => {
+            isDragging = false;
+            isPanning = false;
+        });
+
+        window.addEventListener('contextmenu', (e) => e.preventDefault());
+
+        window.addEventListener('wheel', (e) => {
+            if (camMode === 'Free') {
+                camera.distance = Math.max(10.0, Math.min(1200.0, camera.distance * (1.0 + e.deltaY * 0.001)));
+                camera.update();
+            }
+        }, { passive: true });
+
+        function normalize3(v) {
+            const l = Math.hypot(v[0], v[1], v[2]) || 1;
+            return [v[0] / l, v[1] / l, v[2] / l];
+        }
+
+        function cross3(a, b) {
+            return [
+                a[1] * b[2] - a[2] * b[1],
+                a[2] * b[0] - a[0] * b[2],
+                a[0] * b[1] - a[1] * b[0]
+            ];
+        }
+
+        function rotateAroundAxis(v, axis, angle) {
+            const [ax, ay, az] = normalize3(axis);
+            const cos = Math.cos(angle);
+            const sin = Math.sin(angle);
+            const dot = v[0] * ax + v[1] * ay + v[2] * az;
+
+            return [
+                v[0] * cos + (ay * v[2] - az * v[1]) * sin + ax * dot * (1 - cos),
+                v[1] * cos + (az * v[0] - ax * v[2]) * sin + ay * dot * (1 - cos),
+                v[2] * cos + (ax * v[1] - ay * v[0]) * sin + az * dot * (1 - cos)
+            ];
+        }
+
+        function mat4LookAt(eye, target, up = [0, 1, 0]) {
+            const zx = eye[0] - target[0], zy = eye[1] - target[1], zz = eye[2] - target[2];
+            const zlen = Math.hypot(zx, zy, zz) || 1;
+            const z0 = zx / zlen, z1 = zy / zlen, z2 = zz / zlen;
+
+            const xx = up[1] * z2 - up[2] * z1;
+            const xy = up[2] * z0 - up[0] * z2;
+            const xz = up[0] * z1 - up[1] * z0;
+            const xlen = Math.hypot(xx, xy, xz) || 1;
+            const x0 = xx / xlen, x1 = xy / xlen, x2 = xz / xlen;
+
+            const y0 = z1 * x2 - z2 * x1;
+            const y1 = z2 * x0 - z0 * x2;
+            const y2 = z0 * x1 - z1 * x0;
+
+            return new Float32Array([
+                x0, y0, z0, 0,
+                x1, y1, z1, 0,
+                x2, y2, z2, 0,
+                -(x0 * eye[0] + x1 * eye[1] + x2 * eye[2]),
+                -(y0 * eye[0] + y1 * eye[1] + y2 * eye[2]),
+                -(z0 * eye[0] + z1 * eye[1] + z2 * eye[2]),
+                1
+            ]);
+        }
+
+        function mat4Perspective(fovY, aspect, near, far) {
+            const f = 1.0 / Math.tan(fovY / 2);
+            const nf = 1 / (near - far);
+            const out = new Float32Array(16);
+            out[0] = f / aspect;
+            out[5] = f;
+            out[10] = (far + near) * nf;
+            out[11] = -1;
+            out[14] = (2 * far * near) * nf;
+            return out;
+        }
+
+        function mat4Multiply(a, b) { // returns a * b (column-major)
+            const out = new Float32Array(16);
+            for (let i = 0; i < 4; i++) {
+                for (let j = 0; j < 4; j++) {
+                    out[j * 4 + i] =
+                        a[0 * 4 + i] * b[j * 4 + 0] +
+                        a[1 * 4 + i] * b[j * 4 + 1] +
+                        a[2 * 4 + i] * b[j * 4 + 2] +
+                        a[3 * 4 + i] * b[j * 4 + 3];
+                }
+            }
+            return out;
+        }
+
+        function mat4Invert(m) {
+            const out = new Float32Array(16);
+            const [
+                m00, m01, m02, m03,
+                m10, m11, m12, m13,
+                m20, m21, m22, m23,
+                m30, m31, m32, m33
+            ] = m;
+
+            const b00 = m00 * m11 - m01 * m10, b01 = m00 * m12 - m02 * m10, b02 = m00 * m13 - m03 * m10;
+            const b03 = m01 * m12 - m02 * m11, b04 = m01 * m13 - m03 * m11, b05 = m02 * m13 - m03 * m12;
+            const b06 = m20 * m31 - m21 * m30, b07 = m20 * m32 - m22 * m30, b08 = m20 * m33 - m23 * m30;
+            const b09 = m21 * m32 - m22 * m31, b10 = m21 * m33 - m23 * m31, b11 = m22 * m33 - m23 * m32;
+
+            const det = b00 * b11 - b01 * b10 + b02 * b09 + b03 * b08 - b04 * b07 + b05 * b06;
+            if (!det) return out;
+            const invDet = 1.0 / det;
+
+            out[0] = (m11 * b11 - m12 * b10 + m13 * b09) * invDet;
+            out[1] = (-m01 * b11 + m02 * b10 - m03 * b09) * invDet;
+            out[2] = (m31 * b05 - m32 * b04 + m33 * b03) * invDet;
+            out[3] = (-m21 * b05 + m22 * b04 - m23 * b03) * invDet;
+            out[4] = (-m10 * b11 + m12 * b08 - m13 * b07) * invDet;
+            out[5] = (m00 * b11 - m02 * b08 + m03 * b07) * invDet;
+            out[6] = (-m30 * b05 + m32 * b02 - m33 * b01) * invDet;
+            out[7] = (m20 * b05 - m22 * b02 + m23 * b01) * invDet;
+            out[8] = (m10 * b10 - m11 * b08 + m13 * b06) * invDet;
+            out[9] = (-m00 * b10 + m01 * b08 - m03 * b06) * invDet;
+            out[10] = (m30 * b04 - m31 * b02 + m33 * b00) * invDet;
+            out[11] = (-m20 * b04 + m21 * b02 - m23 * b00) * invDet;
+            out[12] = (-m10 * b09 + m11 * b07 - m12 * b06) * invDet;
+            out[13] = (m00 * b09 - m01 * b07 + m02 * b06) * invDet;
+            out[14] = (-m30 * b03 + m31 * b01 - m32 * b00) * invDet;
+            out[15] = (m20 * b03 - m21 * b01 + m22 * b00) * invDet;
+
+            return out;
+        }
+
+        // =========================================================================
+        // §3  WebGPU Hardware Pipeline & WGSL Shaders
+        // =========================================================================
+        let device, context;
+        let renderPipeline;
+        let particleBufferRender, uniformRenderBuffer;
+        let renderBindGroup;
+
+        let particleData = initCelestialBodies(currentScenario);
+        let hostBodyArray = new Float32Array(particleData);
+
+        async function init() {
+            if (!navigator.gpu) {
+                statusEl.textContent = 'WebGPU is not supported in this browser.';
+                return;
+            }
+            const adapter = await navigator.gpu.requestAdapter();
+            if (!adapter) {
+                statusEl.textContent = 'No suitable WebGPU adapter found.';
+                return;
+            }
+            device = await adapter.requestDevice();
+            context = canvas.getContext('webgpu');
+            const format = navigator.gpu.getPreferredCanvasFormat();
+            context.configure({ device, format, alphaMode: 'premultiplied' });
+
+            // Storage Buffer for Rendering
+            particleBufferRender = device.createBuffer({
+                size: particleData.byteLength,
+                usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
+            });
+            device.queue.writeBuffer(particleBufferRender, 0, hostBodyArray);
+
+            // Render Uniforms (128 bytes, 16-byte aligned)
+            uniformRenderBuffer = device.createBuffer({
+                size: 128,
+                usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+            });
+
+            // ----------------------------------------------------------------------
+            // Fragment Shader: Analytic Ray-Sphere Multi-Star Lighting & Soft Shadows
+            // ----------------------------------------------------------------------
+            const renderModule = device.createShaderModule({
+                label: 'celestial-raymarching-render-macro',
+                code: /* wgsl */ `
+struct Body {
+  pos    : vec3f,
+  radius : f32,
+  dual   : vec3f,
+  mass   : f32,
+  vel    : vec3f,
+  life   : f32,
+  type_  : f32,
+  color  : vec3f,
+};
+
+struct RenderUniforms {
+  invViewProj : mat4x4f,   // offset 0,  64 bytes
+  eye         : vec3f,     // offset 64, 12 bytes
+  time        : f32,       // offset 76, 4 bytes
+  resolution  : vec2f,     // offset 80, 8 bytes
+  _pad        : vec2f,     // offset 88, 8 bytes
+};
+
+@group(0) @binding(0) var<storage, read> bodies : array<Body>;
+@group(0) @binding(1) var<uniform> u : RenderUniforms;
+
+struct VSOut {
+  @builtin(position) position : vec4f,
+  @location(0) uv : vec2f,
+};
+
+@vertex
+fn vs_main(@builtin(vertex_index) vid : u32) -> VSOut {
+  var pos = array<vec2f, 3>(
+    vec2f(-1.0, -1.0),
+    vec2f( 3.0, -1.0),
+    vec2f(-1.0,  3.0)
+  );
+  var out : VSOut;
+  out.position = vec4f(pos[vid], 0.0, 1.0);
+  out.uv = pos[vid];
+  return out;
+}
+
+struct Ray {
+  orig : vec3f,
+  dir  : vec3f,
+};
+
+// Exact analytic discriminant test (Sphere.ts style)
+fn hitSphere(ray : Ray, center : vec3f, radius : f32) -> f32 {
+  let oc = ray.orig - center;
+  let a = dot(ray.dir, ray.dir);
+  let b = 2.0 * dot(oc, ray.dir);
+  let c = dot(oc, oc) - radius * radius;
+  let disc = b * b - 4.0 * a * c;
+  if (disc < 0.0) { return -1.0; }
+  let s = sqrt(disc);
+  let t1 = (-b - s) / (2.0 * a);
+  let t2 = (-b + s) / (2.0 * a);
+  if (t1 > 0.005) { return t1; }
+  if (t2 > 0.005) { return t2; }
+  return -1.0;
+}
+
+@fragment
+fn fs_main(in : VSOut) -> @location(0) vec4f {
+  // Robust primary ray reconstruction via inverse View-Projection matrix
+  let ndc = vec4f(in.uv.x, in.uv.y, 0.0, 1.0);
+  let worldH = u.invViewProj * ndc;
+  let world = worldH.xyz / max(abs(worldH.w), 1e-8);
+
+  let rayDir = normalize(world - u.eye);
+  let ray = Ray(u.eye, rayDir);
+
+  var closestT = 1e20;
+  var hitPos = vec3f(0.0);
+  var hitNormal = vec3f(0.0);
+  var hitType = -1.0;
+  var hitRadius = 0.0;
+  var hitDual = vec3f(0.0);
+  var hitLife = 1.0;
+  var hitColor = vec3f(1.0);
+  var hitIdx = 0u;
+
+  // Primary ray analytic intersection loop against all bodies
+  let nBodies = arrayLength(&bodies);
+  for (var i = 0u; i < nBodies; i++) {
+    let b = bodies[i];
+    let t = hitSphere(ray, b.pos, b.radius);
+    if (t > 0.0 && t < closestT) {
+      closestT = t;
+      hitPos = ray.orig + ray.dir * t;
+      hitNormal = normalize(hitPos - b.pos);
+      hitType = b.type_;
+      hitRadius = b.radius;
+      hitDual = b.dual;
+      hitLife = b.life;
+      hitColor = b.color;
+      hitIdx = i;
+    }
+  }
+
+  // Deep space background with subtle central infinity glow
+  if (hitType < 0.0) {
+    let toOrigin = -ray.orig;
+    let tCenter = dot(toOrigin, ray.dir);
+    let perp = ray.orig + ray.dir * max(tCenter, 0.0);
+    let centerDist = length(perp);
+    let centerGlow = 18.0 / (centerDist * centerDist + 400.0);
+    
+    let bg = vec3f(0.012, 0.015, 0.024) + vec3f(0.2, 0.35, 0.6) * centerGlow;
+    return vec4f(bg, 1.0);
+  }
+
+  // Shading & Multi-Star Lighting
+  var color = vec3f(0.0);
+
+  if (hitType < 0.5) {
+    // Star - emissive surface with limb darkening
+    let viewDot = max(dot(-ray.dir, hitNormal), 0.0);
+    let limb = pow(viewDot, 0.55);
+    color = hitColor * (1.8 + 0.8 * limb);
+  } else {
+    let albedo = hitColor;
+    var lit = vec3f(0.0);
+
+    // Multi-star illumination with physical penumbra soft shadows
+    for (var s = 0u; s < nBodies; s++) {
+      let star = bodies[s];
+      if (star.type_ > 0.5) { continue; } // only stars emit light
+
+      let sPos = star.pos;
+      let sR = star.radius;
+      let toStar = sPos - hitPos;
+      let dStar = length(toStar);
+      let lightDir = toStar / max(dStar, 1e-4);
+
+      var maxOcc = 0.0;
+      // Adaptive normal bias based on surface radius to prevent self-shadow acne
+      let shadowRay = Ray(hitPos + hitNormal * (0.05 + hitRadius * 0.02), lightDir);
+
+      for (var o = 0u; o < nBodies; o++) {
+        if (o == s || o == hitIdx || bodies[o].type_ < 0.5) { continue; }
+        let other = bodies[o];
+        let oP = other.pos;
+        let oR = other.radius;
+        let toO = oP - hitPos;
+        let t = dot(toO, lightDir);
+
+        if (t > 0.01 && t < dStar - 0.05) {
+          let cp = hitPos + lightDir * t;
+          let dr = length(oP - cp);
+
+          // Physically motivated penumbra from projective demo:
+          let dOccStar = max(dStar - t, 0.1);
+          let pen = sR * t / dOccStar;
+          let soft = max(pen, 0.08);
+
+          let occ = 1.0 - smoothstep(oR - soft, oR + soft, dr);
+          maxOcc = max(maxOcc, occ);
+        }
+      }
+
+      let ndl = max(dot(hitNormal, lightDir), 0.0);
+      let att = 200.0 / (dStar * dStar + 10.0);
+      lit += star.color * ndl * att * (1.0 - clamp(maxOcc, 0.0, 1.0));
+    }
+
+    // Fresnel rim
+    let V = normalize(u.eye - hitPos);
+    let rim = pow(1.0 - max(dot(hitNormal, V), 0.0), 3.0) * 0.04;
+
+    color = albedo * lit + rim * albedo;
+    color += albedo * 0.018; // night-side ambient
+
+    // Dual-space inversion tint
+    let dualGlow = length(hitDual) * 0.0003;
+    color += vec3f(0.2, 0.4, 0.8) * dualGlow;
+  }
+
+  // Reinhard tonemapping + gamma
+  color = color / (color + vec3f(1.0));
+  color = pow(color, vec3f(1.0 / 2.2));
+
+  return vec4f(color, 1.0);
+}
+`
+            });
+
+            const renderBindGroupLayout = device.createBindGroupLayout({
+                entries: [
+                    { binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'read-only-storage' } },
+                    { binding: 1, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } }
+                ]
+            });
+
+            renderPipeline = device.createRenderPipeline({
+                layout: device.createPipelineLayout({ bindGroupLayouts: [renderBindGroupLayout] }),
+                vertex: { module: renderModule, entryPoint: 'vs_main' },
+                fragment: {
+                    module: renderModule,
+                    entryPoint: 'fs_main',
+                    targets: [{ format }]
+                },
+                primitive: { topology: 'triangle-list' }
+            });
+
+            renderBindGroup = device.createBindGroup({
+                layout: renderBindGroupLayout,
+                entries: [
+                    { binding: 0, resource: { buffer: particleBufferRender } },
+                    { binding: 1, resource: { buffer: uniformRenderBuffer } }
+                ]
+            });
+
+            statusEl.textContent = `WebGPU ready · ${NUM_BODIES} macro-scale dual bodies · mesh-free`;
+            requestAnimationFrame(frame);
+        }
+
+        // =========================================================================
+        // §4  Scenario & Mode Switching UI
+        // =========================================================================
+        function setScenario(sc) {
+            currentScenario = sc;
+            particleData = initCelestialBodies(sc);
+            hostBodyArray.set(particleData);
+            if (device && particleBufferRender) {
+                device.queue.writeBuffer(particleBufferRender, 0, hostBodyArray);
+            }
+            ['btnChaos', 'btnLagrange', 'btnFig8'].forEach(id => {
+                document.getElementById(id).classList.remove('active');
+            });
+            if (sc === 'Chaos') document.getElementById('btnChaos').classList.add('active');
+            if (sc === 'Lagrange') document.getElementById('btnLagrange').classList.add('active');
+            if (sc === 'Figure8') document.getElementById('btnFig8').classList.add('active');
+        }
+
+        function setCameraMode(mode) {
+            camMode = mode;
+            ['btnCamFree', 'btnCamPrince', 'btnCamComet'].forEach(id => {
+                document.getElementById(id).classList.remove('active');
+            });
+            fpvYaw = 0;
+            fpvPitch = 0;
+
+            if (mode === 'Free') {
+                document.getElementById('btnCamFree').classList.add('active');
+            } else if (mode === 'LittlePrince') {
+                document.getElementById('btnCamPrince').classList.add('active');
+                const planetIndices = [];
+                for (let i = 0; i < NUM_BODIES; i++) {
+                    if (hostBodyArray[i * PARTICLE_FLOATS + 12] === 1) planetIndices.push(i);
+                }
+                trackedIndex = planetIndices.length ? planetIndices[Math.floor(Math.random() * planetIndices.length)] : 3;
+            } else if (mode === 'CometRide') {
+                document.getElementById('btnCamComet').classList.add('active');
+                const cometIndices = [];
+                for (let i = 0; i < NUM_BODIES; i++) {
+                    if (hostBodyArray[i * PARTICLE_FLOATS + 12] === 3) cometIndices.push(i);
+                }
+                trackedIndex = cometIndices.length ? cometIndices[Math.floor(Math.random() * cometIndices.length)] : 20;
+            }
+        }
+
+        document.getElementById('btnChaos').onclick = () => setScenario('Chaos');
+        document.getElementById('btnLagrange').onclick = () => setScenario('Lagrange');
+        document.getElementById('btnFig8').onclick = () => setScenario('Figure8');
+
+        document.getElementById('btnCamFree').onclick = () => setCameraMode('Free');
+        document.getElementById('btnCamPrince').onclick = () => setCameraMode('LittlePrince');
+        document.getElementById('btnCamComet').onclick = () => setCameraMode('CometRide');
+
+        function resize() {
+            const w = window.innerWidth;
+            const h = window.innerHeight;
+            if (canvas.width !== w || canvas.height !== h) {
+                canvas.width = w;
+                canvas.height = h;
+            }
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        // =========================================================================
+        // §5  Simulation Step & Render Loop
+        // =========================================================================
+        let t0 = performance.now();
+        let frameCount = 0;
+
+        function frame(now) {
+            resize();
+            const dt = 0.015; // fixed physics step matching nbody_projective_v2
+            t0 = now;
+            const timeSec = now * 0.001;
+
+            // 1. Authoritative N-Body + Inversion Simulation Step
+            const R2 = R_SCALE_DUAL * R_SCALE_DUAL;
+            for (let i = 0; i < NUM_BODIES; i++) {
+                const baseI = i * PARTICLE_FLOATS;
+                const pI = [hostBodyArray[baseI], hostBodyArray[baseI + 1], hostBodyArray[baseI + 2]];
+                let acc = [0, 0, 0];
+
+                for (let j = 0; j < NUM_BODIES; j++) {
+                    if (j === i) continue;
+                    const baseJ = j * PARTICLE_FLOATS;
+                    const pJ = [hostBodyArray[baseJ], hostBodyArray[baseJ + 1], hostBodyArray[baseJ + 2]];
+                    const mJ = hostBodyArray[baseJ + 7];
+
+                    const dx = pJ[0] - pI[0], dy = pJ[1] - pI[1], dz = pJ[2] - pI[2];
+                    const dist2 = dx * dx + dy * dy + dz * dz + SOFTENING;
+                    const invDist3 = Math.pow(dist2, -1.5);
+                    const apu = G * mJ * invDist3;
+
+                    acc[0] += dx * apu;
+                    acc[1] += dy * apu;
+                    acc[2] += dz * apu;
+                }
+
+                // Central crossroad attraction (omni-infinity singularity at r=0)
+                const cDist = Math.hypot(pI[0], pI[1], pI[2]) + 1e-3;
+                const cForce = 0.005 / (cDist * cDist);
+                acc[0] -= (pI[0] / cDist) * cForce;
+                acc[1] -= (pI[1] / cDist) * cForce;
+                acc[2] -= (pI[2] / cDist) * cForce;
+
+                // Update velocity & position
+                hostBodyArray[baseI + 8] += acc[0] * dt;
+                hostBodyArray[baseI + 9] += acc[1] * dt;
+                hostBodyArray[baseI + 10] += acc[2] * dt;
+
+                hostBodyArray[baseI] += hostBodyArray[baseI + 8] * dt;
+                hostBodyArray[baseI + 1] += hostBodyArray[baseI + 9] * dt;
+                hostBodyArray[baseI + 2] += hostBodyArray[baseI + 10] * dt;
+
+                // Update dual locus: R_scale^2 * x / ||x||^2
+                const npx = hostBodyArray[baseI], npy = hostBodyArray[baseI + 1], npz = hostBodyArray[baseI + 2];
+                const nr2 = npx * npx + npy * npy + npz * npz + 1e-4;
+                hostBodyArray[baseI + 4] = (npx * R2) / nr2;
+                hostBodyArray[baseI + 5] = (npy * R2) / nr2;
+                hostBodyArray[baseI + 6] = (npz * R2) / nr2;
+
+                // Comet recycle check
+                if (hostBodyArray[baseI + 12] === 3 && Math.hypot(npx, npy, npz) > 1600.0) {
+                    hostBodyArray[baseI] *= -0.1;
+                    hostBodyArray[baseI + 1] *= -0.1;
+                    hostBodyArray[baseI + 2] *= -0.1;
+                    hostBodyArray[baseI + 8] *= -0.5;
+                    hostBodyArray[baseI + 9] *= -0.5;
+                    hostBodyArray[baseI + 10] *= -0.5;
+                }
+            }
+
+            // Sync updated body data to GPU storage buffer
+            device.queue.writeBuffer(particleBufferRender, 0, hostBodyArray);
+
+            // 2. Camera Positioning & Tracking Modes (100% in sync with body state)
+            let eye = [camera.eye[0], camera.eye[1], camera.eye[2]];
+            let target = [camera.target[0], camera.target[1], camera.target[2]];
+            let up = [camera.up[0], camera.up[1], camera.up[2]];
+            let fov = 50;
+
+            if (camMode === 'LittlePrince') {
+                const base = trackedIndex * PARTICLE_FLOATS;
+                const pos = [hostBodyArray[base], hostBodyArray[base + 1], hostBodyArray[base + 2]];
+                const radius = hostBodyArray[base + 3];
+
+                // Standing on equator of rotating planet
+                const ang = timeSec * 0.5 + trackedIndex;
+                const norm = [Math.cos(ang), 0, -Math.sin(ang)];
+                const west = [Math.sin(ang), 0, Math.cos(ang)];
+
+                eye = [
+                    pos[0] + norm[0] * (radius + 0.12),
+                    pos[1] + norm[1] * (radius + 0.12),
+                    pos[2] + norm[2] * (radius + 0.12)
+                ];
+                up = norm;
+
+                let look = [...west];
+                look = rotateAroundAxis(look, norm, fpvYaw);
+                const pitchAxis = normalize3(cross3(look, norm));
+                look = rotateAroundAxis(look, pitchAxis, -fpvPitch);
+
+                target = [eye[0] + look[0] * 50.0, eye[1] + look[1] * 50.0, eye[2] + look[2] * 50.0];
+                fov = 35;
+            } else if (camMode === 'CometRide') {
+                const base = trackedIndex * PARTICLE_FLOATS;
+                const pos = [hostBodyArray[base], hostBodyArray[base + 1], hostBodyArray[base + 2]];
+                const vel = [hostBodyArray[base + 8], hostBodyArray[base + 9], hostBodyArray[base + 10]];
+                const vNorm = normalize3(vel);
+
+                eye = [
+                    pos[0] - vNorm[0] * 3.0,
+                    pos[1] - vNorm[1] * 3.0 + 1.0,
+                    pos[2] - vNorm[2] * 3.0
+                ];
+                up = [0, 1, 0];
+
+                let look = [...vNorm];
+                look = rotateAroundAxis(look, [0, 1, 0], fpvYaw);
+                const pitchAxis = normalize3(cross3(look, [0, 1, 0]));
+                look = rotateAroundAxis(look, pitchAxis, -fpvPitch);
+
+                target = [pos[0] + look[0] * 50.0, pos[1] + look[1] * 50.0, pos[2] + look[2] * 50.0];
+                fov = 115;
+            }
+
+            // 3. Compute View and Projection Matrices
+            const aspect = canvas.width / (canvas.height || 1);
+            const viewMat = mat4LookAt(eye, target, up);
+            const projMat = mat4Perspective((fov * Math.PI) / 180, aspect, 0.1, 3000.0);
+            const viewProj = mat4Multiply(projMat, viewMat);
+            const invViewProj = mat4Invert(viewProj);
+
+            // Guard against degenerate matrices
+            if (!isFinite(invViewProj[0])) {
+                requestAnimationFrame(frame);
+                return;
+            }
+
+            // 4. Update GPU Uniforms (128 bytes)
+            const renderUniformData = new Float32Array(32);
+            renderUniformData.set(invViewProj, 0);                 // 0-15 (64 bytes)
+            renderUniformData[16] = eye[0];                        // 16
+            renderUniformData[17] = eye[1];                        // 17
+            renderUniformData[18] = eye[2];                        // 18
+            renderUniformData[19] = timeSec;                       // 19
+            renderUniformData[20] = canvas.width;                  // 20
+            renderUniformData[21] = canvas.height;                 // 21
+            // 22-31 remain 0 (padding)
+
+            device.queue.writeBuffer(uniformRenderBuffer, 0, renderUniformData);
+
+            // 5. Command Encoding
+            const encoder = device.createCommandEncoder();
+
+            // Fullscreen analytic raymarching render pass
+            {
+                const view = context.getCurrentTexture().createView();
+                const renderPass = encoder.beginRenderPass({
+                    colorAttachments: [{
+                        view,
+                        clearValue: { r: 0.012, g: 0.015, b: 0.024, a: 1 },
+                        loadOp: 'clear',
+                        storeOp: 'store'
+                    }]
+                });
+                renderPass.setPipeline(renderPipeline);
+                renderPass.setBindGroup(0, renderBindGroup);
+                renderPass.draw(3, 1);
+                renderPass.end();
+            }
+
+            device.queue.submit([encoder.finish()]);
+
+            if (++frameCount % 30 === 0) {
+                const modeLabel = camMode === 'Free' ? 'Free Orbit' : camMode === 'LittlePrince' ? `Little Prince (Body #${trackedIndex})` : `Comet Rider (Body #${trackedIndex})`;
+                statusEl.innerHTML = `<span style="color:#7b9ef8">30-Body N² Gravity · 3D Analytic Raytracer</span> · Mode: <strong>${modeLabel}</strong> · Scenario: <strong>${currentScenario}</strong>`;
+            }
+
+            requestAnimationFrame(frame);
+        }
+
+        init().catch(err => {
+            statusEl.textContent = 'Init error: ' + err.message;
+            console.error(err);
+        });
+    </script>
+</body>
+
+</html>

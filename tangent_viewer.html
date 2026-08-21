@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2D Projective Inverted Occlusion &amp; Tangent Conics</title>
+    <style>
+        :root {
+            --bg-primary: #030712;
+            --bg-card: rgba(15, 23, 42, 0.75);
+            --border-card: rgba(255, 255, 255, 0.08);
+            --accent-cyan: #38bdf8;
+            --accent-green: #4ade80;
+            --accent-rose: #f43f5e;
+            --accent-amber: #fbbf24;
+            --accent-indigo: #818cf8;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --text-dim: #64748b;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background-color: var(--bg-primary);
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(56, 189, 248, 0.08) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(129, 140, 248, 0.06) 0px, transparent 50%);
+            color: var(--text-main);
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            line-height: 1.6;
+            padding: 32px 20px 80px 20px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .layout {
+            width: 100%;
+            max-width: 1080px;
+            display: flex;
+            flex-direction: column;
+            gap: 28px;
+        }
+
+        /* Header */
+        header {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--border-card);
+        }
+        .badge-row {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .badge {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            padding: 4px 10px;
+            border-radius: 9999px;
+            background: rgba(56, 189, 248, 0.12);
+            color: var(--accent-cyan);
+            border: 1px solid rgba(56, 189, 248, 0.25);
+        }
+        .badge.green {
+            background: rgba(74, 222, 128, 0.12);
+            color: var(--accent-green);
+            border-color: rgba(74, 222, 128, 0.25);
+        }
+        .badge.rose {
+            background: rgba(244, 63, 94, 0.12);
+            color: var(--accent-rose);
+            border-color: rgba(244, 63, 94, 0.25);
+        }
+        .link-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            padding: 4px 12px;
+            border-radius: 9999px;
+            background: rgba(129, 140, 248, 0.15);
+            color: #a5b4fc;
+            border: 1px solid rgba(129, 140, 248, 0.35);
+            text-decoration: none;
+            transition: all 0.2s ease;
+        }
+        .link-pill:hover {
+            background: rgba(129, 140, 248, 0.3);
+            color: #ffffff;
+            border-color: #818cf8;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(129, 140, 248, 0.25);
+        }
+        .link-card {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            padding: 16px;
+            text-decoration: none;
+            transition: all 0.2s ease;
+        }
+        .link-card:hover {
+            background: rgba(255, 255, 255, 0.06);
+            border-color: var(--accent-cyan);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(56, 189, 248, 0.15);
+        }
+        h1 {
+            font-size: 26px;
+            font-weight: 800;
+            color: #ffffff;
+            letter-spacing: -0.02em;
+        }
+        .subtitle {
+            font-size: 14px;
+            color: var(--text-muted);
+        }
+
+        /* Glass Cards */
+        .card {
+            background: var(--bg-card);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--border-card);
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.5);
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .card h2 {
+            font-size: 18px;
+            font-weight: 700;
+            color: #ffffff;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .card h2::before {
+            content: "";
+            display: inline-block;
+            width: 4px;
+            height: 18px;
+            background: var(--accent-cyan);
+            border-radius: 2px;
+        }
+
+        /* SVG Viewer */
+        .svg-container {
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: #070a13;
+        }
+        .svg-container svg {
+            display: block;
+            width: 100%;
+            height: auto;
+        }
+
+        /* MathML Styling */
+        math {
+            font-family: "Latin Modern Math", "Cambria Math", STIXGeneral, serif;
+            font-size: 1.12em;
+            color: #e2e8f0;
+        }
+        .math-block {
+            padding: 14px 18px;
+            background: rgba(0, 0, 0, 0.35);
+            border-radius: 8px;
+            border-left: 3px solid var(--accent-cyan);
+            overflow-x: auto;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 6px 0;
+        }
+        .math-block.rose { border-left-color: var(--accent-rose); }
+        .math-block.amber { border-left-color: var(--accent-amber); }
+        .math-block.indigo { border-left-color: var(--accent-indigo); }
+
+        /* Tables */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+            margin-top: 6px;
+        }
+        th, td {
+            padding: 10px 14px;
+            text-align: left;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        }
+        th {
+            background: rgba(255, 255, 255, 0.03);
+            color: var(--text-muted);
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 11px;
+            letter-spacing: 0.05em;
+        }
+        tr:hover td {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        /* Grid */
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+        @media (max-width: 768px) {
+            .grid-2 { grid-template-columns: 1fr; }
+        }
+
+        .highlight-box {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 10px;
+            padding: 14px;
+            font-size: 13px;
+            color: #cbd5e1;
+        }
+        .highlight-box strong { color: #ffffff; }
+    </style>
+</head>
+<body>
+    <div class="layout">
+
+        <!-- Header -->
+        <header>
+            <div class="badge-row">
+                <span class="badge">Projective Optics</span>
+                <span class="badge green">5D CGA Homotheties</span>
+                <span class="badge rose">Inverted Occlusion</span>
+                <span class="badge">Zero-Build Vanilla</span>
+                <a href="https://5dcolor.netlify.app" target="_blank" rel="noopener noreferrer" class="link-pill">
+                    5DColor Visualizer ↗
+                </a>
+                <a href="https://black7.netlify.app" target="_blank" rel="noopener noreferrer" class="link-pill">
+                    Black7 Raytracer ↗
+                </a>
+            </div>
+            <h1>2D Projective Inverted Occlusion &amp; Tangent Conics</h1>
+            <p class="subtitle">Exact geometric optics, focal direction inversions, 4-zone shadow decomposition, and differential radiative transfer for two circles with <math><mrow><msub><mi>R</mi><mi>A</mi></msub><mo>=</mo><mn>15</mn></mrow></math>, <math><mrow><msub><mi>R</mi><mi>B</mi></msub><mo>=</mo><mn>150</mn></mrow></math>, and separation <math><mrow><mi>d</mi><mo>=</mo><mn>420</mn></mrow></math>.</p>
+        </header>
+
+        <!-- Visual Interactive SVG -->
+        <div class="card">
+            <h2>Geometric Diagram &amp; Ray Traces</h2>
+            <div class="svg-container">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 620" width="100%" height="100%">
+                    <defs>
+                        <!-- Arrow Markers -->
+                        <marker id="arrow-green" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                            <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#4ade80" />
+                        </marker>
+                        <marker id="arrow-red" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                            <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f43f5e" />
+                        </marker>
+                        <marker id="arrow-axis" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                            <path d="M 0 2 L 7 5 L 0 8 z" fill="#38bdf8" />
+                        </marker>
+                    </defs>
+
+                    <style>
+                        .bg { fill: #070a13; }
+                        .axis-line { stroke: #38bdf8; stroke-width: 1.5; stroke-dasharray: 8 5; opacity: 0.65; }
+                        .circle-base { fill: #0f172a; stroke: #1e293b; stroke-width: 1.5; }
+                        .tangent-ext { stroke: rgba(74, 222, 128, 0.45); stroke-width: 1.5; }
+                        .tangent-int { stroke: rgba(244, 63, 94, 0.45); stroke-width: 1.5; }
+                        .tangent-l0b { stroke: #38bdf8; stroke-width: 1.8; stroke-dasharray: 5 3; opacity: 0.85; }
+                        .arc-facing-b { stroke: #38bdf8; stroke-width: 4; fill: none; }
+                        .arc-facing-a { stroke: #38bdf8; stroke-width: 3.5; fill: none; }
+                        .arc-umbra { stroke: #64748b; stroke-width: 3.5; fill: none; }
+                        .arc-penumbra { stroke: #fbbf24; stroke-width: 3.5; fill: none; }
+                        .vec-ext { stroke: #4ade80; stroke-width: 2; }
+                        .vec-int { stroke: #f43f5e; stroke-width: 2; }
+                        .focal-pt { fill: #ffb700; stroke: #ffffff; stroke-width: 1.5; }
+                        .point { fill: #ffffff; stroke-width: 1.5; }
+                        .text-title { font-family: system-ui, -apple-system, sans-serif; font-size: 16px; font-weight: 700; fill: #f8fafc; }
+                        .text-label { font-family: system-ui, -apple-system, sans-serif; font-size: 13px; font-weight: 600; fill: #e2e8f0; }
+                        .sub-label { font-family: system-ui, -apple-system, sans-serif; font-size: 11px; }
+                        .zone-tag { font-family: system-ui, -apple-system, sans-serif; font-size: 10px; font-weight: 600; }
+                    </style>
+
+                    <!-- Background -->
+                    <rect width="920" height="620" class="bg" />
+
+                    <!-- 4 Tangent Lines -->
+                    <line x1="80" y1="318.10" x2="850" y2="56.73" class="tangent-ext" />
+                    <line x1="80" y1="281.90" x2="850" y2="543.27" class="tangent-ext" />
+                    <line x1="80" y1="240.97" x2="850" y2="569.92" class="tangent-int" />
+                    <line x1="80" y1="359.03" x2="850" y2="30.08" class="tangent-int" />
+
+                    <!-- 2 Tangent Lines from L0B to Circle A -->
+                    <line x1="80" y1="279.41" x2="460" y2="299.44" class="tangent-l0b" />
+                    <line x1="80" y1="320.59" x2="460" y2="300.56" class="tangent-l0b" />
+
+                    <!-- Base Circles -->
+                    <circle cx="180" cy="300" r="15" class="circle-base" />
+                    <circle cx="600" cy="300" r="150" class="circle-base" />
+
+                    <!-- Circle B Facing Arcs -->
+                    <path d="M 600 300 L 551.79 157.96 A 150 150 0 0 0 551.79 442.04 Z" fill="rgba(56, 189, 248, 0.05)" />
+                    <path d="M 551.79 157.96 A 150 150 0 0 0 551.79 442.04" class="arc-facing-b" />
+                    <path d="M 541.07 162.06 A 150 150 0 0 0 541.07 437.94" stroke="#f43f5e" stroke-width="2.5" stroke-dasharray="6 3" fill="none" />
+
+                    <!-- Circle A: 4 Shadow / Light Zones -->
+                    <!-- 1. Total Shadow (Umbra): L1A -> CCW -> L2A -->
+                    <path d="M 180 300 L 175.18 285.80 A 15 15 0 0 0 175.18 314.20 Z" fill="rgba(100, 116, 139, 0.25)" />
+                    <path d="M 175.18 285.80 A 15 15 0 0 0 175.18 314.20" class="arc-umbra" />
+
+                    <!-- 2. Gradient Shadow Top (Penumbra): L3A -> CCW -> L1A -->
+                    <path d="M 180 300 L 185.89 286.21 A 15 15 0 0 0 175.18 285.80 Z" fill="rgba(251, 191, 36, 0.2)" />
+                    <path d="M 185.89 286.21 A 15 15 0 0 0 175.18 285.80" class="arc-penumbra" />
+
+                    <!-- 3. Gradient Shadow Bottom (Penumbra): L4A -> CW -> L2A -->
+                    <path d="M 180 300 L 175.18 314.20 A 15 15 0 0 0 185.89 313.79 Z" fill="rgba(251, 191, 36, 0.2)" />
+                    <path d="M 175.18 314.20 A 15 15 0 0 0 185.89 313.79" class="arc-penumbra" />
+
+                    <!-- 4. Full Light (Facing B): L4A -> CCW -> L3A -->
+                    <path d="M 180 300 L 185.89 313.79 A 15 15 0 0 0 185.89 286.21 Z" fill="rgba(56, 189, 248, 0.3)" />
+                    <path d="M 185.89 313.79 A 15 15 0 0 0 185.89 286.21" class="arc-facing-a" />
+
+                    <!-- Focal Points -->
+                    <circle cx="133.33" cy="300" r="4.5" class="focal-pt" />
+                    <text x="75" y="275" class="sub-label" fill="#ffb700">S_ext (L₁ × L₂)</text>
+                    <text x="60" y="290" class="zone-tag" fill="#94a3b8">Past Arc (No Flip)</text>
+
+                    <circle cx="218.18" cy="300" r="4.5" class="focal-pt" />
+                    <text x="228" y="280" class="sub-label" fill="#ffb700">S_int (L₃ × L₄)</text>
+                    <text x="228" y="295" class="zone-tag" fill="#fb7185">Focal Crossover (Flips Direction)</text>
+
+                    <!-- Radial Vectors from Centers -->
+                    <line x1="180" y1="300" x2="175.6" y2="287.0" class="vec-ext" marker-end="url(#arrow-green)" />
+                    <line x1="180" y1="300" x2="175.6" y2="313.0" class="vec-ext" marker-end="url(#arrow-green)" />
+                    <line x1="180" y1="300" x2="185.4" y2="287.3" class="vec-int" marker-end="url(#arrow-red)" />
+                    <line x1="180" y1="300" x2="185.4" y2="312.7" class="vec-int" marker-end="url(#arrow-red)" />
+
+                    <line x1="600" y1="300" x2="553.5" y2="163.0" class="vec-ext" style="stroke-width:2.5;" marker-end="url(#arrow-green)" />
+                    <line x1="600" y1="300" x2="553.5" y2="437.0" class="vec-ext" style="stroke-width:2.5;" marker-end="url(#arrow-green)" />
+                    <line x1="600" y1="300" x2="543.5" y2="167.5" class="vec-int" style="stroke-width:2.5;" marker-end="url(#arrow-red)" />
+                    <line x1="600" y1="300" x2="543.5" y2="432.5" class="vec-int" style="stroke-width:2.5;" marker-end="url(#arrow-red)" />
+
+                    <!-- Axis of Centers (CA - CB LINE) -->
+                    <line x1="40" y1="300" x2="880" y2="300" class="axis-line" marker-end="url(#arrow-axis)" />
+                    <text x="835" y="292" class="zone-tag" fill="#38bdf8">Axis (CA–CB)</text>
+
+                    <!-- Contact Points & Centers -->
+                    <circle cx="180" cy="300" r="3.5" fill="#38bdf8" stroke="#ffffff" stroke-width="1" />
+                    <text x="140" y="340" class="text-label">Circle A (R=15)</text>
+
+                    <circle cx="600" cy="300" r="4.5" fill="#38bdf8" stroke="#ffffff" stroke-width="1" />
+                    <text x="615" y="305" class="text-label">Circle B (R=150)</text>
+
+                    <!-- Contact Points on A -->
+                    <circle cx="175.18" cy="285.80" r="3.5" class="point" stroke="#4ade80" />
+                    <text x="145" y="275" class="sub-label" fill="#4ade80">L₁A</text>
+
+                    <circle cx="175.18" cy="314.20" r="3.5" class="point" stroke="#4ade80" />
+                    <text x="145" y="330" class="sub-label" fill="#4ade80">L₂A</text>
+
+                    <circle cx="185.89" cy="286.21" r="3.5" class="point" stroke="#f43f5e" />
+                    <text x="195" y="275" class="sub-label" fill="#f43f5e">L₃A</text>
+
+                    <circle cx="185.89" cy="313.79" r="3.5" class="point" stroke="#f43f5e" />
+                    <text x="195" y="330" class="sub-label" fill="#f43f5e">L₄A</text>
+
+                    <!-- Contact Points on Circle A from L0B Tangents -->
+                    <circle cx="180.83" cy="285.02" r="3" class="point" stroke="#38bdf8" />
+                    <circle cx="180.83" cy="314.98" r="3" class="point" stroke="#38bdf8" />
+
+                    <!-- Contact Points on B -->
+                    <circle cx="551.79" cy="157.96" r="4.5" class="point" stroke="#4ade80" />
+                    <text x="525" y="150" class="sub-label" fill="#4ade80">L₁B</text>
+
+                    <circle cx="551.79" cy="442.04" r="4.5" class="point" stroke="#4ade80" />
+                    <text x="525" y="455" class="sub-label" fill="#4ade80">L₂B</text>
+
+                    <circle cx="541.07" cy="162.06" r="4.5" class="point" stroke="#f43f5e" />
+                    <text x="508" y="172" class="sub-label" fill="#f43f5e">L₄B</text>
+
+                    <circle cx="541.07" cy="437.94" r="4.5" class="point" stroke="#f43f5e" />
+                    <text x="508" y="435" class="sub-label" fill="#f43f5e">L₃B</text>
+
+                    <!-- Point L0B on Circle B -->
+                    <circle cx="450" cy="300" r="4.5" class="point" stroke="#38bdf8" stroke-width="2" />
+                    <text x="458" y="292" class="sub-label" fill="#38bdf8" font-weight="700">L₀B</text>
+
+                    <!-- Legend Header -->
+                    <g transform="translate(40, 45)">
+                        <text x="0" y="0" class="text-title">Projective Occlusion, Optical Axis &amp; Shadow Zones</text>
+                        <line x1="0" y1="20" x2="25" y2="20" stroke="#64748b" stroke-width="3" />
+                        <text x="35" y="24" class="sub-label" fill="#cbd5e1">Total Shadow (Umbra): L₁A → CCW → L₂A (Δθ = 142.5°)</text>
+
+                        <line x1="0" y1="38" x2="25" y2="38" stroke="#fbbf24" stroke-width="3" />
+                        <text x="35" y="42" class="sub-label" fill="#fbbf24">Gradient Shadows (Penumbra): L₃A → CCW → L₁A &amp; L₄A → CW → L₂A (2 × 41.9°)</text>
+
+                        <line x1="0" y1="56" x2="25" y2="56" stroke="#38bdf8" stroke-width="3" />
+                        <text x="35" y="60" class="sub-label" fill="#38bdf8">Full Light / Direct Sight: L₄A → CCW → L₃A (Facing B, Δθ = 133.7°)</text>
+
+                        <line x1="0" y1="74" x2="25" y2="74" stroke="#38bdf8" stroke-width="2" stroke-dasharray="4 2" />
+                        <text x="35" y="78" class="sub-label" fill="#7dd3fc">Tangents from L₀B to Circle A (Apex Horizon from L₀B)</text>
+                    </g>
+                </svg>
+            </div>
+        </div>
+
+        <!-- Section 1: Focal Points & Orientation Duality -->
+        <div class="card">
+            <h2>1. Focal Inversion &amp; Arc Orientation Duality</h2>
+            <p>The 4 bitangent lines intersect along the optical axis at two fundamental homothetic centers:</p>
+            
+            <div class="grid-2">
+                <div class="highlight-box">
+                    <strong style="color: var(--accent-amber);">External Center <math><msub><mi>S</mi><mtext>ext</mtext></msub><mo>=</mo><msub><mi>L</mi><mn>1</mn></msub><mo>×</mo><msub><mi>L</mi><mn>2</mn></msub></math></strong>
+                    <div class="math-block">
+                        <math display="block">
+                            <mrow>
+                                <msub><mi mathvariant="bold">S</mi><mtext>ext</mtext></msub>
+                                <mo>=</mo>
+                                <mfrac>
+                                    <mrow><msub><mi>R</mi><mi>B</mi></msub><msub><mi mathvariant="bold">c</mi><mi>A</mi></msub><mo>−</mo><msub><mi>R</mi><mi>A</mi></msub><msub><mi mathvariant="bold">c</mi><mi>B</mi></msub></mrow>
+                                    <mrow><msub><mi>R</mi><mi>B</mi></msub><mo>−</mo><msub><mi>R</mi><mi>A</mi></msub></mrow>
+                                </mfrac>
+                                <mo>=</mo>
+                                <mfenced open="(" close=")"><mfrac><mn>400</mn><mn>3</mn></mfrac><mn>300</mn></mfenced>
+                                <mo>≈</mo>
+                                <mrow><mo>(</mo><mn>133.33</mn><mo>,</mo><mn>300</mn><mo>)</mo></mrow>
+                            </mrow>
+                        </math>
+                    </div>
+                    <p>Located <em>past</em> Circle A. Rays diverge monotonically without crossing between the bodies. Orientation does <strong>not flip</strong>:</p>
+                    <p style="margin-top: 4px;">• On B: <math><mrow><msub><mi>L</mi><mrow><mn>1</mn><mi>B</mi></mrow></msub><mover><mo>→</mo><mtext>CCW</mtext></mover><msub><mi>L</mi><mrow><mn>2</mn><mi>B</mi></mrow></msub></mrow></math></p>
+                    <p>• On A: <math><mrow><msub><mi>L</mi><mrow><mn>1</mn><mi>A</mi></mrow></msub><mover><mo>→</mo><mtext>CW</mtext></mover><msub><mi>L</mi><mrow><mn>2</mn><mi>A</mi></mrow></msub></mrow></math> (Facing B)</p>
+                </div>
+
+                <div class="highlight-box">
+                    <strong style="color: var(--accent-rose);">Internal Center <math><msub><mi>S</mi><mtext>int</mtext></msub><mo>=</mo><msub><mi>L</mi><mn>3</mn></msub><mo>×</mo><msub><mi>L</mi><mn>4</mn></msub></math></strong>
+                    <div class="math-block rose">
+                        <math display="block">
+                            <mrow>
+                                <msub><mi mathvariant="bold">S</mi><mtext>int</mtext></msub>
+                                <mo>=</mo>
+                                <mfrac>
+                                    <mrow><msub><mi>R</mi><mi>B</mi></msub><msub><mi mathvariant="bold">c</mi><mi>A</mi></msub><mo>+</mo><msub><mi>R</mi><mi>A</mi></msub><msub><mi mathvariant="bold">c</mi><mi>B</mi></msub></mrow>
+                                    <mrow><msub><mi>R</mi><mi>B</mi></msub><mo>+</mo><msub><mi>R</mi><mi>A</mi></msub></mrow>
+                                </mfrac>
+                                <mo>=</mo>
+                                <mfenced open="(" close=")"><mfrac><mn>2400</mn><mn>11</mn></mfrac><mn>300</mn></mfenced>
+                                <mo>≈</mo>
+                                <mrow><mo>(</mo><mn>218.18</mn><mo>,</mo><mn>300</mn><mo>)</mo></mrow>
+                            </mrow>
+                        </math>
+                    </div>
+                    <p>Located <em>in front of</em> Circle A (between A and B). Rays cross through the focal center, creating a <strong style="color:var(--accent-rose);">180° spatial inversion</strong>:</p>
+                    <p style="margin-top: 4px;">• On B: <math><mrow><msub><mi>L</mi><mrow><mn>4</mn><mi>B</mi></mrow></msub><mover><mo>→</mo><mtext>CCW</mtext></mover><msub><mi>L</mi><mrow><mn>3</mn><mi>B</mi></mrow></msub></mrow></math></p>
+                    <p>• On A: <math><mrow><msub><mi>L</mi><mrow><mn>4</mn><mi>A</mi></mrow></msub><mover><mo>→</mo><mtext>CCW</mtext></mover><msub><mi>L</mi><mrow><mn>3</mn><mi>A</mi></mrow></msub></mrow></math> (Flips to match B)</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Section 2: 4-Zone Partition Table -->
+        <div class="card">
+            <h2>2. Circumferential 4-Zone Decomposition on Circle A</h2>
+            <p>The 4 contact points partition Circle A's <math><mrow><mn>360</mn><mo>°</mo></mrow></math> perimeter into 4 distinct physical illumination domains:</p>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>Zone Name</th>
+                        <th>Arc Traversal</th>
+                        <th>Angular Span (<math><mi>Δθ</mi></math>)</th>
+                        <th>Optical Visibility to Circle B</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong style="color: #94a3b8;">Total Shadow (Umbra)</strong></td>
+                        <td><math><mrow><msub><mi>L</mi><mrow><mn>1</mn><mi>A</mi></mrow></msub><mover><mo>→</mo><mtext>CCW</mtext></mover><msub><mi>L</mi><mrow><mn>2</mn><mi>A</mi></mrow></msub></mrow></math></td>
+                        <td><math><mrow><mn>142.50</mn><mo>°</mo></mrow></math></td>
+                        <td><math><mrow><mn>0</mn><mo>%</mo></mrow></math> visibility (Completely occluded from all points on B).</td>
+                    </tr>
+                    <tr>
+                        <td><strong style="color: var(--accent-amber);">Top Gradient Shadow (Penumbra)</strong></td>
+                        <td><math><mrow><msub><mi>L</mi><mrow><mn>3</mn><mi>A</mi></mrow></msub><mover><mo>→</mo><mtext>CCW</mtext></mover><msub><mi>L</mi><mrow><mn>1</mn><mi>A</mi></mrow></msub></mrow></math></td>
+                        <td><math><mrow><mn>41.88</mn><mo>°</mo></mrow></math></td>
+                        <td>Partial visibility transition: <math><mrow><mn>100</mn><mo>%</mo><mo>→</mo><mn>0</mn><mo>%</mo></mrow></math> (Upper limb sets).</td>
+                    </tr>
+                    <tr>
+                        <td><strong style="color: var(--accent-amber);">Bottom Gradient Shadow (Penumbra)</strong></td>
+                        <td><math><mrow><msub><mi>L</mi><mrow><mn>4</mn><mi>A</mi></mrow></msub><mover><mo>→</mo><mtext>CW</mtext></mover><msub><mi>L</mi><mrow><mn>2</mn><mi>A</mi></mrow></msub></mrow></math></td>
+                        <td><math><mrow><mn>41.88</mn><mo>°</mo></mrow></math></td>
+                        <td>Partial visibility transition: <math><mrow><mn>100</mn><mo>%</mo><mo>→</mo><mn>0</mn><mo>%</mo></mrow></math> (Lower limb sets).</td>
+                    </tr>
+                    <tr>
+                        <td><strong style="color: var(--accent-cyan);">Full Light (Direct Exposure)</strong></td>
+                        <td><math><mrow><msub><mi>L</mi><mrow><mn>4</mn><mi>A</mi></mrow></msub><mover><mo>→</mo><mtext>CCW</mtext></mover><msub><mi>L</mi><mrow><mn>3</mn><mi>A</mi></mrow></msub></mrow></math></td>
+                        <td><math><mrow><mn>133.74</mn><mo>°</mo></mrow></math></td>
+                        <td><math><mrow><mn>100</mn><mo>%</mo></mrow></math> visibility (Full, unobstructed disk of B is visible).</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="math-block indigo">
+                <math display="block">
+                    <mrow>
+                        <mo>∑</mo><mi>Δθ</mi>
+                        <mo>=</mo>
+                        <mn>142.50</mn><mo>°</mo><mo>+</mo><mn>41.88</mn><mo>°</mo><mo>+</mo><mn>41.88</mn><mo>°</mo><mo>+</mo><mn>133.74</mn><mo>°</mo>
+                        <mo>=</mo>
+                        <mn>360.00</mn><mo>°</mo>
+                    </mrow>
+                </math>
+            </div>
+        </div>
+
+        <!-- Section 3: Apex L0B Field of View -->
+        <div class="card">
+            <h2>3. Tangent Cones &amp; Horizon from Sub-Stellar Apex <math><msub><mi>L</mi><mrow><mn>0</mn><mi>B</mi></mrow></msub></math></h2>
+            <p>From the apex point <math><mrow><msub><mi mathvariant="bold">L</mi><mrow><mn>0</mn><mi>B</mi></mrow></msub><mo>=</mo><mrow><mo>(</mo><mn>450</mn><mo>,</mo><mn>300</mn><mo>)</mo></mrow></mrow></math> at distance <math><mrow><msub><mi>d</mi><mn>0</mn></msub><mo>=</mo><mn>270</mn><mtext>px</mtext></mrow></math> to <math><msub><mi mathvariant="bold">c</mi><mi>A</mi></msub></math>:</p>
+
+            <div class="grid-2">
+                <div class="highlight-box">
+                    <strong>Half-Opening Angle <math><msub><mi>α</mi><mn>0</mn></msub></math></strong>
+                    <div class="math-block">
+                        <math display="block">
+                            <mrow>
+                                <mo>sin</mo><msub><mi>α</mi><mn>0</mn></msub>
+                                <mo>=</mo>
+                                <mfrac><msub><mi>R</mi><mi>A</mi></msub><msub><mi>d</mi><mn>0</mn></msub></mfrac>
+                                <mo>=</mo>
+                                <mfrac><mn>15</mn><mn>270</mn></mfrac>
+                                <mo>=</mo>
+                                <mfrac><mn>1</mn><mn>18</mn></mfrac>
+                                <mo>≈</mo>
+                                <mn>3.1847</mn><mo>°</mo>
+                            </mrow>
+                        </math>
+                    </div>
+                    <p>Total apparent angular diameter of Planet A seen from apex <math><msub><mi>L</mi><mrow><mn>0</mn><mi>B</mi></mrow></msub></math>: <math><mrow><mn>2</mn><msub><mi>α</mi><mn>0</mn></msub><mo>=</mo><mn>6.3694</mn><mo>°</mo></mrow></math>.</p>
+                </div>
+
+                <div class="highlight-box">
+                    <strong>Contact Coordinates on Circle A</strong>
+                    <div class="math-block">
+                        <math display="block">
+                            <mrow>
+                                <msub><mi mathvariant="bold">T</mi><mrow><mn>0</mn><mi>A</mi></mrow></msub>
+                                <mo>=</mo>
+                                <mfenced open="(" close=")">
+                                    <mrow><mn>180</mn><mo>+</mo><mfrac><mn>5</mn><mn>6</mn></mfrac></mrow>
+                                    <mrow><mn>300</mn><mo>∓</mo><mfrac><mrow><mn>5</mn><msqrt><mn>323</mn></msqrt></mrow><mn>6</mn></mfrac></mrow>
+                                </mfenced>
+                                <mo>≈</mo>
+                                <mrow><mo>(</mo><mn>180.83</mn><mo>,</mo><mn>300</mn><mo>∓</mo><mn>14.98</mn><mo>)</mo></mrow>
+                            </mrow>
+                        </math>
+                    </div>
+                    <p>Visible illuminated arc on A subtended from <math><msub><mi>L</mi><mrow><mn>0</mn><mi>B</mi></mrow></msub></math>: <math><mrow><mi>Δθ</mi><mo>=</mo><mn>180</mn><mo>°</mo><mo>−</mo><mn>2</mn><msub><mi>α</mi><mn>0</mn></msub><mo>=</mo><mn>173.63</mn><mo>°</mo></mrow></math>.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Section 4: Radiative Transfer & Time-of-Flight -->
+        <div class="card">
+            <h2>4. Differential Radiative Transfer &amp; Time-of-Flight</h2>
+            <p>In a 2D Euclidean universe where each surface point radiates into a <math><mrow><mn>180</mn><mo>°</mo></mrow></math> forward hemisphere (<math><mi>π</mi></math> radians):</p>
+
+            <div class="math-block">
+                <math display="block">
+                    <mrow>
+                        <msub><mi>F</mi><mtext>iso</mtext></msub><mrow><mo>(</mo><msub><mi>P</mi><mi>B</mi></msub><mo>)</mo></mrow>
+                        <mo>=</mo>
+                        <mfrac><mrow><mi>Ω</mi><mo>(</mo><msub><mi>P</mi><mi>B</mi></msub><mo>)</mo></mrow><mi>π</mi></mfrac>
+                        <mo>=</mo>
+                        <mfrac><mn>2</mn><mi>π</mi></mfrac>
+                        <mo>arcsin</mo>
+                        <mfenced open="(" close=")"><mfrac><msub><mi>R</mi><mi>A</mi></msub><mrow><mo>‖</mo><msub><mi mathvariant="bold">c</mi><mi>A</mi></msub><mo>−</mo><msub><mi>P</mi><mi>B</mi></msub><mo>‖</mo></mrow></mfrac></mfenced>
+                        <mspace width="2em"/>
+                        <mi>τ</mi><mrow><mo>(</mo><msub><mi>P</mi><mi>B</mi></msub><mo>)</mo></mrow>
+                        <mo>=</mo>
+                        <mfrac><mrow><mo>‖</mo><msub><mi mathvariant="bold">c</mi><mi>A</mi></msub><mo>−</mo><msub><mi>P</mi><mi>B</mi></msub><mo>‖</mo><mo>−</mo><msub><mi>R</mi><mi>A</mi></msub></mrow><mi>c</mi></mfrac>
+                    </mrow>
+                </math>
+            </div>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>Emitter Point on Circle B</th>
+                        <th>Distance to <math><msub><mi mathvariant="bold">c</mi><mi>A</mi></msub></math> (<math><mi>D</mi></math>)</th>
+                        <th>Angular Diameter (<math><mi>Ω</mi></math>)</th>
+                        <th>Isotropic Capture %</th>
+                        <th>Lambertian (<math><mrow><mo>cos</mo><mi>ψ</mi></mrow></math>)</th>
+                        <th>Time of Flight (<math><mrow><mi>Δx</mi><mo>/</mo><mi>c</mi></mrow></math>)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong style="color: var(--accent-cyan);">Apex <math><msub><mi>L</mi><mrow><mn>0</mn><mi>B</mi></mrow></msub></math></strong></td>
+                        <td><math><mrow><mn>270.0</mn><mtext>px</mtext></mrow></math></td>
+                        <td><math><mrow><mn>6.37</mn><mo>°</mo></mrow></math></td>
+                        <td><strong style="color: var(--accent-cyan);"><math><mrow><mn>3.54</mn><mo>%</mo></mrow></math></strong></td>
+                        <td><math><mrow><mn>5.55</mn><mo>%</mo></mrow></math></td>
+                        <td><math><mrow><mn>255</mn><mo>/</mo><mi>c</mi></mrow></math> (Fastest arrival)</td>
+                    </tr>
+                    <tr>
+                        <td><strong style="color: var(--accent-rose);">Internal Contacts <math><mrow><msub><mi>L</mi><mrow><mn>4</mn><mi>B</mi></mrow></msub><mo>,</mo><msub><mi>L</mi><mrow><mn>3</mn><mi>B</mi></mrow></msub></mrow></math></strong></td>
+                        <td><math><mrow><mn>386.5</mn><mtext>px</mtext></mrow></math></td>
+                        <td><math><mrow><mn>4.45</mn><mo>°</mo></mrow></math></td>
+                        <td><math><mrow><mn>2.47</mn><mo>%</mo></mrow></math></td>
+                        <td><math><mrow><mn>3.01</mn><mo>%</mo></mrow></math></td>
+                        <td><math><mrow><mn>371.5</mn><mo>/</mo><mi>c</mi></mrow></math> (+45.7% latency)</td>
+                    </tr>
+                    <tr>
+                        <td><strong style="color: var(--accent-green);">External Contacts <math><mrow><msub><mi>L</mi><mrow><mn>1</mn><mi>B</mi></mrow></msub><mo>,</mo><msub><mi>L</mi><mrow><mn>2</mn><mi>B</mi></mrow></msub></mrow></math></strong></td>
+                        <td><math><mrow><mn>417.3</mn><mtext>px</mtext></mrow></math></td>
+                        <td><math><mrow><mn>4.12</mn><mo>°</mo></mrow></math></td>
+                        <td><math><mrow><mo>→</mo><mn>0</mn><mo>%</mo></mrow></math> (Grazing limit)</td>
+                        <td><math><mrow><mn>0.00</mn><mo>%</mo></mrow></math></td>
+                        <td><math><mrow><mn>402.3</mn><mo>/</mo><mi>c</mi></mrow></math> (+57.8% latency)</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Section 5: Generalization Frameworks -->
+        <div class="card">
+            <h2>5. Generalization over System <math><mrow><mo>[</mo><msub><mi>C</mi><mi>B</mi></msub><mo>,</mo><msub><mi>L</mi><mrow><mn>0</mn><mi>B</mi></mrow></msub><mo>,</mo><msub><mi>L</mi><mrow><mn>0</mn><mi>A</mi></mrow></msub><mo>,</mo><msub><mi>C</mi><mi>A</mi></msub><mo>]</mo></mrow></math></h2>
+            <div class="grid-2">
+                <div class="highlight-box">
+                    <strong style="color: var(--accent-cyan);">A. 2D CGA Conformal Dual Null Vectors</strong>
+                    <p style="margin-top: 6px;">Represent circles as null vectors <math><mrow><mi>σ</mi><mo>=</mo><mi mathvariant="bold">c</mi><mo>+</mo><mfrac><mn>1</mn><mn>2</mn></mfrac><mrow><mo>(</mo><msup><mi mathvariant="bold">c</mi><mn>2</mn></msup><mo>−</mo><msup><mi>R</mi><mn>2</mn></msup><mo>)</mo></mrow><msub><mi>e</mi><mi>∞</mi></msub><mo>+</mo><msub><mi>e</mi><mn>0</mn></msub></mrow></math>. Tangent cones are dual bivector wedges <math><mrow><msub><mi>S</mi><mtext>ext</mtext></msub><mo>∧</mo><msub><mi>σ</mi><mi>A</mi></msub></mrow></math> providing coordinate-free projective invariance under arbitrary Euclidean and conformal transformations.</p>
+                </div>
+                <div class="highlight-box">
+                    <strong style="color: var(--accent-green);">B. Closed-Form WebGPU Shader Formulation</strong>
+                    <p style="margin-top: 6px;">Compute horizon angles dynamically in WGSL via <math><mrow><mo>sin</mo><msub><mi>ϕ</mi><mtext>ext</mtext></msub><mo>=</mo><mrow><mo>(</mo><msub><mi>R</mi><mi>B</mi></msub><mo>−</mo><msub><mi>R</mi><mi>A</mi></msub><mo>)</mo></mrow><mo>/</mo><mi>d</mi></mrow></math> and <math><mrow><mo>sin</mo><msub><mi>ϕ</mi><mtext>int</mtext></msub><mo>=</mo><mrow><mo>(</mo><msub><mi>R</mi><mi>B</mi></msub><mo>+</mo><msub><mi>R</mi><mi>A</mi></msub><mo>)</mo></mrow><mo>/</mo><mi>d</mi></mrow></math> for zero-allocation, single-pass analytic fragment raytracing of umbra and penumbra gradients.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Section 6: Interactive Applications & Visualizers -->
+        <div class="card">
+            <h2>6. Interactive Visualizers &amp; Live References</h2>
+            <p>Explore live WebGPU &amp; CGA projective applications implementing conformal and inversive geometry:</p>
+            <div class="grid-2">
+                <a href="https://5dcolor.netlify.app" target="_blank" rel="noopener noreferrer" class="link-card">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <strong style="color: var(--accent-cyan); font-size: 15px;">5D Color Visualizer</strong>
+                        <span style="font-size: 12px; color: var(--text-dim);">5dcolor.netlify.app ↗</span>
+                    </div>
+                    <p style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">
+                        Interactive 5D Conformal Geometric Algebra hyper-spectral color space and null-cone projectivity visualizer.
+                    </p>
+                </a>
+
+                <a href="https://black7.netlify.app" target="_blank" rel="noopener noreferrer" class="link-card">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <strong style="color: var(--accent-indigo); font-size: 15px;">Black7 Raytracer</strong>
+                        <span style="font-size: 12px; color: var(--text-dim);">black7.netlify.app ↗</span>
+                    </div>
+                    <p style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">
+                        Real-time analytic projective inverted occlusion, spherical inversions, and dual-space raytracing.
+                    </p>
+                </a>
+            </div>
+        </div>
+
+    </div>
+</body>
+</html>

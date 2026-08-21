@@ -1,0 +1,847 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Omnidirectional Infinity Duality — 3D Analytic Raymarching</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #020308;
+            color: #c8d0e0;
+            font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+            overflow: hidden;
+            height: 100vh;
+            user-select: none;
+        }
+
+        canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        #ui {
+            position: absolute;
+            top: 14px;
+            left: 14px;
+            background: rgba(8, 10, 22, 0.88);
+            border: 1px solid #2a3558;
+            border-radius: 10px;
+            padding: 16px 20px;
+            max-width: 440px;
+            font-size: 13px;
+            line-height: 1.45;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+            z-index: 10;
+        }
+
+        #ui h1 {
+            font-size: 16px;
+            color: #9eb6ff;
+            margin-bottom: 6px;
+            letter-spacing: 0.03em;
+            font-weight: 600;
+        }
+
+        #ui .dim {
+            color: #6a7a9a;
+            font-size: 11px;
+            margin-top: 4px;
+        }
+
+        #controls-hint {
+            margin-top: 10px;
+            color: #78a2e8;
+            font-size: 11px;
+            line-height: 1.4;
+        }
+
+        #status {
+            position: absolute;
+            bottom: 12px;
+            left: 14px;
+            font-size: 12px;
+            color: #7084aa;
+            background: rgba(8, 10, 22, 0.85);
+            padding: 6px 14px;
+            border-radius: 6px;
+            border: 1px solid #232c49;
+            backdrop-filter: blur(8px);
+            pointer-events: none;
+            z-index: 10;
+        }
+    </style>
+</head>
+
+<body>
+    <canvas id="c"></canvas>
+    <div id="ui">
+        <h1>Omnidirectional Infinity Duality</h1>
+        <p>Center = omnidirectional infinity.<br>
+            Every particle carries its Euclidean 3D locus <em>and</em> its inverted dual
+            (<math display="inline">
+                <mi>x</mi>
+                <mo>↔</mo>
+                <mfrac>
+                    <mi>x</mi>
+                    <msup>
+                        <mrow>
+                            <mo>‖</mo>
+                            <mi>x</mi>
+                            <mo>‖</mo>
+                        </mrow>
+                        <mn>2</mn>
+                    </msup>
+                </mfrac>
+            </math>).
+        </p>
+        <p class="dim">
+            Mesh-free: Exact per-pixel ray-sphere discriminant testing (Sphere.ts style).<br>
+            Analytic star emission + soft penumbra shadows.<br>
+            Collapsed L1 crossroad singularity at the origin.
+        </p>
+        <p id="controls-hint">Orbit: Left Click + Drag | Pan: Right Click / Shift + Drag | Zoom: Scroll Wheel</p>
+    </div>
+
+    <div id="status">Initializing WebGPU…</div>
+
+    <script type="module">
+        /**
+         * @file inverted_duality_v3.html
+         * @description WebGPU 3D analytic raymarching demo with inverted dual geometry,
+         *              omnidirectional infinity at center, and exact per-pixel sphere + soft shadow physics.
+         */
+
+        const canvas = document.getElementById('c');
+        const statusEl = document.getElementById('status');
+
+        // ==========================================
+        // Chunk A: 3D Body Layout & Initialization
+        // ==========================================
+        const NUM_BODIES = 20;
+        const WORKGROUP = 64;
+        const PARTICLE_FLOATS = 16; // 64 bytes per body
+
+        /**
+         * Layout (16 floats = 64 bytes, nicely aligned):
+         * 0-2   pos.xyz
+         * 3     radius
+         * 4-6   dual.xyz          // inverted dual
+         * 7     mass
+         * 8-10  vel.xyz
+         * 11    life
+         * 12    type              // 0=star, 1=planet, 2=moon, 3=comet
+         * 13-15 padding
+         */
+        const setBodyData = (data, idx, {
+            pos = [0, 0, 0],
+            dual = [0, 0, 0],
+            vel = [0, 0, 0],
+            mass = 1,
+            life = 1,
+            radius = 0.05,
+            type = 1
+        }) => {
+            const base = idx * PARTICLE_FLOATS;
+            data[base + 0] = pos[0]; data[base + 1] = pos[1]; data[base + 2] = pos[2];
+            data[base + 3] = radius;
+            data[base + 4] = dual[0]; data[base + 5] = dual[1]; data[base + 6] = dual[2];
+            data[base + 7] = mass;
+            data[base + 8] = vel[0]; data[base + 9] = vel[1]; data[base + 10] = vel[2];
+            data[base + 11] = life;
+            data[base + 12] = type;
+            data[base + 13] = 0; data[base + 14] = 0; data[base + 15] = 0;
+        };
+
+        function initCelestialBodies() {
+            const data = new Float32Array(NUM_BODIES * PARTICLE_FLOATS);
+            let i = 0;
+
+            // 3 stars – slightly offset so we get interesting Lagrange-ish dynamics
+            setBodyData(data, i++, { pos: [0.0, 0.0, 0.0], mass: 12.0, radius: 0.09, type: 0 });
+            setBodyData(data, i++, { pos: [0.55, 0.1, 0.0], mass: 4.5, radius: 0.055, type: 0, vel: [0.0, 0.05, 0.2] });
+            setBodyData(data, i++, { pos: [-0.40, 0.35, 0.15], mass: 3.2, radius: 0.045, type: 0, vel: [0.15, -0.05, -0.1] });
+
+            // Planets / moons / comets
+            for (; i < NUM_BODIES; i++) {
+                const a = Math.random() * Math.PI * 2;
+                const r = 0.25 + Math.random() * 0.9;
+                const y = (Math.random() - 0.5) * 0.35;
+                setBodyData(data, i, {
+                    pos: [Math.cos(a) * r, y, Math.sin(a) * r],
+                    vel: [-Math.sin(a) * 0.25, (Math.random() - 0.5) * 0.05, Math.cos(a) * 0.25],
+                    mass: 0.15 + Math.random() * 0.6,
+                    radius: 0.018 + Math.random() * 0.03,
+                    type: 1 + (i % 3)
+                });
+            }
+            return data;
+        }
+
+        // ==========================================
+        // Chunk B: Orbit Camera & Math Helpers
+        // ==========================================
+        const camera = {
+            target: [0, 0, 0],
+            distance: 2.8,
+            azimuth: 0.6,
+            elevation: 0.35,
+            eye: [0, 0, 0],
+            update() {
+                this.elevation = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, this.elevation));
+                const x = this.distance * Math.cos(this.elevation) * Math.sin(this.azimuth);
+                const y = this.distance * Math.sin(this.elevation);
+                const z = this.distance * Math.cos(this.elevation) * Math.cos(this.azimuth);
+                this.eye = [this.target[0] + x, this.target[1] + y, this.target[2] + z];
+            }
+        };
+        camera.update();
+
+        // Mouse & Orbit controls
+        let isDragging = false;
+        let isPanning = false;
+        let lastMouseX = 0;
+        let lastMouseY = 0;
+
+        window.addEventListener('mousedown', (e) => {
+            if (e.target !== canvas) return;
+            if (e.button === 0 && !e.shiftKey) isDragging = true;
+            if (e.button === 2 || (e.button === 0 && e.shiftKey)) isPanning = true;
+            lastMouseX = e.clientX;
+            lastMouseY = e.clientY;
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            const dx = e.clientX - lastMouseX;
+            const dy = e.clientY - lastMouseY;
+            lastMouseX = e.clientX;
+            lastMouseY = e.clientY;
+
+            if (isDragging) {
+                camera.azimuth -= dx * 0.006;
+                camera.elevation += dy * 0.006;
+                camera.update();
+            } else if (isPanning) {
+                const forward = [
+                    camera.target[0] - camera.eye[0],
+                    camera.target[1] - camera.eye[1],
+                    camera.target[2] - camera.eye[2]
+                ];
+                const fLen = Math.hypot(...forward);
+                const fNorm = forward.map(v => v / (fLen || 1));
+                const right = [fNorm[2], 0, -fNorm[0]];
+                const rLen = Math.hypot(...right);
+                const rNorm = right.map(v => v / (rLen || 1));
+                const up = [
+                    rNorm[1] * fNorm[2] - rNorm[2] * fNorm[1],
+                    rNorm[2] * fNorm[0] - rNorm[0] * fNorm[2],
+                    rNorm[0] * fNorm[1] - rNorm[1] * fNorm[0]
+                ];
+
+                const panSpeed = camera.distance * 0.0012;
+                camera.target[0] -= (rNorm[0] * dx - up[0] * dy) * panSpeed;
+                camera.target[1] -= (rNorm[1] * dx - up[1] * dy) * panSpeed;
+                camera.target[2] -= (rNorm[2] * dx - up[2] * dy) * panSpeed;
+                camera.update();
+            }
+        });
+
+        window.addEventListener('mouseup', () => {
+            isDragging = false;
+            isPanning = false;
+        });
+
+        window.addEventListener('contextmenu', (e) => e.preventDefault());
+
+        window.addEventListener('wheel', (e) => {
+            camera.distance = Math.max(0.3, Math.min(20.0, camera.distance * (1.0 + e.deltaY * 0.001)));
+            camera.update();
+        }, { passive: true });
+
+        // Matrix utilities (Column-major Float32Array)
+        function mat4LookAt(eye, target, up = [0, 1, 0]) {
+            const zx = eye[0] - target[0], zy = eye[1] - target[1], zz = eye[2] - target[2];
+            const zlen = Math.hypot(zx, zy, zz) || 1;
+            const z0 = zx / zlen, z1 = zy / zlen, z2 = zz / zlen;
+
+            const xx = up[1] * z2 - up[2] * z1;
+            const xy = up[2] * z0 - up[0] * z2;
+            const xz = up[0] * z1 - up[1] * z0;
+            const xlen = Math.hypot(xx, xy, xz) || 1;
+            const x0 = xx / xlen, x1 = xy / xlen, x2 = xz / xlen;
+
+            const y0 = z1 * x2 - z2 * x1;
+            const y1 = z2 * x0 - z0 * x2;
+            const y2 = z0 * x1 - z1 * x0;
+
+            return new Float32Array([
+                x0, y0, z0, 0,
+                x1, y1, z1, 0,
+                x2, y2, z2, 0,
+                -(x0 * eye[0] + x1 * eye[1] + x2 * eye[2]),
+                -(y0 * eye[0] + y1 * eye[1] + y2 * eye[2]),
+                -(z0 * eye[0] + z1 * eye[1] + z2 * eye[2]),
+                1
+            ]);
+        }
+
+        function mat4Perspective(fovY, aspect, near, far) {
+            const f = 1.0 / Math.tan(fovY / 2);
+            const nf = 1 / (near - far);
+            const out = new Float32Array(16);
+            out[0] = f / aspect;
+            out[5] = f;
+            out[10] = (far + near) * nf;
+            out[11] = -1;
+            out[14] = (2 * far * near) * nf;
+            return out;
+        }
+
+        function mat4Multiply(a, b) { // returns a * b (column-major)
+            const out = new Float32Array(16);
+            for (let i = 0; i < 4; i++) {
+                for (let j = 0; j < 4; j++) {
+                    out[j * 4 + i] =
+                        a[0 * 4 + i] * b[j * 4 + 0] +
+                        a[1 * 4 + i] * b[j * 4 + 1] +
+                        a[2 * 4 + i] * b[j * 4 + 2] +
+                        a[3 * 4 + i] * b[j * 4 + 3];
+                }
+            }
+            return out;
+        }
+
+        function mat4Invert(m) {
+            const out = new Float32Array(16);
+            const [
+                m00, m01, m02, m03,
+                m10, m11, m12, m13,
+                m20, m21, m22, m23,
+                m30, m31, m32, m33
+            ] = m;
+
+            const b00 = m00 * m11 - m01 * m10, b01 = m00 * m12 - m02 * m10, b02 = m00 * m13 - m03 * m10;
+            const b03 = m01 * m12 - m02 * m11, b04 = m01 * m13 - m03 * m11, b05 = m02 * m13 - m03 * m12;
+            const b06 = m20 * m31 - m21 * m30, b07 = m20 * m32 - m22 * m30, b08 = m20 * m33 - m23 * m30;
+            const b09 = m21 * m32 - m22 * m31, b10 = m21 * m33 - m23 * m31, b11 = m22 * m33 - m23 * m32;
+
+            const det = b00 * b11 - b01 * b10 + b02 * b09 + b03 * b08 - b04 * b07 + b05 * b06;
+            if (!det) return out;
+            const invDet = 1.0 / det;
+
+            out[0] = (m11 * b11 - m12 * b10 + m13 * b09) * invDet;
+            out[1] = (-m01 * b11 + m02 * b10 - m03 * b09) * invDet;
+            out[2] = (m31 * b05 - m32 * b04 + m33 * b03) * invDet;
+            out[3] = (-m21 * b05 + m22 * b04 - m23 * b03) * invDet;
+            out[4] = (-m10 * b11 + m12 * b08 - m13 * b07) * invDet;
+            out[5] = (m00 * b11 - m02 * b08 + m03 * b07) * invDet;
+            out[6] = (-m30 * b05 + m32 * b02 - m33 * b01) * invDet;
+            out[7] = (m20 * b05 - m22 * b02 + m23 * b01) * invDet;
+            out[8] = (m10 * b10 - m11 * b08 + m13 * b06) * invDet;
+            out[9] = (-m00 * b10 + m01 * b08 - m03 * b06) * invDet;
+            out[10] = (m30 * b04 - m31 * b02 + m33 * b00) * invDet;
+            out[11] = (-m20 * b04 + m21 * b02 - m23 * b00) * invDet;
+            out[12] = (-m10 * b09 + m11 * b07 - m12 * b06) * invDet;
+            out[13] = (m00 * b09 - m01 * b07 + m02 * b06) * invDet;
+            out[14] = (-m30 * b03 + m31 * b01 - m32 * b00) * invDet;
+            out[15] = (m20 * b03 - m21 * b01 + m22 * b00) * invDet;
+
+            return out;
+        }
+
+        // ==========================================
+        // Chunk C & D: WebGPU Pipeline & Execution
+        // ==========================================
+        let device, context;
+        let computePipeline, renderPipeline;
+        let particleBuffer, particleBufferRender, uniformComputeBuffer, uniformRenderBuffer;
+        let computeBindGroup, renderBindGroup;
+
+        const particleData = initCelestialBodies();
+
+        async function init() {
+            if (!navigator.gpu) {
+                statusEl.textContent = 'WebGPU is not supported in this browser.';
+                return;
+            }
+            const adapter = await navigator.gpu.requestAdapter();
+            if (!adapter) {
+                statusEl.textContent = 'No suitable WebGPU adapter found.';
+                return;
+            }
+            device = await adapter.requestDevice();
+            context = canvas.getContext('webgpu');
+            const format = navigator.gpu.getPreferredCanvasFormat();
+            context.configure({ device, format, alphaMode: 'premultiplied' });
+
+            // Storage Buffers
+            particleBuffer = device.createBuffer({
+                size: particleData.byteLength,
+                usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC,
+                mappedAtCreation: true
+            });
+            new Float32Array(particleBuffer.getMappedRange()).set(particleData);
+            particleBuffer.unmap();
+
+            particleBufferRender = device.createBuffer({
+                size: particleData.byteLength,
+                usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
+            });
+
+            // Compute Uniforms: vec4f(time, dt, numBodies, 0)
+            uniformComputeBuffer = device.createBuffer({
+                size: 16,
+                usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+            });
+
+            // Render Uniform buffer: 128 bytes (safe, aligned)
+            uniformRenderBuffer = device.createBuffer({
+                size: 128,
+                usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+            });
+
+            // ----------------------------------------------------
+            // Chunk D: 3D Compute Shader (Inversion + Soft N-body)
+            // ----------------------------------------------------
+            const computeModule = device.createShaderModule({
+                label: 'inverted-3d-nbody-compute',
+                code: /* wgsl */ `
+struct Body {
+  pos    : vec3f,
+  radius : f32,
+  dual   : vec3f,
+  mass   : f32,
+  vel    : vec3f,
+  life   : f32,
+  type_  : f32,
+  _pad0  : f32,
+  _pad1  : f32,
+  _pad2  : f32,
+};
+
+@group(0) @binding(0) var<storage, read_write> bodies : array<Body>;
+@group(0) @binding(1) var<uniform> u : vec4f; // x=time, y=dt
+
+@compute @workgroup_size(64)
+fn main(@builtin(global_invocation_id) gid : vec3u) {
+  let i = gid.x;
+  if (i >= arrayLength(&bodies)) { return; }
+
+  var b = bodies[i];
+  let dt = max(u.y, 0.004);
+
+  // Core dual inversion: center ↔ omnidirectional infinity
+  let r2 = dot(b.pos, b.pos) + 1e-6;
+  if (r2 < 1e-5) {
+    b.dual = vec3f(0.0);
+  } else {
+    b.dual = b.pos / r2;
+  }
+
+  // 3D Soft N-body force summation
+  var force = vec3f(0.0);
+  for (var j = 0u; j < arrayLength(&bodies); j++) {
+    if (j == i) { continue; }
+    let o = bodies[j];
+    let d = o.pos - b.pos;
+    let dist2 = dot(d, d) + 0.0025; // slightly raised softening
+    let invDist = inverseSqrt(dist2);
+
+    // Classical gravitational term
+    force += d * (o.mass * invDist * invDist * invDist) * 0.000045;
+
+    // Dual / inverted geometric term
+    let dd = o.dual - b.dual;
+    let ddist2 = dot(dd, dd) + 0.003;
+    force += dd * (o.mass * 0.000012 / ddist2);
+  }
+
+  // Central crossroad attraction (collapsed L1 / infinity)
+  let toCenter = -b.pos;
+  let cDist = length(toCenter) + 1e-5;
+  force += toCenter * (0.00006 / (cDist * cDist));
+
+  // Integration
+  b.vel += force * dt;
+  b.pos += b.vel * dt;
+
+  // Hard velocity limit (prevents rare explosive steps)
+  let speed = length(b.vel);
+  if (speed > 1.8) {
+    b.vel *= 1.8 / speed;
+  }
+  b.vel *= 0.9965;
+
+  // Singularity contraction for planets/null-ish particles
+  let nearSingularity = smoothstep(0.35, 0.02, cDist);
+  if (b.type_ > 0.5) {
+    b.life = mix(b.life, b.life * 0.999, nearSingularity);
+    b.radius = mix(b.radius, b.radius * 0.998, nearSingularity * (1.0 - b.life));
+  }
+
+  // Soft spherical boundary to retain system cohesion
+  let maxR = 2.4;
+  let curR = length(b.pos);
+  if (curR > maxR) {
+    b.pos = normalize(b.pos) * maxR;
+    b.vel -= normalize(b.pos) * dot(b.vel, normalize(b.pos)) * 1.5;
+  }
+
+  bodies[i] = b;
+}
+`
+            });
+
+            const computeBindGroupLayout = device.createBindGroupLayout({
+                entries: [
+                    { binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },
+                    { binding: 1, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'uniform' } }
+                ]
+            });
+
+            computePipeline = device.createComputePipeline({
+                layout: device.createPipelineLayout({ bindGroupLayouts: [computeBindGroupLayout] }),
+                compute: { module: computeModule, entryPoint: 'main' }
+            });
+
+            computeBindGroup = device.createBindGroup({
+                layout: computeBindGroupLayout,
+                entries: [
+                    { binding: 0, resource: { buffer: particleBuffer } },
+                    { binding: 1, resource: { buffer: uniformComputeBuffer } }
+                ]
+            });
+
+            // ----------------------------------------------------------------------
+            // Chunk C: Analytic Ray-Sphere Fragment Shader (Mesh-Free Fullscreen Pass)
+            // ----------------------------------------------------------------------
+            const renderModule = device.createShaderModule({
+                label: 'celestial-raymarching-render',
+                code: /* wgsl */ `
+struct Body {
+  pos    : vec3f,
+  radius : f32,
+  dual   : vec3f,
+  mass   : f32,
+  vel    : vec3f,
+  life   : f32,
+  type_  : f32,
+  _pad0  : f32,
+  _pad1  : f32,
+  _pad2  : f32,
+};
+
+struct RenderUniforms {
+  invViewProj : mat4x4f,   // offset 0,  64 bytes
+  eye         : vec3f,     // offset 64, 12 bytes
+  time        : f32,       // offset 76
+  resolution  : vec2f,     // offset 80
+  _pad        : vec2f,     // offset 88
+};
+
+@group(0) @binding(0) var<storage, read> bodies : array<Body>;
+@group(0) @binding(1) var<uniform> u : RenderUniforms;
+
+struct VSOut {
+  @builtin(position) position : vec4f,
+  @location(0) uv : vec2f,
+};
+
+// Fullscreen triangle (no vertex buffers needed)
+@vertex
+fn vs_main(@builtin(vertex_index) vid : u32) -> VSOut {
+  var pos = array<vec2f, 3>(
+    vec2f(-1.0, -1.0),
+    vec2f( 3.0, -1.0),
+    vec2f(-1.0,  3.0)
+  );
+  var out : VSOut;
+  out.position = vec4f(pos[vid], 0.0, 1.0);
+  out.uv = pos[vid];
+  return out;
+}
+
+struct Ray {
+  orig : vec3f,
+  dir  : vec3f,
+};
+
+// Analytic ray-sphere intersection (exact discriminant test from Sphere.ts)
+fn hitSphere(ray : Ray, center : vec3f, radius : f32) -> f32 {
+  let oc = ray.orig - center;
+  let a = dot(ray.dir, ray.dir);
+  let b = 2.0 * dot(oc, ray.dir);
+  let c = dot(oc, oc) - radius * radius;
+  let disc = b * b - 4.0 * a * c;
+  if (disc < 0.0) { return -1.0; }
+  let s = sqrt(disc);
+  let t1 = (-b - s) / (2.0 * a);
+  let t2 = (-b + s) / (2.0 * a);
+  if (t1 > 0.001) { return t1; }
+  if (t2 > 0.001) { return t2; }
+  return -1.0;
+}
+
+@fragment
+fn fs_main(in : VSOut) -> @location(0) vec4f {
+  // Robust primary ray reconstruction via inverse View-Projection matrix
+  let ndc = vec4f(in.uv.x, in.uv.y, 0.0, 1.0);
+  let worldH = u.invViewProj * ndc;
+  let world = worldH.xyz / max(abs(worldH.w), 1e-8);
+
+  let rayDir = normalize(world - u.eye);
+  let ray = Ray(u.eye, rayDir);
+
+  var closestT = 1e20;
+  var hitPos = vec3f(0.0);
+  var hitNormal = vec3f(0.0);
+  var hitType = -1.0;
+  var hitRadius = 0.0;
+  var hitDual = vec3f(0.0);
+  var hitLife = 1.0;
+  var hitIdx = 0u;
+
+  // Primary ray analytic intersection loop
+  let nBodies = arrayLength(&bodies);
+  for (var i = 0u; i < nBodies; i++) {
+    let b = bodies[i];
+    let t = hitSphere(ray, b.pos, b.radius);
+    if (t > 0.0 && t < closestT) {
+      closestT = t;
+      hitPos = ray.orig + ray.dir * t;
+      hitNormal = normalize(hitPos - b.pos);
+      hitType = b.type_;
+      hitRadius = b.radius;
+      hitDual = b.dual;
+      hitLife = b.life;
+      hitIdx = i;
+    }
+  }
+
+  // Background deep space with subtle central infinity gradient
+  if (hitType < 0.0) {
+    let toOrigin = -ray.orig;
+    let tCenter = dot(toOrigin, ray.dir);
+    let perp = ray.orig + ray.dir * max(tCenter, 0.0);
+    let centerDist = length(perp);
+    let centerGlow = 0.06 / (centerDist * centerDist + 0.18);
+    
+    let bg = vec3f(0.015, 0.022, 0.045) + vec3f(0.2, 0.35, 0.6) * centerGlow;
+    return vec4f(bg, 1.0);
+  }
+
+  // Shading & Lighting
+  var color = vec3f(0.0);
+
+  if (hitType < 0.5) {
+    // Star - emissive surface with limb darkening / core brightness
+    let viewDot = max(dot(-ray.dir, hitNormal), 0.0);
+    let limb = pow(viewDot, 0.65);
+    color = vec3f(1.0, 0.88, 0.6) * (1.8 + 0.6 * limb);
+  } else {
+    // Planets, moons, comets: Base material coloring
+    var albedo = vec3f(0.35, 0.55, 0.95); // Planet blue
+    if (hitType < 1.5) {
+      albedo = vec3f(0.35, 0.6, 0.95);
+    } else if (hitType < 2.5) {
+      albedo = vec3f(0.72, 0.72, 0.76); // Moon gray
+    } else {
+      albedo = vec3f(0.4, 0.85, 0.95); // Comet cyan
+    }
+
+    // Accumulate illumination from every star in the system
+    for (var s = 0u; s < nBodies; s++) {
+      let star = bodies[s];
+      if (star.type_ > 0.5) { continue; } // only stars emit light
+
+      let toStar = star.pos - hitPos;
+      let dist = length(toStar);
+      let lightDir = toStar / max(dist, 1e-4);
+
+      // Analytic Soft Penumbra Shadow with bias hierarchy
+      var shadow = 1.0;
+      let shadowRay = Ray(hitPos + hitNormal * (0.004 + hitRadius * 0.01), lightDir);
+
+      for (var o = 0u; o < nBodies; o++) {
+        if (o == s || o == hitIdx) { continue; } // Skip star self and receiver surface
+        let other = bodies[o];
+        let tOcc = hitSphere(shadowRay, other.pos, other.radius * 0.97);
+        if (tOcc > 0.001 && tOcc < dist - 0.01) {
+          // Soft penumbra inspired by projective shadow geometry
+          let penumbra = smoothstep(0.0, other.radius * 3.5, dist - tOcc);
+          shadow *= mix(0.08, 1.0, penumbra);
+        }
+      }
+
+      let ndotl = max(dot(hitNormal, lightDir), 0.0);
+      let atten = 1.0 / (1.0 + dist * dist * 0.15);
+      let starCol = vec3f(1.0, 0.95, 0.85);
+
+      // Diffuse + Specular
+      let diffuse = albedo * ndotl;
+      let halfVec = normalize(lightDir - ray.dir);
+      let spec = pow(max(dot(hitNormal, halfVec), 0.0), 32.0) * 0.4;
+
+      color += (diffuse + spec) * starCol * atten * shadow * star.mass * 0.35;
+    }
+
+    // Ambient + dual-space inversion glow
+    let ambient = albedo * 0.04;
+    let dualTint = length(hitDual) * 0.035 * vec3f(0.4, 0.6, 1.0);
+    color += (ambient + dualTint) * hitLife;
+  }
+
+  // Gamma correction
+  color = pow(color, vec3f(0.85));
+  return vec4f(color, 1.0);
+}
+`
+            });
+
+            const renderBindGroupLayout = device.createBindGroupLayout({
+                entries: [
+                    { binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'read-only-storage' } },
+                    { binding: 1, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } }
+                ]
+            });
+
+            renderPipeline = device.createRenderPipeline({
+                layout: device.createPipelineLayout({ bindGroupLayouts: [renderBindGroupLayout] }),
+                vertex: { module: renderModule, entryPoint: 'vs_main' },
+                fragment: {
+                    module: renderModule,
+                    entryPoint: 'fs_main',
+                    targets: [{ format }]
+                },
+                primitive: { topology: 'triangle-list' }
+            });
+
+            renderBindGroup = device.createBindGroup({
+                layout: renderBindGroupLayout,
+                entries: [
+                    { binding: 0, resource: { buffer: particleBufferRender } },
+                    { binding: 1, resource: { buffer: uniformRenderBuffer } }
+                ]
+            });
+
+            statusEl.textContent = `WebGPU ready · ${NUM_BODIES} 3D analytic dual bodies · mesh-free`;
+            requestAnimationFrame(frame);
+        }
+
+        // Resize handler
+        function resize() {
+            const w = window.innerWidth;
+            const h = window.innerHeight;
+            if (canvas.width !== w || canvas.height !== h) {
+                canvas.width = w;
+                canvas.height = h;
+            }
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        // ==========================================
+        // Main Animation Loop
+        // ==========================================
+        let t0 = performance.now();
+
+        function frame(now) {
+            resize();
+            const dt = Math.min((now - t0) * 0.001, 0.033);
+            t0 = now;
+            const timeSec = now * 0.001;
+
+            // 1. Update Compute Uniforms
+            device.queue.writeBuffer(
+                uniformComputeBuffer,
+                0,
+                new Float32Array([timeSec, dt, NUM_BODIES, 0])
+            );
+
+            // 2. Update Render Camera Uniforms (Exact 128-byte aligned layout)
+            const aspect = canvas.width / (canvas.height || 1);
+            const viewMat = mat4LookAt(camera.eye, camera.target, [0, 1, 0]);
+            const projMat = mat4Perspective((45 * Math.PI) / 180, aspect, 0.05, 100.0);
+            const viewProj = mat4Multiply(projMat, viewMat); // Proj * View
+            const invViewProj = mat4Invert(viewProj);
+
+            // Guard against degenerate matrices
+            if (!isFinite(invViewProj[0])) {
+                requestAnimationFrame(frame);
+                return;
+            }
+
+            const renderUniformData = new Float32Array(32); // 128 bytes total
+
+            // 0–15: invViewProj (64 bytes)
+            renderUniformData.set(invViewProj, 0);
+
+            // 16–18: eye (12 bytes), 19: time (4 bytes)
+            renderUniformData[16] = camera.eye[0];
+            renderUniformData[17] = camera.eye[1];
+            renderUniformData[18] = camera.eye[2];
+            renderUniformData[19] = timeSec;
+
+            // 20–21: resolution (8 bytes)
+            renderUniformData[20] = canvas.width;
+            renderUniformData[21] = canvas.height;
+            // 22–31 remain 0 (padding)
+
+            device.queue.writeBuffer(uniformRenderBuffer, 0, renderUniformData);
+
+            // 3. Encode Commands
+            const encoder = device.createCommandEncoder();
+
+            // Compute pass: Inversion + Soft N-body
+            {
+                const computePass = encoder.beginComputePass();
+                computePass.setPipeline(computePipeline);
+                computePass.setBindGroup(0, computeBindGroup);
+                computePass.dispatchWorkgroups(Math.ceil(NUM_BODIES / WORKGROUP));
+                computePass.end();
+            }
+
+            // Sync updated body storage buffer for render stage
+            encoder.copyBufferToBuffer(
+                particleBuffer, 0,
+                particleBufferRender, 0,
+                particleData.byteLength
+            );
+
+            // Render pass: Fullscreen Analytic Raymarching
+            {
+                const view = context.getCurrentTexture().createView();
+                const renderPass = encoder.beginRenderPass({
+                    colorAttachments: [{
+                        view,
+                        clearValue: { r: 0.015, g: 0.02, b: 0.04, a: 1 },
+                        loadOp: 'clear',
+                        storeOp: 'store'
+                    }]
+                });
+                renderPass.setPipeline(renderPipeline);
+                renderPass.setBindGroup(0, renderBindGroup);
+                renderPass.draw(3, 1); // 1 fullscreen triangle
+                renderPass.end();
+            }
+
+            device.queue.submit([encoder.finish()]);
+            requestAnimationFrame(frame);
+        }
+
+        init().catch(err => {
+            statusEl.textContent = 'Init error: ' + err.message;
+            console.error(err);
+        });
+    </script>
+</body>
+
+</html>

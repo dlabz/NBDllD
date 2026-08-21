@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Two-Body Gravitational Dynamics &amp; Lagrange Geometry</title>
+    <style>
+        :root {
+            --bg-primary: #030712;
+            --bg-card: rgba(15, 23, 42, 0.75);
+            --border-card: rgba(255, 255, 255, 0.08);
+            --accent-cyan: #38bdf8;
+            --accent-green: #4ade80;
+            --accent-rose: #f43f5e;
+            --accent-amber: #fbbf24;
+            --accent-purple: #c084fc;
+            --accent-indigo: #818cf8;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --text-dim: #64748b;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background-color: var(--bg-primary);
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(244, 63, 94, 0.08) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(56, 189, 248, 0.06) 0px, transparent 50%);
+            color: var(--text-main);
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            line-height: 1.6;
+            padding: 32px 20px 80px 20px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .layout {
+            width: 100%;
+            max-width: 1080px;
+            display: flex;
+            flex-direction: column;
+            gap: 28px;
+        }
+
+        /* Header */
+        header {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--border-card);
+        }
+        .badge-row {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .badge {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            padding: 4px 10px;
+            border-radius: 9999px;
+            background: rgba(244, 63, 94, 0.12);
+            color: var(--accent-rose);
+            border: 1px solid rgba(244, 63, 94, 0.25);
+        }
+        .badge.cyan {
+            background: rgba(56, 189, 248, 0.12);
+            color: var(--accent-cyan);
+            border-color: rgba(56, 189, 248, 0.25);
+        }
+        .badge.purple {
+            background: rgba(192, 132, 252, 0.12);
+            color: var(--accent-purple);
+            border-color: rgba(192, 132, 252, 0.25);
+        }
+        .link-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            padding: 4px 12px;
+            border-radius: 9999px;
+            background: rgba(129, 140, 248, 0.15);
+            color: #a5b4fc;
+            border: 1px solid rgba(129, 140, 248, 0.35);
+            text-decoration: none;
+            transition: all 0.2s ease;
+        }
+        .link-pill:hover {
+            background: rgba(129, 140, 248, 0.3);
+            color: #ffffff;
+            border-color: #818cf8;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(129, 140, 248, 0.25);
+        }
+
+        h1 {
+            font-size: 26px;
+            font-weight: 800;
+            color: #ffffff;
+            letter-spacing: -0.02em;
+        }
+        .subtitle {
+            font-size: 14px;
+            color: var(--text-muted);
+        }
+
+        /* Glass Cards */
+        .card {
+            background: var(--bg-card);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--border-card);
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.5);
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .card h2 {
+            font-size: 18px;
+            font-weight: 700;
+            color: #ffffff;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .card h2::before {
+            content: "";
+            display: inline-block;
+            width: 4px;
+            height: 18px;
+            background: var(--accent-rose);
+            border-radius: 2px;
+        }
+
+        /* SVG Container */
+        .svg-container {
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: #050814;
+        }
+        .svg-container svg {
+            display: block;
+            width: 100%;
+            height: auto;
+        }
+
+        /* MathML */
+        math {
+            font-family: "Latin Modern Math", "Cambria Math", STIXGeneral, serif;
+            font-size: 1.12em;
+            color: #e2e8f0;
+        }
+        .math-block {
+            padding: 14px 18px;
+            background: rgba(0, 0, 0, 0.35);
+            border-radius: 8px;
+            border-left: 3px solid var(--accent-rose);
+            overflow-x: auto;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 6px 0;
+        }
+        .math-block.cyan { border-left-color: var(--accent-cyan); }
+        .math-block.amber { border-left-color: var(--accent-amber); }
+        .math-block.purple { border-left-color: var(--accent-purple); }
+
+        /* Tables */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+            margin-top: 6px;
+        }
+        th, td {
+            padding: 10px 14px;
+            text-align: left;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        }
+        th {
+            background: rgba(255, 255, 255, 0.03);
+            color: var(--text-muted);
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 11px;
+            letter-spacing: 0.05em;
+        }
+        tr:hover td { background: rgba(255, 255, 255, 0.02); }
+
+        /* Grid */
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+        @media (max-width: 768px) {
+            .grid-2 { grid-template-columns: 1fr; }
+        }
+
+        .highlight-box {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 10px;
+            padding: 14px;
+            font-size: 13px;
+            color: #cbd5e1;
+        }
+        .highlight-box strong { color: #ffffff; }
+
+        .link-card {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            padding: 16px;
+            text-decoration: none;
+            transition: all 0.2s ease;
+        }
+        .link-card:hover {
+            background: rgba(255, 255, 255, 0.06);
+            border-color: var(--accent-cyan);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(56, 189, 248, 0.15);
+        }
+    </style>
+</head>
+<body>
+    <div class="layout">
+
+        <!-- Header -->
+        <header>
+            <div class="badge-row">
+                <span class="badge">Gravitational Physics</span>
+                <span class="badge cyan">Two-Body Orbital Mechanics</span>
+                <span class="badge purple">Lagrange Geometry</span>
+                <a href="https://5dcolor.netlify.app" target="_blank" rel="noopener noreferrer" class="link-pill">
+                    5DColor Visualizer ↗
+                </a>
+                <a href="https://black7.netlify.app" target="_blank" rel="noopener noreferrer" class="link-pill">
+                    Black7 Raytracer ↗
+                </a>
+            </div>
+            <h1>Two-Body Gravitational Dynamics &amp; Lagrange Geometry</h1>
+            <p class="subtitle">Relative accelerations, barycentric orbits, effective Jacobi potentials, Hill sphere boundaries, and the 5 Lagrange equilibrium points for mass ratio <math><mrow><msub><mi>m</mi><mi>B</mi></msub><mo>:</mo><msub><mi>m</mi><mi>A</mi></msub><mo>=</mo><mn>9</mn><mo>:</mo><mn>1</mn></mrow></math> and separation <math><mrow><mi>d</mi><mo>=</mo><mn>360</mn><mtext>px</mtext></mrow></math>.</p>
+        </header>
+
+        <!-- Visual Interactive SVG -->
+        <div class="card">
+            <h2>Gravitational System Vector Diagram</h2>
+            <div class="svg-container">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 680" width="100%" height="100%">
+                    <defs>
+                        <!-- Arrow Markers -->
+                        <marker id="arrow-force" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                            <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f43f5e" />
+                        </marker>
+                        <marker id="arrow-vel" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                            <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#38bdf8" />
+                        </marker>
+                        <marker id="arrow-axis" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                            <path d="M 0 2 L 7 5 L 0 8 z" fill="#64748b" />
+                        </marker>
+
+                        <radialGradient id="well-b" cx="50%" cy="50%" r="50%">
+                            <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.35" />
+                            <stop offset="60%" stop-color="#38bdf8" stop-opacity="0.08" />
+                            <stop offset="100%" stop-color="#38bdf8" stop-opacity="0" />
+                        </radialGradient>
+                        <radialGradient id="well-a" cx="50%" cy="50%" r="50%">
+                            <stop offset="0%" stop-color="#4ade80" stop-opacity="0.35" />
+                            <stop offset="60%" stop-color="#4ade80" stop-opacity="0.08" />
+                            <stop offset="100%" stop-color="#4ade80" stop-opacity="0" />
+                        </radialGradient>
+                    </defs>
+
+                    <style>
+                        .bg { fill: #050814; }
+                        .axis-line { stroke: #475569; stroke-width: 1.5; stroke-dasharray: 8 5; opacity: 0.6; }
+                        .body-b { fill: #0f2b48; stroke: #38bdf8; stroke-width: 2.5; }
+                        .body-a { fill: #0f3824; stroke: #4ade80; stroke-width: 2; }
+                        .orbit-a { stroke: rgba(74, 222, 128, 0.35); stroke-width: 1.5; stroke-dasharray: 6 4; fill: none; }
+                        .orbit-b { stroke: rgba(56, 189, 248, 0.35); stroke-width: 1.5; stroke-dasharray: 6 4; fill: none; }
+                        .hill-sphere { stroke: rgba(251, 191, 36, 0.6); stroke-width: 1.8; stroke-dasharray: 4 3; fill: rgba(251, 191, 36, 0.04); }
+                        .roche-lobe { stroke: rgba(129, 140, 248, 0.45); stroke-width: 1.5; fill: none; }
+                        .vec-force { stroke: #f43f5e; stroke-width: 2.5; }
+                        .vec-vel { stroke: #38bdf8; stroke-width: 2.5; }
+                        .barycenter { fill: #fbbf24; stroke: #ffffff; stroke-width: 1.5; }
+                        .lagrange-pt { fill: #c084fc; stroke: #ffffff; stroke-width: 1.5; }
+                        .tri-line { stroke: rgba(192, 132, 252, 0.25); stroke-width: 1.2; stroke-dasharray: 3 3; }
+                        .text-title { font-family: system-ui, -apple-system, sans-serif; font-size: 16px; font-weight: 700; fill: #f8fafc; }
+                        .text-label { font-family: system-ui, -apple-system, sans-serif; font-size: 13px; font-weight: 600; fill: #e2e8f0; }
+                        .sub-label { font-family: system-ui, -apple-system, sans-serif; font-size: 11px; }
+                        .zone-tag { font-family: system-ui, -apple-system, sans-serif; font-size: 10px; font-weight: 600; }
+                    </style>
+
+                    <rect width="980" height="680" class="bg" />
+
+                    <!-- Wells -->
+                    <circle cx="580" cy="340" r="280" fill="url(#well-b)" />
+                    <circle cx="220" cy="340" r="140" fill="url(#well-a)" />
+
+                    <!-- Axis -->
+                    <line x1="30" y1="340" x2="950" y2="340" class="axis-line" marker-end="url(#arrow-axis)" />
+                    <text x="910" y="332" class="zone-tag" fill="#64748b">Axis of Centers</text>
+
+                    <!-- Orbits around Barycenter (544, 340) -->
+                    <circle cx="544" cy="340" r="324" class="orbit-a" />
+                    <circle cx="544" cy="340" r="36" class="orbit-b" />
+
+                    <!-- Hill Sphere (r_H = 120) -->
+                    <circle cx="220" cy="340" r="120" class="hill-sphere" />
+                    <text x="145" y="240" class="zone-tag" fill="#fbbf24">Hill Sphere (r_H = 120px)</text>
+
+                    <!-- Roche Lobe -->
+                    <path d="M 340 340 C 340 260, 270 220, 220 220 C 150 220, 100 270, 100 340 C 100 410, 150 460, 220 460 C 270 460, 340 420, 340 340 C 340 220, 440 160, 580 160 C 720 160, 820 240, 820 340 C 820 440, 720 520, 580 520 C 440 520, 340 460, 340 340 Z" class="roche-lobe" />
+                    <text x="440" y="195" class="zone-tag" fill="#818cf8">Critical Roche Lobe (Jacobi Potential C_L1)</text>
+
+                    <!-- Equilateral Triangles to L4/L5 -->
+                    <line x1="220" y1="340" x2="400" y2="28.23" class="tri-line" />
+                    <line x1="580" y1="340" x2="400" y2="28.23" class="tri-line" />
+                    <line x1="220" y1="340" x2="400" y2="651.77" class="tri-line" />
+                    <line x1="580" y1="340" x2="400" y2="651.77" class="tri-line" />
+
+                    <!-- Lagrange Points -->
+                    <circle cx="340" cy="340" r="4.5" class="lagrange-pt" />
+                    <text x="330" y="325" class="sub-label" fill="#c084fc" font-weight="700">L₁</text>
+
+                    <circle cx="100" cy="340" r="4.5" class="lagrange-pt" />
+                    <text x="92" y="325" class="sub-label" fill="#c084fc" font-weight="700">L₂</text>
+
+                    <circle cx="904" cy="340" r="4.5" class="lagrange-pt" />
+                    <text x="896" y="325" class="sub-label" fill="#c084fc" font-weight="700">L₃</text>
+
+                    <circle cx="400" cy="28.23" r="5" class="lagrange-pt" />
+                    <text x="414" y="24" class="sub-label" fill="#c084fc" font-weight="700">L₄ (Leading +60°)</text>
+
+                    <circle cx="400" cy="651.77" r="5" class="lagrange-pt" />
+                    <text x="412" y="655" class="sub-label" fill="#c084fc" font-weight="700">L₅ (Trailing 60°)</text>
+
+                    <!-- Physical Bodies -->
+                    <circle cx="580" cy="340" r="45" class="body-b" />
+                    <circle cx="580" cy="340" r="3" fill="#38bdf8" />
+                    <text x="545" y="405" class="text-label" fill="#38bdf8">Body B (M=9, R=45)</text>
+
+                    <circle cx="220" cy="340" r="16" class="body-a" />
+                    <circle cx="220" cy="340" r="2.5" fill="#4ade80" />
+                    <text x="175" y="375" class="text-label" fill="#4ade80">Body A (m=1, R=16)</text>
+
+                    <!-- Barycenter -->
+                    <circle cx="544" cy="340" r="4.5" class="barycenter" />
+                    <text x="515" y="325" class="sub-label" fill="#fbbf24" font-weight="700">Barycenter (CoM)</text>
+                    <text x="510" y="310" class="zone-tag" fill="#fbbf24">x = 544 (Inside B)</text>
+
+                    <!-- Vectors -->
+                    <line x1="220" y1="340" x2="300" y2="340" class="vec-force" marker-end="url(#arrow-force)" />
+                    <text x="235" y="332" class="zone-tag" fill="#f43f5e">F_grav</text>
+
+                    <line x1="580" y1="340" x2="500" y2="340" class="vec-force" marker-end="url(#arrow-force)" />
+
+                    <line x1="220" y1="340" x2="220" y2="260" class="vec-vel" marker-end="url(#arrow-vel)" />
+                    <text x="145" y="295" class="sub-label" fill="#38bdf8">v_A = ω·r_A</text>
+
+                    <line x1="580" y1="340" x2="580" y2="380" class="vec-vel" marker-end="url(#arrow-vel)" />
+                    <text x="590" y="370" class="sub-label" fill="#38bdf8">v_B = ω·r_B</text>
+
+                    <!-- Distance -->
+                    <line x1="220" y1="480" x2="580" y2="480" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="4 2" />
+                    <line x1="220" y1="472" x2="220" y2="488" stroke="#94a3b8" stroke-width="1.5" />
+                    <line x1="580" y1="472" x2="580" y2="488" stroke="#94a3b8" stroke-width="1.5" />
+                    <text x="360" y="475" class="sub-label" fill="#cbd5e1" font-weight="600">Separation Distance d = 360 px</text>
+
+                    <!-- Legend -->
+                    <g transform="translate(40, 42)">
+                        <text x="0" y="0" class="text-title" style="font-size: 15px;">Two-Body Gravitational Dynamics &amp; Lagrange Geometry</text>
+                        <line x1="0" y1="18" x2="25" y2="18" stroke="#f43f5e" stroke-width="2.5" />
+                        <text x="35" y="22" class="sub-label" fill="#f43f5e">Gravitational Force: F = G·m₁·m₂ / d² (Relative Accel a_rel = G(m₁+m₂)/d²)</text>
+                        <line x1="0" y1="34" x2="25" y2="34" stroke="#38bdf8" stroke-width="2" stroke-dasharray="6 4" />
+                        <text x="35" y="38" class="sub-label" fill="#38bdf8">Barycentric Orbits: r_A = 324px (90%), r_B = 36px (10%)</text>
+                        <line x1="0" y1="50" x2="25" y2="50" stroke="#fbbf24" stroke-width="2" stroke-dasharray="4 3" />
+                        <text x="35" y="54" class="sub-label" fill="#fbbf24">Hill Sphere of Body A: r_H = d·(m_A / 3m_B)^(1/3) = 120px</text>
+                        <circle cx="12" cy="66" r="4" fill="#c084fc" stroke="#fff" stroke-width="1" />
+                        <text x="35" y="70" class="sub-label" fill="#c084fc">Lagrange Equilibrium Points: Collinear (L₁, L₂, L₃) &amp; Triangular (L₄, L₅ at ±60°)</text>
+                    </g>
+                </svg>
+            </div>
+        </div>
+
+        <!-- Section 1: Forces & Relative Acceleration -->
+        <div class="card">
+            <h2>1. Newton's Gravitation &amp; Relative Acceleration</h2>
+            <div class="grid-2">
+                <div class="highlight-box">
+                    <strong style="color: var(--accent-rose);">Mutual Gravitational Force</strong>
+                    <div class="math-block">
+                        <math display="block">
+                            <mrow>
+                                <msub><mi mathvariant="bold">F</mi><mrow><mi>A</mi><mi>B</mi></mrow></msub>
+                                <mo>=</mo>
+                                <mo>−</mo>
+                                <mi>G</mi>
+                                <mfrac>
+                                    <mrow><msub><mi>m</mi><mi>A</mi></msub><msub><mi>m</mi><mi>B</mi></msub></mrow>
+                                    <msup><mi>d</mi><mn>2</mn></msup>
+                                </mfrac>
+                                <mover><mi mathvariant="bold">r</mi><mo>^</mo></mover>
+                            </mrow>
+                        </math>
+                    </div>
+                    <p>Equal and opposite force magnitude felt by each body along the line of centers.</p>
+                </div>
+
+                <div class="highlight-box">
+                    <strong style="color: var(--accent-cyan);">Relative Acceleration &amp; Standard Parameter</strong>
+                    <div class="math-block cyan">
+                        <math display="block">
+                            <mrow>
+                                <msub><mi mathvariant="bold">a</mi><mtext>rel</mtext></msub>
+                                <mo>=</mo>
+                                <msub><mi mathvariant="bold">a</mi><mi>A</mi></msub>
+                                <mo>−</mo>
+                                <msub><mi mathvariant="bold">a</mi><mi>B</mi></msub>
+                                <mo>=</mo>
+                                <mfrac>
+                                    <mrow><mi>G</mi><mrow><mo>(</mo><msub><mi>m</mi><mi>A</mi></msub><mo>+</mo><msub><mi>m</mi><mi>B</mi></msub><mo>)</mo></mrow></mrow>
+                                    <msup><mi>d</mi><mn>2</mn></msup>
+                                </mfrac>
+                                <mover><mi mathvariant="bold">r</mi><mo>^</mo></mover>
+                            </mrow>
+                        </math>
+                    </div>
+                    <p>Standard gravitational parameter in the relative two-body frame: <math><mrow><mi>μ</mi><mo>=</mo><mi>G</mi><mrow><mo>(</mo><msub><mi>m</mi><mi>A</mi></msub><mo>+</mo><msub><mi>m</mi><mi>B</mi></msub><mo>)</mo></mrow></mrow></math>.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Section 2: Barycenter & Keplerian Orbit Partition -->
+        <div class="card">
+            <h2>2. Barycentric Decomposition &amp; Orbital Motion</h2>
+            <div class="grid-2">
+                <div class="highlight-box">
+                    <strong style="color: var(--accent-amber);">Center of Mass (Barycenter)</strong>
+                    <div class="math-block amber">
+                        <math display="block">
+                            <mrow>
+                                <msub><mi mathvariant="bold">R</mi><mtext>CoM</mtext></msub>
+                                <mo>=</mo>
+                                <mfrac>
+                                    <mrow><msub><mi>m</mi><mi>A</mi></msub><msub><mi mathvariant="bold">c</mi><mi>A</mi></msub><mo>+</mo><msub><mi>m</mi><mi>B</mi></msub><msub><mi mathvariant="bold">c</mi><mi>B</mi></msub></mrow>
+                                    <mrow><msub><mi>m</mi><mi>A</mi></msub><mo>+</mo><msub><mi>m</mi><mi>B</mi></msub></mrow></mfrac>
+                                <mo>=</mo>
+                                <mrow><mo>(</mo><mn>544</mn><mo>,</mo><mn>340</mn><mo>)</mo></mrow>
+                            </mrow>
+                        </math>
+                    </div>
+                    <p>Distance from primary center <math><msub><mi mathvariant="bold">c</mi><mi>B</mi></msub></math>: <math><mrow><msub><mi>r</mi><mi>B</mi></msub><mo>=</mo><mn>36</mn><mtext>px</mtext><mo>&lt;</mo><msub><mi>R</mi><mi>B</mi></msub><mrow><mo>(</mo><mn>45</mn><mtext>px</mtext><mo>)</mo></mrow></mrow></math>. The Barycenter lies <strong>inside the Star</strong>.</p>
+                </div>
+
+                <div class="highlight-box">
+                    <strong style="color: var(--accent-cyan);">Orbital Radii &amp; Velocities</strong>
+                    <div class="math-block cyan">
+                        <math display="block">
+                            <mrow>
+                                <msub><mi>r</mi><mi>A</mi></msub><mo>=</mo><mfrac><msub><mi>m</mi><mi>B</mi></msub><mi>M</mi></mfrac><mi>d</mi><mo>=</mo><mn>324</mn><mtext>px</mtext>
+                                <mo>,</mo><mspace width="1em"/>
+                                <msub><mi>r</mi><mi>B</mi></msub><mo>=</mo><mfrac><msub><mi>m</mi><mi>A</mi></msub><mi>M</mi></mfrac><mi>d</mi><mo>=</mo><mn>36</mn><mtext>px</mtext>
+                            </mrow>
+                        </math>
+                    </div>
+                    <p>Angular frequency: <math><mrow><mi>ω</mi><mo>=</mo><msqrt><mfrac><mrow><mi>G</mi><mi>M</mi></mrow><msup><mi>d</mi><mn>3</mn></msup></mfrac></msqrt></mrow></math>. Velocities maintain exact inverse ratio: <math><mrow><mfrac><msub><mi>v</mi><mi>A</mi></msub><msub><mi>v</mi><mi>B</mi></msub></mfrac><mo>=</mo><mfrac><msub><mi>m</mi><mi>B</mi></msub><msub><mi>m</mi><mi>A</mi></msub></mfrac><mo>=</mo><mn>9</mn></mrow></math>.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Section 3: Hill Sphere & Lagrange Geometry -->
+        <div class="card">
+            <h2>3. Hill Sphere &amp; The 5 Lagrange Points</h2>
+            <p>In the rotating co-ordinate frame, the effective potential generates 5 equilibrium Lagrange points:</p>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>Point</th>
+                        <th>Type &amp; Geometry</th>
+                        <th>Coordinates (<math><mrow><mi>x</mi><mo>,</mo><mi>y</mi></mrow></math>)</th>
+                        <th>Physical &amp; Orbital Role</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong style="color: var(--accent-purple);">L₁</strong></td>
+                        <td>Collinear (Between A and B)</td>
+                        <td><math><mrow><mo>(</mo><mn>340</mn><mo>,</mo><mn>340</mn><mo>)</mo></mrow></math></td>
+                        <td>Saddle point on critical Roche Lobe; gateway for mass transfer.</td>
+                    </tr>
+                    <tr>
+                        <td><strong style="color: var(--accent-purple);">L₂</strong></td>
+                        <td>Collinear (Outer side of A)</td>
+                        <td><math><mrow><mo>(</mo><mn>100</mn><mo>,</mo><mn>340</mn><mo>)</mo></mrow></math></td>
+                        <td>Outer boundary of Hill Sphere; ideal for deep-space telescopes.</td>
+                    </tr>
+                    <tr>
+                        <td><strong style="color: var(--accent-purple);">L₃</strong></td>
+                        <td>Collinear (Opposition behind B)</td>
+                        <td><math><mrow><mo>(</mo><mn>904</mn><mo>,</mo><mn>340</mn><mo>)</mo></mrow></math></td>
+                        <td>Hidden point behind primary star along the axis of centers.</td>
+                    </tr>
+                    <tr>
+                        <td><strong style="color: var(--accent-purple);">L₄</strong></td>
+                        <td>Triangular (Leading <math><mrow><mo>+</mo><mn>60</mn><mo>°</mo></mrow></math>)</td>
+                        <td><math><mrow><mo>(</mo><mn>400</mn><mo>,</mo><mn>28.23</mn><mo>)</mo></mrow></math></td>
+                        <td>Stable equilibrium; hosts Greek Trojan asteroids.</td>
+                    </tr>
+                    <tr>
+                        <td><strong style="color: var(--accent-purple);">L₅</strong></td>
+                        <td>Triangular (Trailing <math><mrow><mo>−</mo><mn>60</mn><mo>°</mo></mrow></math>)</td>
+                        <td><math><mrow><mo>(</mo><mn>400</mn><mo>,</mo><mn>651.77</mn><mo>)</mo></mrow></math></td>
+                        <td>Stable equilibrium; hosts Trojan / Greek cluster bodies.</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="math-block purple">
+                <math display="block">
+                    <mrow>
+                        <msub><mi>r</mi><mtext>Hill</mtext></msub>
+                        <mo>≈</mo>
+                        <mi>d</mi>
+                        <msup><mfenced open="(" close=")"><mfrac><msub><mi>m</mi><mi>A</mi></msub><mrow><mn>3</mn><msub><mi>m</mi><mi>B</mi></msub></mrow></mfrac></mfenced><mrow><mn>1</mn><mo>/</mo><mn>3</mn></mrow></msup>
+                        <mo>=</mo>
+                        <mn>360</mn>
+                        <msup><mfenced open="(" close=")"><mfrac><mn>1</mn><mn>27</mn></mfrac></mfenced><mrow><mn>1</mn><mo>/</mo><mn>3</mn></mrow></msup>
+                        <mo>=</mo>
+                        <mfrac><mn>360</mn><mn>3</mn></mfrac>
+                        <mo>=</mo>
+                        <mn>120</mn><mtext>px</mtext>
+                    </mrow>
+                </math>
+            </div>
+        </div>
+
+        <!-- Section 4: Dualities Optics vs Gravity -->
+        <div class="card">
+            <h2>4. Systematic Duality: Tangent Optics vs. Gravitational Mechanics</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Domain Feature</th>
+                        <th>Projective Tangent Optics (Visualizer 1)</th>
+                        <th>Gravitational Physics (Visualizer 2)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Fundamental Weighting</strong></td>
+                        <td>Radius weighting: <math><mrow><msub><mi>R</mi><mi>A</mi></msub><mo>,</mo><msub><mi>R</mi><mi>B</mi></msub></mrow></math></td>
+                        <td>Mass weighting: <math><mrow><msub><mi>m</mi><mi>A</mi></msub><mo>,</mo><msub><mi>m</mi><mi>B</mi></msub></mrow></math></td>
+                    </tr>
+                    <tr>
+                        <td><strong>Central Balance Point</strong></td>
+                        <td>Internal Homothetic Center <math><msub><mi>S</mi><mtext>int</mtext></msub></math></td>
+                        <td>Center of Mass / Barycenter <math><msub><mi mathvariant="bold">R</mi><mtext>CoM</mtext></msub></math></td>
+                    </tr>
+                    <tr>
+                        <td><strong>Collinear Saddle Horizon</strong></td>
+                        <td>Focal Crossing <math><mrow><msub><mi>S</mi><mtext>int</mtext></msub><mo>=</mo><msub><mi>L</mi><mn>3</mn></msub><mo>×</mo><msub><mi>L</mi><mn>4</mn></msub></mrow></math></td>
+                        <td>Lagrange Point <math><msub><mi>L</mi><mn>1</mn></msub></math> (Roche Lobe saddle)</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Outer Horizon Apex</strong></td>
+                        <td>External Apex <math><mrow><msub><mi>S</mi><mtext>ext</mtext></msub><mo>=</mo><msub><mi>L</mi><mn>1</mn></msub><mo>×</mo><msub><mi>L</mi><mn>2</mn></msub></mrow></math></td>
+                        <td>Lagrange Point <math><msub><mi>L</mi><mn>2</mn></msub></math> (Hill sphere boundary)</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Domain of Influence</strong></td>
+                        <td>Umbra / Penumbra Shadow Cones</td>
+                        <td>Hill Sphere / Roche Equipotential Lobes</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Section 5: Interactive Visualizers & References -->
+        <div class="card">
+            <h2>5. Interactive Visualizers &amp; Live References</h2>
+            <div class="grid-2">
+                <a href="https://5dcolor.netlify.app" target="_blank" rel="noopener noreferrer" class="link-card">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <strong style="color: var(--accent-cyan); font-size: 15px;">5D Color Visualizer</strong>
+                        <span style="font-size: 12px; color: var(--text-dim);">5dcolor.netlify.app ↗</span>
+                    </div>
+                    <p style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">
+                        Interactive 5D Conformal Geometric Algebra hyper-spectral color space and null-cone projectivity visualizer.
+                    </p>
+                </a>
+
+                <a href="https://black7.netlify.app" target="_blank" rel="noopener noreferrer" class="link-card">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <strong style="color: var(--accent-indigo); font-size: 15px;">Black7 Raytracer</strong>
+                        <span style="font-size: 12px; color: var(--text-dim);">black7.netlify.app ↗</span>
+                    </div>
+                    <p style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">
+                        Real-time analytic projective inverted occlusion, spherical inversions, and dual-space raytracing.
+                    </p>
+                </a>
+            </div>
+        </div>
+
+    </div>
+</body>
+</html>

@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Omnidirectional Infinity Duality — 5D CGA Glimpse</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #050510;
+            color: #c8d0e0;
+            font-family: "Segoe UI", system-ui, sans-serif;
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        #ui {
+            position: absolute;
+            top: 12px;
+            left: 12px;
+            background: rgba(8, 10, 20, 0.82);
+            border: 1px solid #2a3050;
+            border-radius: 8px;
+            padding: 14px 18px;
+            max-width: 420px;
+            font-size: 13px;
+            line-height: 1.45;
+            pointer-events: none;
+        }
+
+        #ui h1 {
+            font-size: 15px;
+            color: #9eb6ff;
+            margin-bottom: 6px;
+            letter-spacing: 0.03em;
+        }
+
+        #ui .dim {
+            color: #6a7a9a;
+            font-size: 11px;
+        }
+
+        #status {
+            position: absolute;
+            bottom: 10px;
+            left: 12px;
+            font-size: 11px;
+            color: #5a6a8a;
+        }
+    </style>
+</head>
+
+<body>
+    <canvas id="c"></canvas>
+    <div id="ui">
+        <h1>Inverted Geometry Duality</h1>
+        <p>Center = omnidirectional infinity.<br>
+            Every particle carries its Euclidean locus <em>and</em> its inverted dual (complex-like
+            <math display="inline">
+                <mi>z</mi>
+                <mo>↔</mo>
+                <mfrac>
+                    <mn>1</mn>
+                    <mover>
+                        <mi>z</mi>
+                        <mo>¯</mo>
+                    </mover>
+                </mfrac>
+            </math>).
+        </p>
+        <p class="dim">All classical L1 points collapse into the central crossroad.<br>
+            Hyperspheres = equidistant sets in
+            <math display="inline">
+                <msup>
+                    <mi>ℝ</mi>
+                    <mi>n</mi>
+                </msup>
+            </math>.<br>
+            Null particles (photons) contract toward 4D points.<br>
+            Compute runs the dual update in parallel — staircase toward 5D CGA.
+        </p>
+        <p style="margin-top:8px">Click / drag to seed more dual pairs.</p>
+    </div>
+
+
+    <div id="status">Initializing WebGPU…</div>
+
+    <script type="module">
+
+        /**
+         * @file inverted-duality.html
+         * @description Standalone WebGPU artifact exploring inverted geometry with
+         *              omnidire fGctional infinity at the center. Duality deliberately
+         *              analogous to complex numbers. Conceptual bridge toward
+         *              Conformal Geometric Algebra (R^{4,1}).
+         *
+         * Key model claims encoded:
+         * - Sphere = set of equidistant points in R^n (not Euclidean solid).
+         * - Inversion maps center ↔ infinity; all L1 loci collapse to one
+         *   multidimensional crossroad at the origin.
+         * - Photons (null-ish particles) shrink toward 4D points near the singularity.
+         * - 5D CGA is the natural algebraic home; geometric products would replace
+         *   the hand-written inversion + force here and parallelize uniformly.
+         */
+
+        const canvas = document.getElementById('c');
+        const statusEl = document.getElementById('status');
+        // ---------- Chunk 1: Celestial bodies + explicit layouts ----------
+        const NUM_BODIES = 24;               // keep low for RDNA1 stability
+        const WORKGROUP = 64;
+        const PARTICLE_FLOATS = 12;          // pos.xy, dual.xy, vel.xy, mass, life, radius, type, pad, pad
+
+        /**
+         * @brief Set body data
+         * @param {Float32Array} data - Array to set the data in
+         * @param {number} idx - Index to set the data at
+         * @param {{pos: number[], dual: number[], vel: number[], mass: number, life: number, radius: number, type: number}} body - Body to set the data from
+         * 
+         */
+        const setBodyData = (data, idx, { pos, dual, vel, mass, life, radius, type }) => {
+            const base = idx * PARTICLE_FLOATS;
+            if (pos) { data[base + 0] = pos[0]; data[base + 1] = pos[1]; }
+            if (dual) { data[base + 2] = dual[0]; data[base + 3] = dual[1]; }
+            if (vel) { data[base + 4] = vel[0]; data[base + 5] = vel[1]; }
+            if (mass) data[base + 6] = mass;
+            if (life) data[base + 7] = life;
+            if (radius) data[base + 8] = radius;
+            if (type) data[base + 9] = type;
+            data[base + 10] = 0;
+            data[base + 11] = 0; // padding
+        }
+        /** @enum {"Chaos" | "Lagrange" | "Figure8"} Scenario */
+        /** @param {Scenario} **/
+        const SCENARIO = "Figure8"; //"Lagrange";
+        const G = 0.0035;
+        /** type: 0 = star (emitter), 1 = planet, 2 = moon, 3 = comet */
+        function initCelestialBodies() {
+            const data = new Float32Array(NUM_BODIES * PARTICLE_FLOATS);
+            let idx = 0;
+
+            // 3 stars
+            if (SCENARIO === "Chaos") {
+                for (let s = 0; s < 3; s++) {
+                    const a = (s / 3) * Math.PI * 2;
+                    const r = 0.35;
+                    setBodyData(data, idx, {
+                        pos: [Math.cos(a) * r, Math.sin(a) * r],
+                        vel: [0, 0],
+                        mass: 8.0 + s,
+                        life: 1.0,
+                        radius: 0.045,
+                        type: 0
+                    })
+                    idx++;
+                }
+            } else if (SCENARIO === "Lagrange") {
+                const r = 0.35;
+                const mass = 10;
+                const v = Math.sqrt(Math.sqrt(3) / 3 * G * mass / r);
+
+                for (let s = 0; s < 3; s++) {
+                    const a = (Math.PI * 2 / 3) * s;
+                    setBodyData(data, idx, {
+                        pos: [Math.cos(a) * r, Math.sin(a) * r],
+                        vel: [-v * Math.sin(a), v * Math.cos(a)],
+                        mass,
+                        life: 1.0,
+                        radius: 0.045,
+                        type: 0
+                    })                                         // type = star
+                    idx++;
+                }
+            } else if (SCENARIO === "Figure8") {
+                // Approximate Chenciner-Montgomery figure-eight.
+                // Canonical values scaled by R_scale and V_scale ≈ √(G·m/R).
+                // Approximate — orbit destabilises after several periods.
+                const r = 0.35; const mass = 10;
+                const v = Math.sqrt(Math.sqrt(3) / 3 * G * mass / r);
+                const pos = [0.97000436 * r, -0.24308753 * r];
+                const vel = [-0.466203685 * v, -0.43236573 * v];
+                //pos.copy() vel.copy()
+                setBodyData(data, idx, { pos, vel, mass, life: 1.0, radius: 0.045, type: 0 })
+                idx++;
+                //pos.negate() vel.copy
+                setBodyData(data, idx, { pos, vel: vel.map(v => -1 * v), mass, life: 1.0, radius: 0.045, type: 0 })
+                idx++;
+                //pos = [0,0] vel.multiplyScalar(-2)
+                setBodyData(data, idx, { pos: [0, 0], vel: vel.map(v => -2 * v), mass, life: 1.0, radius: 0.045, type: 0 })
+                idx++;
+            }
+
+            // planets + moons + comets
+            for (let i = idx; i < NUM_BODIES; i++) {
+                const base = i * PARTICLE_FLOATS;
+                const a = Math.random() * Math.PI * 2;
+                const r = 0.15 + Math.random() * 0.75;
+                data[base + 0] = Math.cos(a) * r; data[base + 1] = Math.sin(a) * r;
+                data[base + 4] = (Math.random() - 0.5) * 0.015;
+                data[base + 5] = (Math.random() - 0.5) * 0.015;
+                data[base + 6] = 0.3 + Math.random() * 1.2;                     // mass
+                data[base + 7] = 0.7 + Math.random() * 0.3;
+                data[base + 8] = 0.012 + Math.random() * 0.02;
+                data[base + 9] = (i % 3) + 1;                                 // 1=planet,2=moon,3=comet
+            }
+            return data;
+        }
+
+        /** @type {GPUDevice} */
+        let device;
+        /** @type {GPUCanvasContext} */
+        let context;
+        /** @type {GPUComputePipeline} */
+        let computePipeline;
+        /** @type {GPURenderPipeline} */
+        let renderPipeline;
+        /** @type {GPUBuffer} */
+        let particleBuffer;
+        /** @type {GPUBuffer} */
+        let uniformBuffer;
+        /** @type {GPUBindGroup} */
+        let computeBindGroup;
+        /** @type {GPUBindGroup} */
+        let renderBindGroup;
+        /** @type {GPUBuffer} */
+        let particleBufferRender;
+
+
+        const particleData = initCelestialBodies();
+
+        /**
+         * Particle layout (32 bytes, aligned):
+         * pos.xy     - Euclidean (or projected) coordinates
+         * dual.xy    - inverted dual (1/r² map)
+         * vel.xy     - velocity of the Euclidean side
+         * life       - lifetime / null-factor (photons decay toward 0 size)
+         * radius     - visual size (also encodes “sphere radius” intuition)
+         */
+
+        async function init() {
+            if (!navigator.gpu) {
+                statusEl.textContent = 'WebGPU not supported — falling back to conceptual note only.';
+                return;
+            }
+            const adapter = await navigator.gpu.requestAdapter();
+            if (!adapter) {
+                statusEl.textContent = 'No WebGPU adapter.';
+                return;
+            }
+            device = await adapter.requestDevice();
+            console.log({ adapter, device })
+            context = canvas.getContext('webgpu');
+            const format = navigator.gpu.getPreferredCanvasFormat();
+            context.configure({ device, format, alphaMode: 'premultiplied' });
+            statusEl.textContent = `${format}, ${device}, ${adapter} WebGPU OK`;
+            // --- Buffers ---
+
+
+            particleBuffer = device.createBuffer({
+                size: particleData.byteLength,
+                usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC,
+                mappedAtCreation: true
+            });
+            new Float32Array(particleBuffer.getMappedRange()).set(particleData);
+            particleBuffer.unmap();
+
+            // Separate read-only view for the render stage (avoids many validation issues)
+            particleBufferRender = device.createBuffer({
+                size: particleData.byteLength,
+                usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
+            });
+
+            // Uniform (time + simple params)
+            uniformBuffer = device.createBuffer({
+                size: 32,
+                usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+            });
+
+            // --- Compute shader: inversion + soft force toward central infinity + dual update ---
+
+
+            const computeModule = device.createShaderModule({
+                label: 'inverted-nbody-compute',
+                code: /* wgsl */ `
+struct Body {
+  pos    : vec2f,
+  dual   : vec2f,
+  vel    : vec2f,
+  mass   : f32,
+  life   : f32,
+  radius : f32,
+  type_  : f32,   // 0=star …
+  _pad0  : f32,
+  _pad1  : f32,
+  _pad2  : f32,
+};
+
+@group(0) @binding(0) var<storage, read_write> bodies : array<Body>;
+@group(0) @binding(1) var<uniform> u : vec4f;   // x = time, y = dt
+
+@compute @workgroup_size(64)
+fn main(@builtin(global_invocation_id) gid : vec3u) {
+  let i = gid.x;
+  if (i >= arrayLength(&bodies)) { return; }
+
+  var b = bodies[i];
+  let dt = max(u.y, 0.008);
+
+  // Dual = inversion (center ↔ omnidirectional infinity)
+  let r2 = dot(b.pos, b.pos) + 1e-5;
+  b.dual = b.pos / r2;
+
+  // Soft N-body + inverted contribution
+  var force = vec2f(0.0);
+  for (var j = 0u; j < arrayLength(&bodies); j++) {
+    if (j == i) { continue; }
+    let o = bodies[j];
+    let d = o.pos - b.pos;
+    let dist2 = dot(d, d) + 0.0008;          // softening
+    let invDist = inverseSqrt(dist2);
+    // Classical term
+    force += d * (o.mass * invDist * invDist * invDist) * 0.00035;
+    // Dual / inverted term (the geometric benefit we are exploring)
+    let dd = o.dual - b.dual;
+    let ddist2 = dot(dd, dd) + 0.002;
+    force += dd * (o.mass * 0.00012 / ddist2);
+  }
+
+  // Central crossroad attraction (collapsed L1 / infinity)
+  let toC = -b.pos;
+  let cDist = length(toC) + 1e-5;
+  force += toC * (0.00025 / (cDist * cDist));
+
+  b.vel += force * dt;
+  b.vel *= 0.991;
+  b.pos += b.vel * dt;
+
+  // Photons / low-life bodies shrink near the singularity
+  let near = smoothstep(0.4, 0.03, cDist);
+  if (b.type_ > 0.5) {
+    b.life = mix(b.life, b.life * 0.996, near);
+    b.radius = mix(b.radius, b.radius * 0.994, near * (1.0 - b.life));
+  }
+
+  // Soft bounds
+  if (length(b.pos) > 1.55) {
+    b.pos *= 0.94;
+    b.vel *= 0.75;
+  }
+
+  bodies[i] = b;
+}
+`
+            });
+
+
+            const computeBindGroupLayout = device.createBindGroupLayout({
+                entries: [
+                    {
+                        binding: 0, visibility: GPUShaderStage.COMPUTE,
+                        buffer: { type: 'storage' }
+                    },
+                    {
+                        binding: 1, visibility: GPUShaderStage.COMPUTE,
+                        buffer: { type: 'uniform' }
+                    }
+                ]
+            });
+
+            computePipeline = device.createComputePipeline({
+                layout: device.createPipelineLayout({ bindGroupLayouts: [computeBindGroupLayout] }),
+                compute: { module: computeModule, entryPoint: 'main' }
+            });
+
+            computeBindGroup = device.createBindGroup({
+                layout: computeBindGroupLayout,
+                entries: [
+                    { binding: 0, resource: { buffer: particleBuffer } },
+                    { binding: 1, resource: { buffer: uniformBuffer } }
+                ]
+            });
+
+            // --- Render: points, color encodes dual vs Euclidean + nullness ---
+            const renderModule = device.createShaderModule({
+                label: 'celestial-render',
+                code: /* wgsl */ `
+struct Body {
+  pos    : vec2f,
+  dual   : vec2f,
+  vel    : vec2f,
+  mass   : f32,
+  life   : f32,
+  radius : f32,
+  type_  : f32,
+  _pad0  : f32,
+  _pad1  : f32,
+  _pad2  : f32,
+};
+
+@group(0) @binding(0) var<storage, read> bodies : array<Body>;
+
+struct VSOut {
+  @builtin(position) position : vec4f,
+  @location(0) uv : vec2f,
+  @location(1) color : vec4f,
+  @location(2) bodyType : f32,
+};
+
+@vertex
+fn vs_main(@builtin(vertex_index) vid : u32,
+           @builtin(instance_index) iid : u32) -> VSOut {
+  let b = bodies[iid];
+
+  // Quad corners
+  var corners = array<vec2f, 6>(
+    vec2f(-1.0, -1.0), vec2f( 1.0, -1.0), vec2f( 1.0,  1.0),
+    vec2f(-1.0, -1.0), vec2f( 1.0,  1.0), vec2f(-1.0,  1.0)
+  );
+  let corner = corners[vid];
+  let size = b.radius * 1.8;
+  let world = b.pos + corner * size;
+
+  var out : VSOut;
+  out.position = vec4f(world, 0.0, 1.0);
+  out.uv = corner * 0.5 + 0.5;
+  out.bodyType = b.type_;
+
+  // Role colors + dual influence
+  let dualGlow = length(b.dual) * 0.12;
+  if (b.type_ < 0.5) {                     // star
+    out.color = vec4f(1.0, 0.92, 0.65, 1.0) * (0.85 + dualGlow);
+  } else if (b.type_ < 1.5) {              // planet
+    out.color = vec4f(0.35, 0.55, 0.95, 0.9) * b.life;
+  } else if (b.type_ < 2.5) {              // moon
+    out.color = vec4f(0.7, 0.7, 0.75, 0.75) * b.life;
+  } else {                                 // comet
+    out.color = vec4f(0.5, 0.85, 1.0, 0.55) * b.life;
+  }
+  return out;
+}
+
+@fragment
+fn fs_main(in : VSOut) -> @location(0) vec4f {
+  let d = distance(in.uv, vec2f(0.5));
+  let alpha = smoothstep(0.5, 0.15, d) * in.color.a;
+
+  // Simple emissive boost for stars + soft limb
+  var col = in.color.rgb;
+  if (in.bodyType < 0.5) {
+    col *= 1.4;
+  }
+  return vec4f(col, alpha);
+}
+`
+            });
+
+            const renderBindGroupLayout = device.createBindGroupLayout({
+                entries: [
+                    {
+                        binding: 0, visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
+                        buffer: { type: 'read-only-storage' }
+                    }
+                ]
+            });
+
+            renderPipeline = device.createRenderPipeline({
+                layout: device.createPipelineLayout({ bindGroupLayouts: [renderBindGroupLayout] }),
+                vertex: { module: renderModule, entryPoint: 'vs_main' },
+                fragment: {
+                    module: renderModule,
+                    entryPoint: 'fs_main',
+                    targets: [{
+                        format: navigator.gpu.getPreferredCanvasFormat(),
+                        blend: {
+                            color: { srcFactor: 'src-alpha', dstFactor: 'one-minus-src-alpha', operation: 'add' },
+                            alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' }
+                        }
+                    }]
+                },
+                primitive: { topology: 'triangle-list' }
+            });
+
+            renderBindGroup = device.createBindGroup({
+                layout: renderBindGroupLayout,
+                entries: [
+                    { binding: 0, resource: { buffer: particleBufferRender } }  // the read-only copy
+                ]
+            });
+
+            statusEl.textContent = `WebGPU ready · ${NUM_BODIES} dual bodies · center = ∞`;
+            requestAnimationFrame(frame);
+        }
+
+        let t0 = performance.now();
+        function frame(now) {
+            const dt = Math.min((now - t0) * 0.001, 0.033);
+            t0 = now;
+
+            device.queue.writeBuffer(uniformBuffer, 0, new Float32Array([now * 0.001, dt, 0, 0]));
+
+            // Keep a clean read-only copy for the render stage
+            const encoder = device.createCommandEncoder();
+            encoder.copyBufferToBuffer(particleBuffer, 0, particleBufferRender, 0, particleData.byteLength);
+
+            // Compute
+            {
+                const pass = encoder.beginComputePass();
+                pass.setPipeline(computePipeline);
+                pass.setBindGroup(0, computeBindGroup);
+                pass.dispatchWorkgroups(Math.ceil(NUM_BODIES / WORKGROUP));
+                pass.end();
+            }
+
+            // Render
+            {
+                const view = context.getCurrentTexture().createView();
+                const pass = encoder.beginRenderPass({
+                    colorAttachments: [{
+                        view,
+                        clearValue: { r: 0.015, g: 0.02, b: 0.04, a: 1 },
+                        loadOp: 'clear',
+                        storeOp: 'store'
+                    }]
+                });
+                pass.setPipeline(renderPipeline);
+                pass.setBindGroup(0, renderBindGroup);
+                pass.draw(6, NUM_BODIES);          // 6 vertices per billboard × N bodies
+                pass.end();
+            }
+
+            device.queue.submit([encoder.finish()]);
+            requestAnimationFrame(frame);
+        }
+
+        // Interaction: seed new dual pairs near mouse
+        canvas.addEventListener('pointerdown', (e) => {
+            // In a fuller version we would write new particles into the buffer.
+            // Kept minimal: the existing ensemble already demonstrates the duality.
+        });
+
+        init().catch(err => {
+            statusEl.textContent = 'Init error: ' + err.message;
+            console.error(err);
+        });
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,882 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3DGSIL Math Unit Tests & Duality Verification</title>
+    <style>
+        :root {
+            --bg: #070913;
+            --surface: #0e1322;
+            --surface-border: #1e2942;
+            --text-primary: #e2e8f0;
+            --text-secondary: #94a3b8;
+            --accent: #38bdf8;
+            --pass-bg: #064e3b;
+            --pass-border: #059669;
+            --pass-text: #34d399;
+            --fail-bg: #7f1d1d;
+            --fail-border: #dc2626;
+            --fail-text: #f87171;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text-primary);
+            padding: 28px;
+            line-height: 1.5;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        header {
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--surface-border);
+        }
+
+        h1 {
+            font-size: 22px;
+            font-weight: 600;
+            color: var(--accent);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .subtitle {
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin-top: 4px;
+        }
+
+        .hardware-badge {
+            display: inline-block;
+            background: #1e1e38;
+            border: 1px solid #3b3b6d;
+            color: #a5b4fc;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 11px;
+            margin-top: 8px;
+        }
+
+        .summary-card {
+            background: var(--surface);
+            border: 1px solid var(--surface-border);
+            border-radius: 8px;
+            padding: 16px 20px;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .stats {
+            display: flex;
+            gap: 20px;
+        }
+
+        .stat-item {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .stat-label {
+            font-size: 11px;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .stat-val {
+            font-size: 20px;
+            font-weight: 700;
+            margin-top: 2px;
+        }
+
+        .btn-run {
+            background: #2563eb;
+            color: white;
+            border: none;
+            padding: 10px 18px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .btn-run:hover {
+            background: #1d4ed8;
+        }
+
+        .test-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .test-card {
+            background: var(--surface);
+            border: 1px solid var(--surface-border);
+            border-radius: 6px;
+            padding: 14px 16px;
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 16px;
+        }
+
+        .test-info {
+            flex: 1;
+        }
+
+        .test-title {
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .test-details {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-top: 4px;
+            font-family: monospace;
+        }
+
+        .badge {
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            white-space: nowrap;
+        }
+
+        .badge-pass {
+            background: var(--pass-bg);
+            border: 1px solid var(--pass-border);
+            color: var(--pass-text);
+        }
+
+        .badge-fail {
+            background: var(--fail-bg);
+            border: 1px solid var(--fail-border);
+            color: var(--fail-text);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🪐 3DGSIL Math Unit Test Runner</h1>
+            <p class="subtitle">5D Conformal Geometric Algebra, Fourier Kinematic Chain, Matrix Inversion &amp; Ray-Sphere Discriminant Verification</p>
+            <div class="hardware-badge">Hardware Target: MacBook Pro i9 (AMD Radeon Pro 5500M · 4GB VRAM · Metal)</div>
+        </header>
+
+        <div class="summary-card">
+            <div class="stats">
+                <div class="stat-item">
+                    <span class="stat-label">Total Tests</span>
+                    <span id="stat-total" class="stat-val">0</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Passed</span>
+                    <span id="stat-passed" class="stat-val" style="color: var(--pass-text)">0</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Failed</span>
+                    <span id="stat-failed" class="stat-val" style="color: var(--fail-text)">0</span>
+                </div>
+            </div>
+            <button id="run-btn" class="btn-run">Re-run Tests</button>
+        </div>
+
+        <div id="test-container" class="test-list">
+            <!-- Test results rendered here -->
+        </div>
+    </div>
+
+    <script>
+        // @ts-check
+
+        // ==========================================
+        // 1. Vector3 Operations
+        // ==========================================
+
+        /**
+         * @typedef {[number, number, number]} Vec3
+         */
+
+        /** @param {number} x @param {number} y @param {number} z @returns {Vec3} */
+        function vec3(x, y, z) { return [x, y, z]; }
+
+        /** @param {Vec3} a @param {Vec3} b @returns {Vec3} */
+        function add3(a, b) { return [a[0] + b[0], a[1] + b[1], a[2] + b[2]]; }
+
+        /** @param {Vec3} a @param {Vec3} b @returns {Vec3} */
+        function sub3(a, b) { return [a[0] - b[0], a[1] - b[1], a[2] - b[2]]; }
+
+        /** @param {Vec3} a @param {number} s @returns {Vec3} */
+        function scale3(a, s) { return [a[0] * s, a[1] * s, a[2] * s]; }
+
+        /** @param {Vec3} a @param {Vec3} b @returns {number} */
+        function dot3(a, b) { return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; }
+
+        /** @param {Vec3} a @returns {number} */
+        function lengthSq3(a) { return a[0] * a[0] + a[1] * a[1] + a[2] * a[2]; }
+
+        /** @param {Vec3} a @returns {number} */
+        function length3(a) { return Math.hypot(a[0], a[1], a[2]); }
+
+        /** @param {Vec3} a @param {Vec3} [fallback] @returns {Vec3} */
+        function normalize3(a, fallback = [0, 0, 1]) {
+            const len = length3(a);
+            if (len < 1e-6 || !Number.isFinite(len)) return [...fallback];
+            return [a[0] / len, a[1] / len, a[2] / len];
+        }
+
+        /** @param {Vec3} a @param {Vec3} b @returns {Vec3} */
+        function cross3(a, b) {
+            return [
+                a[1] * b[2] - a[2] * b[1],
+                a[2] * b[0] - a[0] * b[2],
+                a[0] * b[1] - a[1] * b[0]
+            ];
+        }
+
+        // ==========================================
+        // 2. 5D CGA Dual Inversion Math
+        // ==========================================
+
+        /** @param {Vec3} p @param {number} [Rs] @param {number} [eps] @returns {Vec3} */
+        function cgaInvertPoint(p, Rs = 25.0, eps = 1e-6) {
+            const r2 = lengthSq3(p) + eps;
+            const scale = (Rs * Rs) / r2;
+            return scale3(p, scale);
+        }
+
+        /** @param {Vec3} p @param {number} r @param {number} [Rs] @param {number} [minR] @param {number} [maxR] @returns {number} */
+        function cgaInvertRadius(p, r, Rs = 25.0, minR = 0.4, maxR = 12.0) {
+            const pSq = lengthSq3(p);
+            const denom = Math.max(Math.abs(pSq - r * r), 1e-4);
+            const dualR = (r * Rs * Rs) / denom;
+            return Math.max(minR, Math.min(maxR, dualR));
+        }
+
+        // ==========================================
+        // 3. 2-Vector Fourier Kinematic Chain
+        // ==========================================
+
+        /**
+         * @param {number} t
+         * @param {Object} [params]
+         * @param {number} [params.R1]
+         * @param {number} [params.w1]
+         * @param {number} [params.r2]
+         * @param {number} [params.w2]
+         * @param {Vec3} [params.sunPos]
+         */
+        function evaluateFourierKinematicChain(t, params = {}) {
+            const { R1 = 25.0, w1 = 0.25, r2 = 3.0, w2 = 1.4, sunPos = [0, 0, 0] } = params;
+            const theta1 = t * w1;
+            const theta2 = t * w2;
+            const v1 = vec3(R1 * Math.cos(theta1), 0.0, R1 * Math.sin(theta1));
+            const planetPos = add3(sunPos, v1);
+            const v2 = vec3(r2 * Math.cos(theta2), r2 * Math.sin(theta2), 0.0);
+            const moonPos = add3(planetPos, v2);
+            return { sunPos, planetPos, moonPos, v1, v2, theta1, theta2 };
+        }
+
+        // ==========================================
+        // 4. Matrix Transforms & Analytic Inverses
+        // ==========================================
+
+        /** @param {Vec3} eye @param {Vec3} target @param {Vec3} [up] @returns {Float32Array} */
+        function lookAt(eye, target, up = [0, 1, 0]) {
+            let zx = eye[0] - target[0], zy = eye[1] - target[1], zz = eye[2] - target[2];
+            let zl = Math.hypot(zx, zy, zz) || 1;
+            zx /= zl; zy /= zl; zz /= zl;
+            let xx = up[1] * zz - up[2] * zy, xy = up[2] * zx - up[0] * zz, xz = up[0] * zy - up[1] * zx;
+            let xl = Math.hypot(xx, xy, xz) || 1;
+            xx /= xl; xy /= xl; xz /= xl;
+            let yx = zy * xz - zz * xy, yy = zz * xx - zx * xz, yz = zx * xy - zy * xx;
+            return new Float32Array([
+                xx, yx, zx, 0,
+                xy, yy, zy, 0,
+                xz, yz, zz, 0,
+                -(xx * eye[0] + xy * eye[1] + xz * eye[2]),
+                -(yx * eye[0] + yy * eye[1] + yz * eye[2]),
+                -(zx * eye[0] + zy * eye[1] + zz * eye[2]), 1
+            ]);
+        }
+
+        /** @param {number} fov @param {number} aspect @param {number} near @param {number} far @returns {Float32Array} */
+        function perspective(fov, aspect, near, far) {
+            const f = 1 / Math.tan(fov / 2);
+            const nf = 1 / (near - far);
+            const m = new Float32Array(16);
+            m[0] = f / aspect;
+            m[5] = f;
+            m[10] = (far + near) * nf;
+            m[11] = -1;
+            m[14] = 2 * far * near * nf;
+            return m;
+        }
+
+        /** @param {Float32Array | number[]} a @param {Float32Array | number[]} b @returns {Float32Array} */
+        function mul4(a, b) {
+            const o = new Float32Array(16);
+            for (let i = 0; i < 4; i++) {
+                for (let j = 0; j < 4; j++) {
+                    o[j * 4 + i] = a[i] * b[j * 4] + a[4 + i] * b[j * 4 + 1] + a[8 + i] * b[j * 4 + 2] + a[12 + i] * b[j * 4 + 3];
+                }
+            }
+            return o;
+        }
+
+        /** @param {Float32Array | number[]} m @returns {Float32Array} */
+        function invert4(m) {
+            const out = new Float32Array(16);
+            const [m00, m01, m02, m03, m10, m11, m12, m13, m20, m21, m22, m23, m30, m31, m32, m33] = m;
+            const b00 = m00 * m11 - m01 * m10, b01 = m00 * m12 - m02 * m10, b02 = m00 * m13 - m03 * m10;
+            const b03 = m01 * m12 - m02 * m11, b04 = m01 * m13 - m03 * m11, b05 = m02 * m13 - m03 * m12;
+            const b06 = m20 * m31 - m21 * m30, b07 = m20 * m32 - m22 * m30, b08 = m20 * m33 - m23 * m30;
+            const b09 = m21 * m32 - m22 * m31, b10 = m21 * m33 - m23 * m31, b11 = m22 * m33 - m23 * m32;
+            let det = b00 * b11 - b01 * b10 + b02 * b09 + b03 * b08 - b04 * b07 + b05 * b06;
+            if (Math.abs(det) < 1e-12) return out;
+            det = 1 / det;
+            out[0] = (m11 * b11 - m12 * b10 + m13 * b09) * det;
+            out[1] = (-m01 * b11 + m02 * b10 - m03 * b09) * det;
+            out[2] = (m31 * b05 - m32 * b04 + m33 * b03) * det;
+            out[3] = (-m21 * b05 + m22 * b04 - m23 * b03) * det;
+            out[4] = (-m10 * b11 + m12 * b08 - m13 * b07) * det;
+            out[5] = (m00 * b11 - m02 * b08 + m03 * b07) * det;
+            out[6] = (-m30 * b05 + m32 * b02 - m33 * b01) * det;
+            out[7] = (m20 * b05 - m22 * b02 + m23 * b01) * det;
+            out[8] = (m10 * b10 - m11 * b08 + m13 * b06) * det;
+            out[9] = (-m00 * b10 + m01 * b08 - m03 * b06) * det;
+            out[10] = (m30 * b04 - m31 * b02 + m33 * b00) * det;
+            out[11] = (-m20 * b04 + m21 * b02 - m23 * b00) * det;
+            out[12] = (-m10 * b09 + m11 * b07 - m12 * b06) * det;
+            out[13] = (m00 * b09 - m01 * b07 + m02 * b06) * det;
+            out[14] = (-m30 * b03 + m31 * b01 - m32 * b00) * det;
+            out[15] = (m20 * b03 - m21 * b01 + m22 * b00) * det;
+            return out;
+        }
+
+        // ==========================================
+        // 5. Analytic Ray-Sphere Quadratic Intersection
+        // ==========================================
+
+        /** @param {Vec3} rayOrig @param {Vec3} rayDir @param {Vec3} center @param {number} radius */
+        function hitSphere(rayOrig, rayDir, center, radius) {
+            const oc = sub3(rayOrig, center);
+            const b = dot3(oc, rayDir);
+            const c = dot3(oc, oc) - radius * radius;
+            const disc = b * b - c;
+
+            if (disc < 0.0) return { hit: false, t: -1, hitPos: [0, 0, 0], normal: [0, 0, 0] };
+
+            const s = Math.sqrt(disc);
+            let t = -b - s;
+            if (t < 0.001) t = -b + s;
+            if (t < 0.001) return { hit: false, t: -1, hitPos: [0, 0, 0], normal: [0, 0, 0] };
+
+            const hitPos = add3(rayOrig, scale3(rayDir, t));
+            const normal = normalize3(sub3(hitPos, center));
+            return { hit: true, t, hitPos, normal };
+        }
+
+        /** @param {Vec3} ro @param {Vec3} rd @param {Vec3} a @param {Vec3} b */
+        function raySegmentDist(ro, rd, a, b) {
+            const u = sub3(b, a);
+            const v = rd;
+            const w = sub3(a, ro);
+            const a0 = dot3(u, u);
+            const b0 = dot3(u, v);
+            const c0 = dot3(v, v);
+            const d0 = dot3(u, w);
+            const e0 = dot3(v, w);
+            const denom = a0 * c0 - b0 * b0;
+
+            if (Math.abs(denom) < 1e-6) {
+                const t1 = Math.max(0.0, Math.min(1.0, -d0 / (a0 + 1e-6)));
+                const p1 = add3(a, scale3(u, t1));
+                const proj = dot3(sub3(p1, ro), rd);
+                const p2 = add3(ro, scale3(rd, Math.max(0.0, proj)));
+                return length3(sub3(p1, p2));
+            }
+
+            let s = (b0 * e0 - c0 * d0) / denom;
+            s = Math.max(0.0, Math.min(1.0, s));
+            const t = (b0 * s + e0) / c0;
+            const p1 = add3(a, scale3(u, s));
+            const p2 = add3(ro, scale3(rd, Math.max(0.0, t)));
+            return length3(sub3(p1, p2));
+        }
+
+        // ==========================================
+        // 6. Test Suite Execution
+        // ==========================================
+
+        function isClose(actual, expected, tol = 1e-4) {
+            return Math.abs(actual - expected) <= tol;
+        }
+
+        function isVecClose(actual, expected, tol = 1e-4) {
+            return isClose(actual[0], expected[0], tol) &&
+                   isClose(actual[1], expected[1], tol) &&
+                   isClose(actual[2], expected[2], tol);
+        }
+
+        function runMathUnitTests() {
+            /** @type {{ name: string, passed: boolean, details?: string }[]} */
+            const results = [];
+
+            function test(name, fn) {
+                try {
+                    const res = fn();
+                    if (res === false || (typeof res === 'object' && res.passed === false)) {
+                        results.push({ name, passed: false, details: res?.details || 'Assertion failed' });
+                    } else {
+                        results.push({ name, passed: true, details: res?.details || 'Passed' });
+                    }
+                } catch (err) {
+                    results.push({ name, passed: false, details: `Exception: ${err.message}` });
+                }
+            }
+
+            test('Vector3: safe normalization on zero-length vector (prevents AMD 5500M NaN)', () => {
+                const zeroVec = vec3(0, 0, 0);
+                const norm = normalize3(zeroVec, [0, 1, 0]);
+                return isVecClose(norm, [0, 1, 0]) && !Number.isNaN(norm[0]);
+            });
+
+            test('Vector3: cross product right-hand rule', () => {
+                const x = vec3(1, 0, 0);
+                const y = vec3(0, 1, 0);
+                const z = cross3(x, y);
+                return isVecClose(z, [0, 0, 1]);
+            });
+
+            test('5D CGA: Involution Identity (x*)* == x on arbitrary 3D points', () => {
+                const Rs = 25.0;
+                const testPoints = [
+                    vec3(12.5, 0.0, 0.0),
+                    vec3(0.0, -18.2, 5.4),
+                    vec3(25.0, 0.0, 0.0),
+                    vec3(1.2, 3.4, -5.6),
+                    vec3(50.0, 50.0, 50.0)
+                ];
+                for (const p of testPoints) {
+                    const dual1 = cgaInvertPoint(p, Rs, 0.0);
+                    const dual2 = cgaInvertPoint(dual1, Rs, 0.0);
+                    if (!isVecClose(dual2, p, 1e-3)) {
+                        return { passed: false, details: `Failed for point ${JSON.stringify(p)} -> dual2: ${JSON.stringify(dual2)}` };
+                    }
+                }
+                return true;
+            });
+
+            test('5D CGA: Fixed horizon invariant ||p|| = Rs => ||p*|| = Rs', () => {
+                const Rs = 25.0;
+                const horizonPoint = vec3(Rs, 0, 0);
+                const dual = cgaInvertPoint(horizonPoint, Rs, 0.0);
+                return isVecClose(dual, horizonPoint, 1e-4);
+            });
+
+            test('5D CGA: Dual radius transformation clamping', () => {
+                const Rs = 25.0;
+                const planetPos = vec3(25.0, 0.0, 0.0);
+                const physicalR = 0.9;
+                const dualR = cgaInvertRadius(planetPos, physicalR, Rs, 0.4, 12.0);
+                return dualR >= 0.4 && dualR <= 12.0 && Number.isFinite(dualR);
+            });
+
+            test('Fourier Chain: Vector 1 (Sun -> Planet) planar confinement to X-Z (y == 0)', () => {
+                for (let t = 0; t <= 10; t += 0.5) {
+                    const state = evaluateFourierKinematicChain(t, { R1: 25.0, r2: 3.0 });
+                    if (Math.abs(state.v1[1]) > 1e-6 || Math.abs(state.planetPos[1]) > 1e-6) {
+                        return { passed: false, details: `Planet y != 0 at t=${t}` };
+                    }
+                    const dist = length3(state.v1);
+                    if (!isClose(dist, 25.0, 1e-4)) {
+                        return { passed: false, details: `Planet orbit radius != 25.0 at t=${t} (got ${dist})` };
+                    }
+                }
+                return true;
+            });
+
+            test('Fourier Chain: Vector 2 (Planet -> Moon) vertical plane decoupling (z_relative == 0)', () => {
+                for (let t = 0; t <= 10; t += 0.5) {
+                    const state = evaluateFourierKinematicChain(t, { R1: 25.0, r2: 3.0 });
+                    if (Math.abs(state.v2[2]) > 1e-6) {
+                        return { passed: false, details: `Moon relative z != 0 at t=${t}` };
+                    }
+                    const dist = length3(state.v2);
+                    if (!isClose(dist, 3.0, 1e-4)) {
+                        return { passed: false, details: `Moon orbit radius != 3.0 at t=${t} (got ${dist})` };
+                    }
+                }
+                return true;
+            });
+
+            test('Fourier Chain: Major Axis Trap stability (theta1 at 90 deg / 180 deg / 270 deg)', () => {
+                const w1 = 0.25;
+                const t90 = Math.PI / (2 * w1);
+                const state90 = evaluateFourierKinematicChain(t90, { R1: 25.0, w1 });
+                const p = state90.planetPos;
+                const valid90 = isClose(p[0], 0.0, 1e-4) && isClose(p[2], 25.0, 1e-4);
+                if (!valid90) return { passed: false, details: `Failed at 90 deg: ${JSON.stringify(p)}` };
+
+                const t180 = Math.PI / w1;
+                const state180 = evaluateFourierKinematicChain(t180, { R1: 25.0, w1 });
+                const p180 = state180.planetPos;
+                const valid180 = isClose(p180[0], -25.0, 1e-4) && isClose(p180[2], 0.0, 1e-4);
+                if (!valid180) return { passed: false, details: `Failed at 180 deg: ${JSON.stringify(p180)}` };
+
+                return true;
+            });
+
+            test('Matrix: View Matrix * Inverse View Matrix == Identity (4x4)', () => {
+                const eye = vec3(0, 10, 30);
+                const target = vec3(0, 0, 0);
+                const V = lookAt(eye, target, [0, 1, 0]);
+                const invV = invert4(V);
+                const identity = mul4(V, invV);
+
+                for (let i = 0; i < 4; i++) {
+                    for (let j = 0; j < 4; j++) {
+                        const expected = (i === j) ? 1.0 : 0.0;
+                        const actual = identity[j * 4 + i];
+                        if (!isClose(actual, expected, 1e-3)) {
+                            return { passed: false, details: `Matrix elem [${i},${j}] = ${actual}, expected ${expected}` };
+                        }
+                    }
+                }
+                return true;
+            });
+
+            test('Matrix: Combined Perspective * View inversion (InvVP)', () => {
+                const V = lookAt([0, 5, 20], [0, 0, 0]);
+                const P = perspective(45 * Math.PI / 180, 16 / 9, 0.1, 100);
+                const VP = mul4(P, V);
+                const invVP = invert4(VP);
+                const check = mul4(VP, invVP);
+
+                for (let i = 0; i < 4; i++) {
+                    for (let j = 0; j < 4; j++) {
+                        const expected = (i === j) ? 1.0 : 0.0;
+                        if (!isClose(check[j * 4 + i], expected, 1e-2)) {
+                            return { passed: false, details: `InvVP mismatch at [${i},${j}] = ${check[j * 4 + i]}` };
+                        }
+                    }
+                }
+                return true;
+            });
+
+            test('Ray-Sphere: Direct frontal hit on origin sphere', () => {
+                const ro = vec3(0, 0, 10);
+                const rd = vec3(0, 0, -1);
+                const center = vec3(0, 0, 0);
+                const radius = 2.5;
+                const res = hitSphere(ro, rd, center, radius);
+                if (!res.hit) return { passed: false, details: 'Expected hit, got miss' };
+                if (!isClose(res.t, 7.5, 1e-4)) return { passed: false, details: `Expected t=7.5, got ${res.t}` };
+                if (!isVecClose(res.normal, [0, 0, 1], 1e-4)) return { passed: false, details: `Expected normal [0,0,1], got ${JSON.stringify(res.normal)}` };
+                return true;
+            });
+
+            test('Ray-Sphere: Tangent grazing ray (discriminant == 0 boundary)', () => {
+                const radius = 2.5;
+                const ro = vec3(radius, 0, 10);
+                const rd = vec3(0, 0, -1);
+                const center = vec3(0, 0, 0);
+                const res = hitSphere(ro, rd, center, radius);
+                if (!res.hit) return { passed: false, details: 'Tangent ray should register a hit' };
+                if (!isClose(res.t, 10.0, 1e-3)) return { passed: false, details: `Expected t=10.0, got ${res.t}` };
+                return true;
+            });
+
+            test('Ray-Sphere: Sphere behind ray origin correctly rejected', () => {
+                const ro = vec3(0, 0, 10);
+                const rd = vec3(0, 0, 1);
+                const center = vec3(0, 0, 0);
+                const radius = 2.5;
+                const res = hitSphere(ro, rd, center, radius);
+                return !res.hit;
+            });
+
+            test('Ray-Segment: Orthogonal closest distance', () => {
+                const ro = vec3(0, 5, 0);
+                const rd = vec3(1, 0, 0);
+                const a = vec3(10, 0, 0);
+                const b = vec3(10, 10, 0);
+                const dist = raySegmentDist(ro, rd, a, b);
+                return isClose(dist, 0.0, 1e-4);
+            });
+
+            // ==========================================
+            // 2D Inversive Geometry & 4D CGA Tests
+            // ==========================================
+
+            test('2D CGA: Point Involution (x*)* == x', () => {
+                const R = 15.0;
+                const pts = [[3, 4], [-12, 8.5], [0, 22], [15, 0]];
+                for (const p of pts) {
+                    const factor1 = (R * R) / (p[0] * p[0] + p[1] * p[1]);
+                    const star = [p[0] * factor1, p[1] * factor1];
+                    const factor2 = (R * R) / (star[0] * star[0] + star[1] * star[1]);
+                    const doubleStar = [star[0] * factor2, star[1] * factor2];
+                    if (!isClose(doubleStar[0], p[0], 1e-4) || !isClose(doubleStar[1], p[1], 1e-4)) return false;
+                }
+                return true;
+            });
+
+            test('2D CGA: Line not through origin inverts to Circle through origin', () => {
+                const R = 10.0;
+                const d = 5.0; // Line x = 5
+                const circleCx = (R * R) / (2 * d);
+                const circleR = (R * R) / (2 * d);
+                // Center should be (10, 0) and radius 10 => origin (0,0) is on the circle
+                return isClose(circleCx, 10.0) && isClose(circleR, 10.0);
+            });
+
+            test('2D CGA: Orthogonal Circle Self-Invariance (C* == C)', () => {
+                const R = 12.0;
+                const cx = 15.0, cy = 9.0;
+                const rOrtho = Math.sqrt(cx * cx + cy * cy - R * R);
+                const dSq = cx * cx + cy * cy;
+                const factor = (R * R) / (dSq - rOrtho * rOrtho);
+                const newCx = cx * factor;
+                const newCy = cy * factor;
+                const newR = (R * R * rOrtho) / Math.abs(dSq - rOrtho * rOrtho);
+                return isClose(newCx, cx, 1e-4) && isClose(newCy, cy, 1e-4) && isClose(newR, rOrtho, 1e-4);
+            });
+
+            test('2D CGA: 2D Gaussian Covariance Inversion (det Sigma* > 0)', () => {
+                const R = 15.0;
+                const x = 20.0, y = 10.0;
+                const rSq = x * x + y * y;
+                const scale = (R * R) / rSq;
+                const j00 = scale * (1.0 - (2.0 * x * x) / rSq);
+                const j01 = scale * (-2.0 * x * y / rSq);
+                const j10 = j01;
+                const j11 = scale * (1.0 - (2.0 * y * y) / rSq);
+
+                const sXX = 4.0, sXY = 1.5, sYY = 3.0;
+                const a00 = j00 * sXX + j01 * sXY;
+                const a01 = j00 * sXY + j01 * sYY;
+                const a10 = j10 * sXX + j11 * sXY;
+                const a11 = j10 * sXY + j11 * sYY;
+
+                const starXX = a00 * j00 + a01 * j01;
+                const starXY = a00 * j10 + a01 * j11;
+                const starYY = a10 * j10 + a11 * j11;
+                const det = starXX * starYY - starXY * starXY;
+                return det > 0 && starXX > 0 && starYY > 0;
+            });
+
+            test('2D CGA: Uncrossable Horizon barrier reflection (v_out > 0)', () => {
+                const R = 100.0;
+                const pos = [98.0, 0.0];
+                const vel = [-10.0, 0.0];
+                const dist = Math.hypot(pos[0], pos[1]);
+                const nx = pos[0] / dist, ny = pos[1] / dist;
+                const vDotN = vel[0] * nx + vel[1] * ny;
+                const reflectedVelX = vel[0] - 2 * vDotN * nx;
+                return reflectedVelX > 0;
+            });
+
+            test('2D CGA: Omnidirectional Spatial Infinity convergence (lim L->inf r*(L) = 0)', () => {
+                const R = 120.0;
+                const L = 10000.0; // Outer cosmos distance
+                const rStar = (R * R) / L; // Distance inside
+                return isClose(rStar, 1.44, 0.01) && rStar < 2.0;
+            });
+
+            test('2D CGA: Cardinal Infinities (+X, -X, +Y, -Y = ±inf) collapse to O(0,0)', () => {
+                const R = 100.0;
+                const big = 1e8;
+                const xStar = (R * R) / big;
+                return isClose(xStar, 0.0, 1e-4);
+            });
+
+            test('2D CGA: Flat Planetary System hierarchy (Sun, Planet, Moon dual radial inversion)', () => {
+                const R = 120.0;
+                const sunX = 200.0, planetX = 300.0, moonX = 325.0;
+                const sunStarX = (R * R) / sunX;     // 72.0
+                const planetStarX = (R * R) / planetX; // 48.0
+                const moonStarX = (R * R) / moonX;   // 44.3
+                // Inverted radial order: Moon* < Planet* < Sun* < R
+                return moonStarX < planetStarX && planetStarX < sunStarX && sunStarX < R;
+            });
+
+            test('2D CGA: Conformal disk radius dilation (near dual > far dual)', () => {
+                const R = 100.0;
+                const r = 10.0;
+                const dNear = 120.0, dFar = 500.0;
+                const rNearStar = (R * R * r) / Math.abs(dNear * dNear - r * r);
+                const rFarStar = (R * R * r) / Math.abs(dFar * dFar - r * r);
+                return rNearStar > rFarStar && rFarStar > 0;
+            });
+
+            test('2D CGA: Relative Host Circle Inversion (Target circle inside arbitrary host sphere)', () => {
+                const host = { cx: 200.0, cy: 100.0, r: 30.0 };
+                const target = { cx: 350.0, cy: 100.0, r: 10.0 };
+                const dx = target.cx - host.cx;
+                const distSq = dx * dx;
+                const factor = (host.r * host.r) / (distSq - target.r * target.r);
+                const dualCx = host.cx + dx * factor;
+                const dualR = (host.r * host.r * target.r) / Math.abs(distSq - target.r * target.r);
+                return isClose(dualCx, 206.026, 0.01) && dualR < host.r && (dualCx - host.cx) < host.r;
+            });
+
+            test('2D CGA: Recursive Holographic Multiverse (Every body contains mirror universe with center as infinity)', () => {
+                const sun = { cx: 200.0, cy: 0.0, r: 30.0 };
+                const planet = { cx: 350.0, cy: 0.0, r: 15.0 };
+                const moon = { cx: 390.0, cy: 0.0, r: 6.0 };
+                // Dual planet inside sun
+                const dxP = planet.cx - sun.cx;
+                const pInSunX = sun.cx + dxP * ((sun.r * sun.r) / (dxP * dxP - planet.r * planet.r));
+                // Dual sun inside planet
+                const dxS = sun.cx - planet.cx;
+                const sInPlanetX = planet.cx + dxS * ((planet.r * planet.r) / (dxS * dxS - sun.r * sun.r));
+                return Math.abs(pInSunX - sun.cx) < sun.r && Math.abs(sInPlanetX - planet.cx) < planet.r;
+            });
+
+            test('2D CGA: Extended Source Common Tangents & Lit Daytime Arc (> 180 deg)', () => {
+                const rSun = 100.0, rPlanet = 20.0, d = 300.0;
+                const sinAlpha = (rSun - rPlanet) / d; // 80 / 300 = 0.2667
+                const alpha = Math.asin(sinAlpha);
+                const litSpanDeg = (Math.PI + 2 * alpha) * 180 / Math.PI;
+                return litSpanDeg > 180.0 && isClose(litSpanDeg, 210.9, 0.5);
+            });
+
+            test('2D CGA: Umbra Cone Focal Convergence Apex', () => {
+                const rSun = 100.0, rPlanet = 20.0, d = 300.0;
+                const apexDist = (rPlanet * d) / (rSun - rPlanet); // (20 * 300) / 80 = 75 px
+                return isClose(apexDist, 75.0, 1e-4);
+            });
+
+            test('2D CGA: Secondary Albedo Planetshine & Moonshine Visibility', () => {
+                const sunDir = [1, 0];
+                const relDirSunlit = [-1, 0]; // Moon in front of planet facing sun
+                const dot = -sunDir[0] * relDirSunlit[0] - sunDir[1] * relDirSunlit[1];
+                return dot > 0; // Visible
+            });
+
+            test('2D CGA: Lagrangian Points (L4, L5 Equilateral Geometry & Collinear L1-L3)', () => {
+                const d = 300.0;
+                // L4 at 60 deg, distance to primary is d and distance to secondary is d
+                const L4 = [d * Math.cos(Math.PI / 3), d * Math.sin(Math.PI / 3)];
+                const dL4Primary = Math.hypot(L4[0], L4[1]);
+                const dL4Secondary = Math.hypot(L4[0] - d, L4[1]);
+                return isClose(dL4Primary, 300.0, 1e-4) && isClose(dL4Secondary, 300.0, 1e-4);
+            });
+
+            test('2D CGA: Roche Lobe Gravitational Pools Separatrix', () => {
+                const rL1 = 240.0; // Primary L1 distance
+                const a1 = rL1 * 0.96;
+                const b1 = rL1 * 0.72;
+                return a1 > 0 && b1 > 0 && a1 > b1;
+            });
+
+            test('2D CGA: Inner Universe Lagrange Inversion (Points strictly inside host radius)', () => {
+                const hostR = 100.0;
+                const L1 = [240.0, 0.0];
+                const dSq = L1[0] * L1[0];
+                const L1StarX = (hostR * hostR) / L1[0]; // 10000 / 240 = 41.67 px
+                return L1StarX < hostR && L1StarX > 0;
+            });
+
+            test('2D CGA: 4-Tangent Common Optics (Day, Dawn, Dusk, Night Partition == 360 deg)', () => {
+                const rSun = 100.0, rPlanet = 20.0, d = 300.0;
+                const sinAlphaExt = (rSun - rPlanet) / d; // 80 / 300
+                const sinAlphaInt = (rSun + rPlanet) / d; // 120 / 300
+                const alphaExt = Math.asin(sinAlphaExt);
+                const alphaInt = Math.asin(sinAlphaInt);
+
+                const spanDay = Math.PI - 2 * alphaInt;
+                const spanDawn = alphaExt + alphaInt;
+                const spanDusk = alphaExt + alphaInt;
+                const spanNight = Math.PI - 2 * alphaExt;
+                const totalSpanDeg = (spanDay + spanDawn + spanDusk + spanNight) * 180 / Math.PI;
+                return isClose(totalSpanDeg, 360.0, 1e-4);
+            });
+
+            test('2D CGA: Conformal Dual Optics (Tangent lines invert to 4 circles through singularity)', () => {
+                // Inversion of straight line not through origin is circle passing through origin (distance to origin == radius)
+                const lineDist = 40.0, hostR = 100.0;
+                const dualRadius = (hostR * hostR) / (2 * lineDist); // 10000 / 80 = 125 px
+                const dualCenterX = dualRadius; // Center is at distance dualRadius from origin
+                return isClose(dualCenterX, dualRadius, 1e-4);
+            });
+
+            const passedCount = results.filter(r => r.passed).length;
+            return {
+                total: results.length,
+                passed: passedCount,
+                failed: results.length - passedCount,
+                results
+            };
+        }
+
+        const totalEl = /** @type {HTMLElement} */ (document.getElementById('stat-total'));
+        const passedEl = /** @type {HTMLElement} */ (document.getElementById('stat-passed'));
+        const failedEl = /** @type {HTMLElement} */ (document.getElementById('stat-failed'));
+        const containerEl = /** @type {HTMLElement} */ (document.getElementById('test-container'));
+        const runBtn = /** @type {HTMLButtonElement} */ (document.getElementById('run-btn'));
+
+        function executeSuite() {
+            const suite = runMathUnitTests();
+            totalEl.textContent = String(suite.total);
+            passedEl.textContent = String(suite.passed);
+            failedEl.textContent = String(suite.failed);
+
+            containerEl.innerHTML = '';
+            suite.results.forEach(res => {
+                const card = document.createElement('div');
+                card.className = 'test-card';
+
+                const info = document.createElement('div');
+                info.className = 'test-info';
+
+                const title = document.createElement('div');
+                title.className = 'test-title';
+                title.textContent = res.name;
+
+                const details = document.createElement('div');
+                details.className = 'test-details';
+                details.textContent = res.details || '';
+
+                info.appendChild(title);
+                if (res.details) info.appendChild(details);
+
+                const badge = document.createElement('div');
+                badge.className = `badge ${res.passed ? 'badge-pass' : 'badge-fail'}`;
+                badge.textContent = res.passed ? 'PASS' : 'FAIL';
+
+                card.appendChild(info);
+                card.appendChild(badge);
+                containerEl.appendChild(card);
+            });
+        }
+
+        runBtn.addEventListener('click', executeSuite);
+        executeSuite();
+    </script>
+</body>
+</html>

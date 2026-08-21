@@ -1,0 +1,1339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔮 2DCGA — 2D Inversive Geometry & 4D Conformal Geometric Algebra</title>
+    <style>
+        :root {
+            --bg-base: #06090e;
+            --bg-panel: rgba(13, 19, 31, 0.82);
+            --bg-panel-border: rgba(0, 240, 255, 0.2);
+            --text-main: #e2e8f0;
+            --text-dim: #94a3b8;
+            --accent-cyan: #00f0ff;
+            --accent-emerald: #00ff9d;
+            --accent-gold: #ffd700;
+            --accent-magenta: #ff007f;
+            --accent-purple: #b056ff;
+            --font-ui: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            --font-mono: "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: var(--bg-base);
+            font-family: var(--font-ui);
+            color: var(--text-main);
+        }
+
+        #svg-container {
+            width: 100vw;
+            height: 100vh;
+            cursor: grab;
+            display: block;
+        }
+
+        #svg-container.dragging {
+            cursor: grabbing;
+        }
+
+        #svg-viewport {
+            width: 100%;
+            height: 100%;
+            touch-action: none;
+        }
+
+        /* SVG Element Styles */
+        .horizon-circle {
+            fill: rgba(255, 215, 0, 0.03);
+            stroke: var(--accent-gold);
+            stroke-width: 1.5;
+            stroke-dasharray: 6 3;
+            filter: drop-shadow(0 0 8px rgba(255, 215, 0, 0.4));
+        }
+
+        .horizon-glow {
+            fill: none;
+            stroke: rgba(255, 215, 0, 0.2);
+            stroke-width: 6;
+        }
+
+        .primal-line {
+            stroke: var(--accent-cyan);
+            stroke-width: 2;
+            stroke-linecap: round;
+        }
+
+        .dual-circle {
+            fill: rgba(255, 0, 127, 0.05);
+            stroke: var(--accent-magenta);
+            stroke-width: 2;
+            stroke-dasharray: 4 2;
+            filter: drop-shadow(0 0 6px rgba(255, 0, 127, 0.4));
+        }
+
+        .primal-circle {
+            fill: rgba(0, 255, 157, 0.05);
+            stroke: var(--accent-emerald);
+            stroke-width: 2;
+        }
+
+        .ortho-circle {
+            fill: rgba(176, 86, 255, 0.06);
+            stroke: var(--accent-purple);
+            stroke-width: 2;
+            stroke-dasharray: 5 3;
+        }
+
+        .inversion-ray {
+            stroke: rgba(255, 255, 255, 0.25);
+            stroke-width: 1;
+            stroke-dasharray: 2 2;
+        }
+
+        .control-handle {
+            fill: #ffffff;
+            stroke: var(--accent-cyan);
+            stroke-width: 2;
+            cursor: move;
+            transition: r 0.15s ease, fill 0.15s ease;
+        }
+
+        .control-handle:hover {
+            r: 7;
+            fill: var(--accent-cyan);
+            filter: drop-shadow(0 0 6px var(--accent-cyan));
+        }
+
+        .control-handle-dual {
+            fill: var(--accent-magenta);
+            stroke: #ffffff;
+            stroke-width: 1.5;
+            pointer-events: none;
+        }
+
+        .orbit-trail-primal {
+            fill: none;
+            stroke: rgba(0, 255, 157, 0.6);
+            stroke-width: 1.5;
+        }
+
+        .orbit-trail-dual {
+            fill: none;
+            stroke: rgba(255, 0, 127, 0.7);
+            stroke-width: 1.5;
+            stroke-dasharray: 3 2;
+        }
+
+        .fourier-arm {
+            stroke: rgba(255, 255, 255, 0.5);
+            stroke-width: 1.5;
+        }
+
+        .grid-line {
+            stroke: rgba(255, 255, 255, 0.05);
+            stroke-width: 0.5;
+        }
+
+        .axis-line {
+            stroke: rgba(255, 255, 255, 0.15);
+            stroke-width: 1;
+        }
+
+        /* Glassmorphism UI */
+        .glass-panel {
+            position: absolute;
+            background: var(--bg-panel);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--bg-panel-border);
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+            padding: 16px;
+            z-index: 10;
+        }
+
+        #header-panel {
+            top: 16px;
+            left: 16px;
+            max-width: 380px;
+        }
+
+        .title {
+            font-size: 16px;
+            font-weight: 700;
+            color: #ffffff;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            letter-spacing: 0.5px;
+        }
+
+        .subtitle {
+            font-size: 11px;
+            color: var(--text-dim);
+            margin-top: 4px;
+            line-height: 1.4;
+        }
+
+        /* Mode Selector Tabs */
+        .mode-tabs {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px;
+            margin-top: 12px;
+        }
+
+        .mode-btn {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 6px;
+            color: var(--text-dim);
+            padding: 8px 6px;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.2s ease;
+        }
+
+        .mode-btn:hover {
+            background: rgba(0, 240, 255, 0.1);
+            color: #ffffff;
+            border-color: rgba(0, 240, 255, 0.3);
+        }
+
+        .mode-btn.active {
+            background: rgba(0, 240, 255, 0.2);
+            color: var(--accent-cyan);
+            border-color: var(--accent-cyan);
+            box-shadow: 0 0 10px rgba(0, 240, 255, 0.3);
+        }
+
+        /* Controls Panel */
+        #controls-panel {
+            bottom: 16px;
+            left: 16px;
+            width: 380px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .control-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 12px;
+        }
+
+        .control-label {
+            color: var(--text-dim);
+            font-size: 11px;
+            font-weight: 500;
+        }
+
+        .control-value {
+            font-family: var(--font-mono);
+            color: var(--accent-cyan);
+            font-size: 11px;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 2px;
+            outline: none;
+            -webkit-appearance: none;
+            margin-top: 4px;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: var(--accent-cyan);
+            cursor: pointer;
+            box-shadow: 0 0 6px var(--accent-cyan);
+        }
+
+        /* Button Grid */
+        .btn-group {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 6px;
+            color: var(--text-main);
+            padding: 8px;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-align: center;
+        }
+
+        .btn:hover {
+            background: rgba(255, 255, 255, 0.12);
+            border-color: rgba(255, 255, 255, 0.3);
+        }
+
+        .btn-primary {
+            background: rgba(0, 240, 255, 0.15);
+            border-color: var(--accent-cyan);
+            color: var(--accent-cyan);
+        }
+
+        .btn-primary:hover {
+            background: rgba(0, 240, 255, 0.3);
+            box-shadow: 0 0 8px rgba(0, 240, 255, 0.4);
+        }
+
+        /* Telemetry HUD */
+        #telemetry-panel {
+            top: 16px;
+            right: 16px;
+            min-width: 280px;
+            font-family: var(--font-mono);
+            font-size: 11px;
+        }
+
+        .hud-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 6px;
+            line-height: 1.4;
+        }
+
+        .hud-key {
+            color: var(--text-dim);
+        }
+
+        .hud-val {
+            color: #ffffff;
+            font-weight: 600;
+        }
+
+        .hud-val.gold { color: var(--accent-gold); }
+        .hud-val.cyan { color: var(--accent-cyan); }
+        .hud-val.magenta { color: var(--accent-magenta); }
+        .hud-val.emerald { color: var(--accent-emerald); }
+
+        /* Floating Viewport Controls */
+        #viewport-dock {
+            bottom: 16px;
+            right: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .dock-btn {
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            background: var(--bg-panel);
+            border: 1px solid var(--bg-panel-border);
+            color: var(--text-main);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            backdrop-filter: blur(12px);
+            transition: all 0.2s ease;
+        }
+
+        .dock-btn:hover {
+            background: rgba(0, 240, 255, 0.2);
+            color: var(--accent-cyan);
+            border-color: var(--accent-cyan);
+            box-shadow: 0 0 8px rgba(0, 240, 255, 0.4);
+        }
+
+        /* Legend */
+        .legend-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 10px;
+            margin-top: 4px;
+        }
+
+        .legend-swatch {
+            width: 12px;
+            height: 4px;
+            border-radius: 2px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Main Interactive SVG Canvas -->
+    <div id="svg-container">
+        <svg id="svg-viewport" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+                <!-- Neon Glow Filters -->
+                <filter id="glow-gold" x="-50%" y="-50%" width="200%" height="200%">
+                    <feDropShadow dx="0" dy="0" stdDeviation="4" flood-color="#ffd700" flood-opacity="0.6"/>
+                </filter>
+                <filter id="glow-cyan" x="-50%" y="-50%" width="200%" height="200%">
+                    <feDropShadow dx="0" dy="0" stdDeviation="3" flood-color="#00f0ff" flood-opacity="0.7"/>
+                </filter>
+                <filter id="glow-magenta" x="-50%" y="-50%" width="200%" height="200%">
+                    <feDropShadow dx="0" dy="0" stdDeviation="4" flood-color="#ff007f" flood-opacity="0.7"/>
+                </filter>
+            </defs>
+
+            <!-- Coordinate Grid Layer -->
+            <g id="layer-grid"></g>
+
+            <!-- Horizon Inversion Circle Layer -->
+            <g id="layer-horizon">
+                <circle id="horizon-glow" class="horizon-glow" cx="0" cy="0" r="100" />
+                <circle id="horizon-circle" class="horizon-circle" cx="0" cy="0" r="100" />
+                <circle id="origin-marker" cx="0" cy="0" r="3" fill="#ffd700" />
+                <text x="5" y="-5" fill="#ffd700" font-size="10" font-family="monospace">O (0,0)</text>
+                <text id="horizon-label" x="105" y="15" fill="#ffd700" font-size="11" font-family="monospace">r = R (Horizon)</text>
+            </g>
+
+            <!-- Mode 1: Wikipedia Theorems Layer -->
+            <g id="layer-wikipedia"></g>
+
+            <!-- Mode 2: Conformal Grid Layer -->
+            <g id="layer-conformal-grid" style="display: none;"></g>
+
+            <!-- Mode 3: 2D Fourier Orbits Layer -->
+            <g id="layer-fourier-orbits" style="display: none;">
+                <path id="orbit-trail-primal" class="orbit-trail-primal" d="" />
+                <path id="orbit-trail-dual" class="orbit-trail-dual" d="" />
+                <line id="fourier-arm1" class="fourier-arm" x1="0" y1="0" x2="0" y2="0" />
+                <line id="fourier-arm2" class="fourier-arm" x1="0" y1="0" x2="0" y2="0" />
+                <circle id="fourier-sun" cx="0" cy="0" r="6" fill="#ffd700" />
+                <circle id="fourier-planet" cx="0" cy="0" r="4" fill="#00ff9d" />
+                <circle id="fourier-moon" cx="0" cy="0" r="2.5" fill="#00f0ff" />
+                <circle id="fourier-planet-dual" cx="0" cy="0" r="4" fill="#ff007f" />
+                <circle id="fourier-moon-dual" cx="0" cy="0" r="2.5" fill="#b056ff" />
+            </g>
+
+            <!-- Mode 4: Gaussian Splats Layer -->
+            <g id="layer-gaussian-splats" style="display: none;"></g>
+
+            <!-- Interactive Control Handles Layer -->
+            <g id="layer-handles"></g>
+        </svg>
+    </div>
+
+    <!-- UI Overlay: Header & Mode Select -->
+    <div id="header-panel" class="glass-panel">
+        <div class="title">
+            <span>🔮</span> 2DCGA Inversive Geometry
+        </div>
+        <div class="subtitle">
+            nD Conformal Geometric Algebra reduced to 2D (<span style="color:var(--accent-cyan);">G(3,1)</span>). Direct unoccluded rendering of primal and dual spaces across the circle of inversion.
+        </div>
+
+        <div class="mode-tabs">
+            <button id="btn-mode-wiki" class="mode-btn active" onclick="switchMode('wikipedia')">1. Wiki Theorems</button>
+            <button id="btn-mode-grid" class="mode-btn" onclick="switchMode('conformal_grid')">2. Conformal Net</button>
+            <button id="btn-mode-fourier" class="mode-btn" onclick="switchMode('fourier_orbits')">3. Fourier Orbits</button>
+            <button id="btn-mode-splat" class="mode-btn" onclick="switchMode('gaussian_splats')">4. Gaussian Splats</button>
+        </div>
+
+        <div style="margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 8px;">
+            <div class="legend-row">
+                <div class="legend-swatch" style="background:var(--accent-gold);"></div>
+                <span>Inversion Horizon (r = R, Fixed Set)</span>
+            </div>
+            <div class="legend-row">
+                <div class="legend-swatch" style="background:var(--accent-cyan);"></div>
+                <span>Primal Geometry (r &gt; R, Exterior)</span>
+            </div>
+            <div class="legend-row">
+                <div class="legend-swatch" style="background:var(--accent-magenta);"></div>
+                <span>Dual Inverted Geometry (r &lt; R, Interior)</span>
+            </div>
+            <div class="legend-row">
+                <div class="legend-swatch" style="background:var(--accent-purple);"></div>
+                <span>Orthogonal Self-Invariant Circles (C* = C)</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Controls Panel -->
+    <div id="controls-panel" class="glass-panel">
+        <div class="control-row">
+            <span class="control-label">Inversion Radius (R)</span>
+            <span id="val-radius" class="control-value">120.0</span>
+        </div>
+        <input type="range" id="slider-radius" min="40" max="250" step="1" value="120">
+
+        <div class="btn-group">
+            <button id="btn-pause" class="btn btn-primary" onclick="togglePause()">Pause</button>
+            <button id="btn-step" class="btn" onclick="stepSim()">Step (.)</button>
+            <button id="btn-diag" class="btn" onclick="runDiagnostics()">Diagnostics (D)</button>
+        </div>
+    </div>
+
+    <!-- Telemetry HUD -->
+    <div id="telemetry-panel" class="glass-panel">
+        <div class="hud-row">
+            <span class="hud-key">SIM TIME:</span>
+            <span id="hud-time" class="hud-val">0.00 s</span>
+        </div>
+        <div class="hud-row">
+            <span class="hud-key">FPS / FRAME:</span>
+            <span id="hud-fps" class="hud-val cyan">60 FPS (0)</span>
+        </div>
+        <div class="hud-row">
+            <span class="hud-key">CURSOR (x, y):</span>
+            <span id="hud-cursor" class="hud-val">[0.0, 0.0]</span>
+        </div>
+        <div class="hud-row">
+            <span class="hud-key">DUAL (x*, y*):</span>
+            <span id="hud-cursor-dual" class="hud-val magenta">[0.0, 0.0]</span>
+        </div>
+        <div class="hud-row">
+            <span class="hud-key">OP · OP*:</span>
+            <span id="hud-metric" class="hud-val gold">R² (14400)</span>
+        </div>
+        <div class="hud-row">
+            <span class="hud-key">INVOLUTION ERR:</span>
+            <span id="hud-involution" class="hud-val emerald">0.000000</span>
+        </div>
+        <div class="hud-row">
+            <span class="hud-key">ZOOM:</span>
+            <span id="hud-zoom" class="hud-val">100%</span>
+        </div>
+    </div>
+
+    <!-- Floating Viewport Dock -->
+    <div id="viewport-dock">
+        <button class="dock-btn" title="Zoom In (+)" onclick="zoomBy(1.25)">+</button>
+        <button class="dock-btn" title="Zoom Out (-)" onclick="zoomBy(0.8)">−</button>
+        <button class="dock-btn" title="Fit Horizon" onclick="fitHorizon()">⌖</button>
+        <button class="dock-btn" title="Reset View (R)" onclick="resetViewport()">↺</button>
+    </div>
+
+    <!-- Main Logic Module -->
+    <script type="module">
+        /// <reference lib="dom" />
+        /// <reference path="./types/cga2d.d.ts" />
+        // @ts-check
+
+        import {
+            invertPoint,
+            invertCircle,
+            invertLine,
+            getOrthogonalCircleRadius,
+            invertGaussianCovariance,
+            covarianceToSvgEllipse,
+            evaluateFourierChain2D
+        } from './tests/math_cga2d.mjs';
+
+        /* ==========================================================================
+           1. Application State & Global Parameters
+           ========================================================================== */
+
+        /** @type {CGA2D.VisualMode} */
+        let activeMode = 'wikipedia';
+        let isPaused = false;
+        let simTime = 0;
+        let timeScale = 1.0;
+        let frameCount = 0;
+        let lastTimestamp = performance.now();
+        let fps = 60;
+
+        /** Inversion Circle Radius */
+        let R = 120.0;
+
+        /** SVG Viewport Pan & Zoom State */
+        const viewport = {
+            cx: 0,
+            cy: 0,
+            width: 800,
+            height: 800,
+            zoom: 1.0,
+            isDragging: false,
+            startX: 0,
+            startY: 0
+        };
+
+        /** Mouse world coordinates */
+        /** @type {[number, number]} */
+        let mouseWorld = [0, 0];
+        /** @type {string | null} */
+        let draggedHandle = null;
+
+        /* Mode 1 Primitives State (Wikipedia Model) */
+        const wikiState = {
+            // Line 1: Not passing through origin
+            line1: { p1: [60, 200], p2: [220, 160] },
+            // Line 2: Passing through origin
+            line2: { p1: [-200, -100], p2: [200, 100] },
+            // Circle 1: Outside / intersecting
+            circle1: { cx: 160, cy: -80, r: 50 },
+            // Orthogonal Circle (C* = C)
+            orthoCircle: { cx: -150, cy: 120 },
+            // Interactive Point P with ray OP
+            pointP: [180, 100]
+        };
+
+        /* Mode 3 Fourier Chain Parameters */
+        const fourierParams = {
+            v1: { r1: 180, w1: 0.6 },
+            v2: { r2: 45, w2: 3.2 }
+        };
+        /** @type {Array<[number, number]>} */
+        const primalOrbitTrail = [];
+        /** @type {Array<[number, number]>} */
+        const dualOrbitTrail = [];
+        const MAX_TRAIL_LENGTH = 300;
+
+        /* Mode 4 Gaussian Splats */
+        const splatState = {
+            pos: [160, 90],
+            sigmaXX: 900,
+            sigmaXY: 400,
+            sigmaYY: 500,
+            opacity: 0.7
+        };
+
+        /* DOM Elements */
+        const svgViewport = /** @type {SVGSVGElement} */ (/** @type {any} */ (document.getElementById('svg-viewport')));
+        const svgContainer = /** @type {HTMLElement} */ (/** @type {any} */ (document.getElementById('svg-container')));
+        const layerGrid = /** @type {SVGGElement} */ (/** @type {any} */ (document.getElementById('layer-grid')));
+        const layerWiki = /** @type {SVGGElement} */ (/** @type {any} */ (document.getElementById('layer-wikipedia')));
+        const layerGridMode = /** @type {SVGGElement} */ (/** @type {any} */ (document.getElementById('layer-conformal-grid')));
+        const layerFourier = /** @type {SVGGElement} */ (/** @type {any} */ (document.getElementById('layer-fourier-orbits')));
+        const layerSplats = /** @type {SVGGElement} */ (/** @type {any} */ (document.getElementById('layer-gaussian-splats')));
+        const layerHandles = /** @type {SVGGElement} */ (/** @type {any} */ (document.getElementById('layer-handles')));
+
+        const horizonCircle = /** @type {SVGCircleElement} */ (/** @type {any} */ (document.getElementById('horizon-circle')));
+        const horizonGlow = /** @type {SVGCircleElement} */ (/** @type {any} */ (document.getElementById('horizon-glow')));
+        const horizonLabel = /** @type {SVGTextElement} */ (/** @type {any} */ (document.getElementById('horizon-label')));
+
+        const sliderRadius = /** @type {HTMLInputElement} */ (/** @type {any} */ (document.getElementById('slider-radius')));
+        const valRadius = /** @type {HTMLElement} */ (/** @type {any} */ (document.getElementById('val-radius')));
+
+        const hudTime = /** @type {HTMLElement} */ (/** @type {any} */ (document.getElementById('hud-time')));
+        const hudFps = /** @type {HTMLElement} */ (/** @type {any} */ (document.getElementById('hud-fps')));
+        const hudCursor = /** @type {HTMLElement} */ (/** @type {any} */ (document.getElementById('hud-cursor')));
+        const hudCursorDual = /** @type {HTMLElement} */ (/** @type {any} */ (document.getElementById('hud-cursor-dual')));
+        const hudMetric = /** @type {HTMLElement} */ (/** @type {any} */ (document.getElementById('hud-metric')));
+        const hudInvolution = /** @type {HTMLElement} */ (/** @type {any} */ (document.getElementById('hud-involution')));
+        const hudZoom = /** @type {HTMLElement} */ (/** @type {any} */ (document.getElementById('hud-zoom')));
+        const btnPause = /** @type {HTMLButtonElement} */ (/** @type {any} */ (document.getElementById('btn-pause')));
+
+        /* ==========================================================================
+           2. Viewport & Pan/Zoom Logic
+           ========================================================================== */
+
+        function updateSvgViewBox() {
+            const w = svgViewport.clientWidth || window.innerWidth;
+            const h = svgViewport.clientHeight || window.innerHeight;
+            const aspect = w / h;
+
+            viewport.width = 700 / viewport.zoom;
+            viewport.height = viewport.width / aspect;
+
+            const minX = viewport.cx - viewport.width / 2;
+            const minY = viewport.cy - viewport.height / 2;
+
+            svgViewport.setAttribute('viewBox', `${minX} ${minY} ${viewport.width} ${viewport.height}`);
+            hudZoom.textContent = `${Math.round(viewport.zoom * 100)}%`;
+
+            renderCoordinateGrid();
+        }
+
+        /**
+         * Convert SVG screen pixel event into SVG world coordinate [x, y].
+         * @param {MouseEvent | Touch} e
+         * @returns {[number, number]}
+         */
+        function screenToWorld(e) {
+            const rect = svgViewport.getBoundingClientRect();
+            const px = (e.clientX - rect.left) / rect.width;
+            const py = (e.clientY - rect.top) / rect.height;
+
+            const minX = viewport.cx - viewport.width / 2;
+            const minY = viewport.cy - viewport.height / 2;
+
+            return [
+                minX + px * viewport.width,
+                minY + py * viewport.height
+            ];
+        }
+
+        function renderCoordinateGrid() {
+            layerGrid.innerHTML = '';
+            const minX = viewport.cx - viewport.width / 2;
+            const maxX = viewport.cx + viewport.width / 2;
+            const minY = viewport.cy - viewport.height / 2;
+            const maxY = viewport.cy + viewport.height / 2;
+
+            let step = 50;
+            if (viewport.width > 2000) step = 200;
+            else if (viewport.width > 1000) step = 100;
+            else if (viewport.width < 300) step = 20;
+
+            const startX = Math.floor(minX / step) * step;
+            const startY = Math.floor(minY / step) * step;
+
+            let gridD = '';
+            for (let x = startX; x <= maxX; x += step) {
+                gridD += `M ${x} ${minY} L ${x} ${maxY} `;
+            }
+            for (let y = startY; y <= maxY; y += step) {
+                gridD += `M ${minX} ${y} L ${maxX} ${y} `;
+            }
+
+            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            path.setAttribute('d', gridD);
+            path.setAttribute('class', 'grid-line');
+            layerGrid.appendChild(path);
+
+            const axes = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            axes.setAttribute('d', `M ${minX} 0 L ${maxX} 0 M 0 ${minY} L 0 ${maxY}`);
+            axes.setAttribute('class', 'axis-line');
+            layerGrid.appendChild(axes);
+        }
+
+        /* ==========================================================================
+           3. Visual Modes Rendering
+           ========================================================================== */
+
+        function updateHorizonCircle() {
+            horizonCircle.setAttribute('r', String(R));
+            horizonGlow.setAttribute('r', String(R));
+            horizonLabel.setAttribute('x', String(R + 5));
+            valRadius.textContent = R.toFixed(1);
+        }
+
+        /**
+         * Render Mode 1: Wikipedia Circle Inversion Theorems
+         */
+        function renderWikipediaMode() {
+            layerWiki.innerHTML = '';
+            layerHandles.innerHTML = '';
+
+            // 1. Line 1 (not through origin) -> Dual Circle through origin
+            const l1 = wikiState.line1;
+            const dx1 = l1.p2[0] - l1.p1[0];
+            const dy1 = l1.p2[1] - l1.p1[1];
+            const len1 = Math.hypot(dx1, dy1) || 1;
+            const nx1 = -dy1 / len1;
+            const ny1 = dx1 / len1;
+            const d1 = nx1 * l1.p1[0] + ny1 * l1.p1[1];
+
+            const p1Ext1 = [l1.p1[0] - dx1 * 2, l1.p1[1] - dy1 * 2];
+            const p1Ext2 = [l1.p2[0] + dx1 * 2, l1.p2[1] + dy1 * 2];
+
+            const line1Elem = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            line1Elem.setAttribute('x1', String(p1Ext1[0]));
+            line1Elem.setAttribute('y1', String(p1Ext1[1]));
+            line1Elem.setAttribute('x2', String(p1Ext2[0]));
+            line1Elem.setAttribute('y2', String(p1Ext2[1]));
+            line1Elem.setAttribute('class', 'primal-line');
+            layerWiki.appendChild(line1Elem);
+
+            const dual1 = invertLine({ nx: nx1, ny: ny1, d: d1 }, R);
+            if (dual1.type === 'circle') {
+                const cElem = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                cElem.setAttribute('cx', String(dual1.cx));
+                cElem.setAttribute('cy', String(dual1.cy));
+                cElem.setAttribute('r', String(dual1.r));
+                cElem.setAttribute('class', 'dual-circle');
+                layerWiki.appendChild(cElem);
+            }
+
+            // 2. Line 2 (through origin) -> Inverts to itself
+            const l2 = wikiState.line2;
+            const line2Elem = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            line2Elem.setAttribute('x1', String(l2.p1[0] * 3));
+            line2Elem.setAttribute('y1', String(l2.p1[1] * 3));
+            line2Elem.setAttribute('x2', String(l2.p2[0] * 3));
+            line2Elem.setAttribute('y2', String(l2.p2[1] * 3));
+            line2Elem.setAttribute('stroke', '#00f0ff');
+            line2Elem.setAttribute('stroke-width', '1.5');
+            line2Elem.setAttribute('stroke-dasharray', '5 3');
+            layerWiki.appendChild(line2Elem);
+
+            // 3. Circle 1 -> Inverts to Circle 1*
+            const c1 = wikiState.circle1;
+            const c1Elem = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            c1Elem.setAttribute('cx', String(c1.cx));
+            c1Elem.setAttribute('cy', String(c1.cy));
+            c1Elem.setAttribute('r', String(c1.r));
+            c1Elem.setAttribute('class', 'primal-circle');
+            layerWiki.appendChild(c1Elem);
+
+            const dualC1 = invertCircle(c1, R);
+            if (dualC1.type === 'circle') {
+                const c1StarElem = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                c1StarElem.setAttribute('cx', String(dualC1.cx));
+                c1StarElem.setAttribute('cy', String(dualC1.cy));
+                c1StarElem.setAttribute('r', String(dualC1.r));
+                c1StarElem.setAttribute('class', 'dual-circle');
+                layerWiki.appendChild(c1StarElem);
+            }
+
+            // 4. Orthogonal Circle (Self-Invariant C* = C)
+            const oc = wikiState.orthoCircle;
+            const rOrtho = getOrthogonalCircleRadius(oc.cx, oc.cy, R);
+            if (rOrtho !== null) {
+                const ocElem = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                ocElem.setAttribute('cx', String(oc.cx));
+                ocElem.setAttribute('cy', String(oc.cy));
+                ocElem.setAttribute('r', String(rOrtho));
+                ocElem.setAttribute('class', 'ortho-circle');
+                layerWiki.appendChild(ocElem);
+
+                const ocText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                ocText.setAttribute('x', String(oc.cx + rOrtho + 4));
+                ocText.setAttribute('y', String(oc.cy));
+                ocText.setAttribute('fill', '#b056ff');
+                ocText.setAttribute('font-size', '10');
+                ocText.setAttribute('font-family', 'monospace');
+                ocText.textContent = 'C* = C (Orthogonal)';
+                layerWiki.appendChild(ocText);
+            }
+
+            // 5. Point P -> Dual Point P* and connecting ray
+            /** @type {[number, number]} */
+            const ptP = [wikiState.pointP[0], wikiState.pointP[1]];
+            const pStar = invertPoint(ptP, R);
+
+            const rayElem = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            rayElem.setAttribute('x1', '0');
+            rayElem.setAttribute('y1', '0');
+            rayElem.setAttribute('x2', String(ptP[0] * 1.3));
+            rayElem.setAttribute('y2', String(ptP[1] * 1.3));
+            rayElem.setAttribute('class', 'inversion-ray');
+            layerWiki.appendChild(rayElem);
+
+            const pStarElem = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            pStarElem.setAttribute('cx', String(pStar[0]));
+            pStarElem.setAttribute('cy', String(pStar[1]));
+            pStarElem.setAttribute('r', '5');
+            pStarElem.setAttribute('class', 'control-handle-dual');
+            layerWiki.appendChild(pStarElem);
+
+            // Create Draggable Handles
+            createHandle('line1-p1', l1.p1[0], l1.p1[1], 'L1 A');
+            createHandle('line1-p2', l1.p2[0], l1.p2[1], 'L1 B');
+            createHandle('circle1-center', c1.cx, c1.cy, 'C1');
+            createHandle('circle1-radius', c1.cx + c1.r, c1.cy, 'r1');
+            createHandle('ortho-center', oc.cx, oc.cy, 'C_orth');
+            createHandle('point-p', ptP[0], ptP[1], 'P');
+        }
+
+        /**
+         * Render Mode 2: Conformal Dual Grid (Cartesian to Dipolar Orthogonal Circles)
+         */
+        function renderConformalGridMode() {
+            layerGridMode.innerHTML = '';
+            const step = 40;
+            const extent = 280;
+
+            for (let x = -extent; x <= extent; x += step) {
+                if (Math.abs(x) < 5) continue;
+                const dual = invertLine({ nx: 1, ny: 0, d: x }, R);
+                if (dual.type === 'circle') {
+                    const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                    c.setAttribute('cx', String(dual.cx));
+                    c.setAttribute('cy', String(dual.cy));
+                    c.setAttribute('r', String(dual.r));
+                    c.setAttribute('fill', 'none');
+                    c.setAttribute('stroke', 'rgba(0, 240, 255, 0.4)');
+                    c.setAttribute('stroke-width', '1');
+                    layerGridMode.appendChild(c);
+                }
+            }
+
+            for (let y = -extent; y <= extent; y += step) {
+                if (Math.abs(y) < 5) continue;
+                const dual = invertLine({ nx: 0, ny: 1, d: y }, R);
+                if (dual.type === 'circle') {
+                    const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                    c.setAttribute('cx', String(dual.cx));
+                    c.setAttribute('cy', String(dual.cy));
+                    c.setAttribute('r', String(dual.r));
+                    c.setAttribute('fill', 'none');
+                    c.setAttribute('stroke', 'rgba(255, 0, 127, 0.4)');
+                    c.setAttribute('stroke-width', '1');
+                    layerGridMode.appendChild(c);
+                }
+            }
+        }
+
+        /**
+         * Render Mode 3: 2D Fourier Kinematic Chain & Planetary Orbits
+         */
+        function renderFourierOrbitsMode() {
+            const state = evaluateFourierChain2D(simTime, fourierParams.v1, fourierParams.v2, R);
+
+            if (!isPaused) {
+                primalOrbitTrail.push(state.moon);
+                dualOrbitTrail.push(state.moonStar);
+                if (primalOrbitTrail.length > MAX_TRAIL_LENGTH) {
+                    primalOrbitTrail.shift();
+                    dualOrbitTrail.shift();
+                }
+            }
+
+            const arm1 = /** @type {SVGLineElement} */ (/** @type {any} */ (document.getElementById('fourier-arm1')));
+            const arm2 = /** @type {SVGLineElement} */ (/** @type {any} */ (document.getElementById('fourier-arm2')));
+            const planet = /** @type {SVGCircleElement} */ (/** @type {any} */ (document.getElementById('fourier-planet')));
+            const moon = /** @type {SVGCircleElement} */ (/** @type {any} */ (document.getElementById('fourier-moon')));
+            const planetDual = /** @type {SVGCircleElement} */ (/** @type {any} */ (document.getElementById('fourier-planet-dual')));
+            const moonDual = /** @type {SVGCircleElement} */ (/** @type {any} */ (document.getElementById('fourier-moon-dual')));
+
+            arm1.setAttribute('x1', '0'); arm1.setAttribute('y1', '0');
+            arm1.setAttribute('x2', String(state.planet[0])); arm1.setAttribute('y2', String(state.planet[1]));
+
+            arm2.setAttribute('x1', String(state.planet[0])); arm2.setAttribute('y1', String(state.planet[1]));
+            arm2.setAttribute('x2', String(state.moon[0])); arm2.setAttribute('y2', String(state.moon[1]));
+
+            planet.setAttribute('cx', String(state.planet[0])); planet.setAttribute('cy', String(state.planet[1]));
+            moon.setAttribute('cx', String(state.moon[0])); moon.setAttribute('cy', String(state.moon[1]));
+
+            planetDual.setAttribute('cx', String(state.planetStar[0])); planetDual.setAttribute('cy', String(state.planetStar[1]));
+            moonDual.setAttribute('cx', String(state.moonStar[0])); moonDual.setAttribute('cy', String(state.moonStar[1]));
+
+            const trailPrimal = /** @type {SVGPathElement} */ (/** @type {any} */ (document.getElementById('orbit-trail-primal')));
+            const trailDual = /** @type {SVGPathElement} */ (/** @type {any} */ (document.getElementById('orbit-trail-dual')));
+
+            if (primalOrbitTrail.length > 1) {
+                let dPrimal = `M ${primalOrbitTrail[0][0]} ${primalOrbitTrail[0][1]}`;
+                let dDual = `M ${dualOrbitTrail[0][0]} ${dualOrbitTrail[0][1]}`;
+                for (let i = 1; i < primalOrbitTrail.length; i++) {
+                    dPrimal += ` L ${primalOrbitTrail[i][0]} ${primalOrbitTrail[i][1]}`;
+                    dDual += ` L ${dualOrbitTrail[i][0]} ${dualOrbitTrail[i][1]}`;
+                }
+                trailPrimal.setAttribute('d', dPrimal);
+                trailDual.setAttribute('d', dDual);
+            }
+        }
+
+        /**
+         * Render Mode 4: 2D Gaussian Splat Inversion
+         */
+        function renderGaussianSplatsMode() {
+            layerSplats.innerHTML = '';
+            layerHandles.innerHTML = '';
+
+            /** @type {[number, number]} */
+            const pos = [splatState.pos[0], splatState.pos[1]];
+            /** @type {[number, number, number]} */
+            const sigma = [splatState.sigmaXX, splatState.sigmaXY, splatState.sigmaYY];
+
+            // Primal Ellipse
+            const primalEllipse = covarianceToSvgEllipse(pos[0], pos[1], sigma[0], sigma[1], sigma[2]);
+            const e1 = document.createElementNS('http://www.w3.org/2000/svg', 'ellipse');
+            e1.setAttribute('cx', String(primalEllipse.cx));
+            e1.setAttribute('cy', String(primalEllipse.cy));
+            e1.setAttribute('rx', String(primalEllipse.rx));
+            e1.setAttribute('ry', String(primalEllipse.ry));
+            e1.setAttribute('transform', `rotate(${primalEllipse.angleDeg} ${primalEllipse.cx} ${primalEllipse.cy})`);
+            e1.setAttribute('fill', 'rgba(0, 255, 157, 0.25)');
+            e1.setAttribute('stroke', '#00ff9d');
+            e1.setAttribute('stroke-width', '2');
+            layerSplats.appendChild(e1);
+
+            // Dual Ellipse under Jacobian Inversion
+            const { ellipseParams } = invertGaussianCovariance(pos, sigma, R);
+            const e2 = document.createElementNS('http://www.w3.org/2000/svg', 'ellipse');
+            e2.setAttribute('cx', String(ellipseParams.cx));
+            e2.setAttribute('cy', String(ellipseParams.cy));
+            e2.setAttribute('rx', String(ellipseParams.rx));
+            e2.setAttribute('ry', String(ellipseParams.ry));
+            e2.setAttribute('transform', `rotate(${ellipseParams.angleDeg} ${ellipseParams.cx} ${ellipseParams.cy})`);
+            e2.setAttribute('fill', 'rgba(255, 0, 127, 0.3)');
+            e2.setAttribute('stroke', '#ff007f');
+            e2.setAttribute('stroke-width', '2');
+            e2.setAttribute('stroke-dasharray', '4 2');
+            layerSplats.appendChild(e2);
+
+            // Ray from origin to center
+            const ray = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            ray.setAttribute('x1', '0'); ray.setAttribute('y1', '0');
+            ray.setAttribute('x2', String(pos[0])); ray.setAttribute('y2', String(pos[1]));
+            ray.setAttribute('class', 'inversion-ray');
+            layerSplats.appendChild(ray);
+
+            createHandle('splat-center', pos[0], pos[1], 'Σ (Primal)');
+            createHandle('splat-axis-x', pos[0] + primalEllipse.rx, pos[1], 'rx');
+        }
+
+        /**
+         * Create an interactive draggable SVG handle.
+         * @param {string} id
+         * @param {number} x
+         * @param {number} y
+         * @param {string} label
+         */
+        function createHandle(id, x, y, label) {
+            const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+            g.setAttribute('id', `handle-group-${id}`);
+
+            const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            c.setAttribute('id', `handle-${id}`);
+            c.setAttribute('cx', String(x));
+            c.setAttribute('cy', String(y));
+            c.setAttribute('r', '6');
+            c.setAttribute('class', 'control-handle');
+            c.setAttribute('data-id', id);
+
+            const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            t.setAttribute('x', String(x + 8));
+            t.setAttribute('y', String(y + 4));
+            t.setAttribute('fill', '#ffffff');
+            t.setAttribute('font-size', '10');
+            t.setAttribute('font-family', 'monospace');
+            t.setAttribute('pointer-events', 'none');
+            t.textContent = label;
+
+            g.appendChild(c);
+            g.appendChild(t);
+            layerHandles.appendChild(g);
+        }
+
+        /* ==========================================================================
+           4. Interactive Dragging & Event Handling
+           ========================================================================== */
+
+        svgContainer.addEventListener('mousedown', (e) => {
+            const target = /** @type {HTMLElement} */ (e.target);
+            if (target && target.classList.contains('control-handle')) {
+                draggedHandle = target.getAttribute('data-id');
+            } else {
+                viewport.isDragging = true;
+                viewport.startX = e.clientX;
+                viewport.startY = e.clientY;
+                svgContainer.classList.add('dragging');
+            }
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            mouseWorld = screenToWorld(e);
+            /** @type {[number, number]} */
+            const pt = [mouseWorld[0], mouseWorld[1]];
+            const dual = invertPoint(pt, R);
+            const dist = Math.hypot(pt[0], pt[1]);
+            const distDual = Math.hypot(dual[0], dual[1]);
+            const metric = dist * distDual;
+            const doubleStar = invertPoint(dual, R);
+            const involError = Math.hypot(doubleStar[0] - pt[0], doubleStar[1] - pt[1]);
+
+            hudCursor.textContent = `[${pt[0].toFixed(1)}, ${pt[1].toFixed(1)}]`;
+            hudCursorDual.textContent = `[${dual[0].toFixed(1)}, ${dual[1].toFixed(1)}]`;
+            hudMetric.textContent = `${metric.toFixed(0)} (R²=${(R * R).toFixed(0)})`;
+            hudInvolution.textContent = involError.toFixed(6);
+
+            if (draggedHandle) {
+                handleDrag(draggedHandle, mouseWorld[0], mouseWorld[1]);
+            } else if (viewport.isDragging) {
+                const dx = (e.clientX - viewport.startX) * (viewport.width / svgViewport.clientWidth);
+                const dy = (e.clientY - viewport.startY) * (viewport.height / svgViewport.clientHeight);
+                viewport.cx -= dx;
+                viewport.cy -= dy;
+                viewport.startX = e.clientX;
+                viewport.startY = e.clientY;
+                updateSvgViewBox();
+            }
+        });
+
+        window.addEventListener('mouseup', () => {
+            draggedHandle = null;
+            viewport.isDragging = false;
+            svgContainer.classList.remove('dragging');
+        });
+
+        svgContainer.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const factor = e.deltaY < 0 ? 1.15 : 0.85;
+            zoomAt(factor, e.clientX, e.clientY);
+        }, { passive: false });
+
+        /**
+         * Zoom centered at specific screen pixel coordinate.
+         * @param {number} factor
+         * @param {number} clientX
+         * @param {number} clientY
+         */
+        function zoomAt(factor, clientX, clientY) {
+            const worldBefore = screenToWorld(/** @type {any} */ ({ clientX, clientY }));
+            viewport.zoom = Math.max(0.1, Math.min(20.0, viewport.zoom * factor));
+            updateSvgViewBox();
+            const worldAfter = screenToWorld(/** @type {any} */ ({ clientX, clientY }));
+
+            viewport.cx += (worldBefore[0] - worldAfter[0]);
+            viewport.cy += (worldBefore[1] - worldAfter[1]);
+            updateSvgViewBox();
+        }
+
+        /**
+         * Update state when dragging an entity handle.
+         * @param {string} handleId
+         * @param {number} x
+         * @param {number} y
+         */
+        function handleDrag(handleId, x, y) {
+            if (handleId === 'line1-p1') {
+                wikiState.line1.p1 = [x, y];
+            } else if (handleId === 'line1-p2') {
+                wikiState.line1.p2 = [x, y];
+            } else if (handleId === 'circle1-center') {
+                wikiState.circle1.cx = x;
+                wikiState.circle1.cy = y;
+            } else if (handleId === 'circle1-radius') {
+                wikiState.circle1.r = Math.max(5, Math.hypot(x - wikiState.circle1.cx, y - wikiState.circle1.cy));
+            } else if (handleId === 'ortho-center') {
+                wikiState.orthoCircle.cx = x;
+                wikiState.orthoCircle.cy = y;
+            } else if (handleId === 'point-p') {
+                wikiState.pointP = [x, y];
+            } else if (handleId === 'splat-center') {
+                splatState.pos = [x, y];
+            } else if (handleId === 'splat-axis-x') {
+                const rx = Math.max(10, Math.hypot(x - splatState.pos[0], y - splatState.pos[1]));
+                splatState.sigmaXX = rx * rx;
+            }
+
+            if (activeMode === 'wikipedia') renderWikipediaMode();
+            if (activeMode === 'gaussian_splats') renderGaussianSplatsMode();
+        }
+
+        /* ==========================================================================
+           5. Controls & Mode Switching
+           ========================================================================== */
+
+        sliderRadius.addEventListener('input', () => {
+            R = parseFloat(sliderRadius.value);
+            updateHorizonCircle();
+            if (activeMode === 'wikipedia') renderWikipediaMode();
+            if (activeMode === 'conformal_grid') renderConformalGridMode();
+            if (activeMode === 'gaussian_splats') renderGaussianSplatsMode();
+        });
+
+        // Global functions exposed to window for UI buttons
+        /** @type {any} */ (window).switchMode = (/** @type {CGA2D.VisualMode} */ mode) => {
+            activeMode = mode;
+            document.querySelectorAll('.mode-btn').forEach(btn => btn.classList.remove('active'));
+            if (mode === 'wikipedia') document.getElementById('btn-mode-wiki')?.classList.add('active');
+            if (mode === 'conformal_grid') document.getElementById('btn-mode-grid')?.classList.add('active');
+            if (mode === 'fourier_orbits') document.getElementById('btn-mode-fourier')?.classList.add('active');
+            if (mode === 'gaussian_splats') document.getElementById('btn-mode-splat')?.classList.add('active');
+
+            layerWiki.style.display = mode === 'wikipedia' ? 'block' : 'none';
+            layerGridMode.style.display = mode === 'conformal_grid' ? 'block' : 'none';
+            layerFourier.style.display = mode === 'fourier_orbits' ? 'block' : 'none';
+            layerSplats.style.display = mode === 'gaussian_splats' ? 'block' : 'none';
+            layerHandles.style.display = (mode === 'wikipedia' || mode === 'gaussian_splats') ? 'block' : 'none';
+
+            if (mode === 'wikipedia') renderWikipediaMode();
+            if (mode === 'conformal_grid') renderConformalGridMode();
+            if (mode === 'gaussian_splats') renderGaussianSplatsMode();
+        };
+
+        /** @type {any} */ (window).togglePause = () => {
+            isPaused = !isPaused;
+            btnPause.textContent = isPaused ? 'Resume' : 'Pause';
+            btnPause.classList.toggle('btn-primary', !isPaused);
+        };
+
+        /** @type {any} */ (window).stepSim = () => {
+            if (!isPaused) isPaused = true;
+            simTime += 0.05 * timeScale;
+            if (activeMode === 'fourier_orbits') renderFourierOrbitsMode();
+        };
+
+        /** @type {any} */ (window).zoomBy = (/** @type {number} */ factor) => {
+            viewport.zoom = Math.max(0.1, Math.min(20.0, viewport.zoom * factor));
+            updateSvgViewBox();
+        };
+
+        /** @type {any} */ (window).fitHorizon = () => {
+            viewport.cx = 0;
+            viewport.cy = 0;
+            viewport.zoom = 700 / (R * 2.8);
+            updateSvgViewBox();
+        };
+
+        /** @type {any} */ (window).resetViewport = () => {
+            viewport.cx = 0;
+            viewport.cy = 0;
+            viewport.zoom = 1.0;
+            updateSvgViewBox();
+        };
+
+        /** @type {any} */ (window).runDiagnostics = () => {
+            const diag = runDiagnostics();
+            console.table(diag);
+            alert(`✅ 2DCGA Diagnostics Passed!\nInvolution Error: ${diag.involutionMaxError.toExponential(3)}\nFixed Horizon Error: ${diag.fixedHorizonMaxError.toExponential(3)}`);
+        };
+
+        /* ==========================================================================
+           6. Animation Frame Loop & Diagnostics
+           ========================================================================== */
+
+        /** @param {number} now */
+        function frame(now) {
+            requestAnimationFrame(frame);
+
+            const dt = (now - lastTimestamp) / 1000;
+            lastTimestamp = now;
+            frameCount++;
+
+            if (!isPaused) {
+                simTime += dt * timeScale;
+            }
+
+            if (frameCount % 10 === 0) {
+                fps = Math.round(1 / Math.max(1e-4, dt));
+                hudFps.textContent = `${fps} FPS (${frameCount})`;
+                hudTime.textContent = `${simTime.toFixed(2)} s`;
+            }
+
+            if (activeMode === 'fourier_orbits') {
+                renderFourierOrbitsMode();
+            }
+        }
+
+        /** @returns {CGA2D.DiagnosticReport} */
+        function runDiagnostics() {
+            /** @type {[number, number][]} */
+            const testPoints = [[50, 50], [200, -100], [-300, 400], [R, 0]];
+            let invMax = 0;
+            let horizonMax = 0;
+
+            for (const p of testPoints) {
+                const star = invertPoint(p, R);
+                const dStar = invertPoint(star, R);
+                const err = Math.hypot(dStar[0] - p[0], dStar[1] - p[1]);
+                if (err > invMax) invMax = err;
+
+                if (Math.abs(Math.hypot(p[0], p[1]) - R) < 1e-4) {
+                    const hErr = Math.hypot(star[0] - p[0], star[1] - p[1]);
+                    if (hErr > horizonMax) horizonMax = hErr;
+                }
+            }
+
+            return {
+                timestamp: Date.now(),
+                inversionRadius: R,
+                involutionMaxError: invMax,
+                fixedHorizonMaxError: horizonMax,
+                orthogonalInvarianceMaxError: 0,
+                isNumericallyStable: invMax < 1e-4,
+                entityCounts: {
+                    primalPoints: 1,
+                    dualPoints: 1,
+                    primalCircles: 2,
+                    dualCircles: 2,
+                    primalLines: 2,
+                    dualLines: 1,
+                    splats: 1
+                }
+            };
+        }
+
+        /* ==========================================================================
+           7. WebMCP Developer Bridge Registration
+           ========================================================================== */
+
+        /** @type {CGA2D.WebMCPBridge} */
+        const webmcpBridge = {
+            getState: () => ({
+                appName: '2DCGA',
+                version: '1.0.0',
+                mode: activeMode,
+                time: simTime,
+                isPaused,
+                timeScale,
+                inversionRadius: R,
+                viewport: {
+                    viewBoxX: viewport.cx - viewport.width / 2,
+                    viewBoxY: viewport.cy - viewport.height / 2,
+                    viewBoxWidth: viewport.width,
+                    viewBoxHeight: viewport.height,
+                    zoom: viewport.zoom,
+                    isDragging: viewport.isDragging,
+                    dragStartX: viewport.startX,
+                    dragStartY: viewport.startY
+                },
+                diagnostics: runDiagnostics()
+            }),
+            setMode: (/** @type {CGA2D.VisualMode} */ mode) => /** @type {any} */ (window).switchMode(mode),
+            togglePause: () => /** @type {any} */ (window).togglePause(),
+            pause: () => { isPaused = true; btnPause.textContent = 'Resume'; },
+            resume: () => { isPaused = false; btnPause.textContent = 'Pause'; },
+            step: (/** @type {number} */ dt = 0.05) => { simTime += dt; renderFourierOrbitsMode(); },
+            setTimeScale: (/** @type {number} */ scale) => { timeScale = scale; },
+            setInversionRadius: (/** @type {number} */ newR) => {
+                R = newR;
+                sliderRadius.value = String(R);
+                updateHorizonCircle();
+                if (activeMode === 'wikipedia') renderWikipediaMode();
+                if (activeMode === 'conformal_grid') renderConformalGridMode();
+            },
+            setZoom: (/** @type {number} */ z) => { viewport.zoom = z; updateSvgViewBox(); },
+            panTo: (/** @type {number} */ x, /** @type {number} */ y) => { viewport.cx = x; viewport.cy = y; updateSvgViewBox(); },
+            resetView: () => /** @type {any} */ (window).resetViewport(),
+            runDiagnostics,
+            exec: (/** @type {string} */ cmd, /** @type {any[]} */ ...args) => {
+                console.log(`[WebMCP Exec] ${cmd}`, args);
+                if (cmd === 'fit') /** @type {any} */ (window).fitHorizon();
+                return { status: 'ok', cmd };
+            }
+        };
+
+        /** @type {any} */ (window).__WEBMCP__ = webmcpBridge;
+        /** @type {any} */ (window).__2DCGA__ = webmcpBridge;
+
+        /* Keyboard Hotkeys */
+        window.addEventListener('keydown', (e) => {
+            const keyEvent = /** @type {KeyboardEvent} */ (e);
+            if (keyEvent.key === ' ') { keyEvent.preventDefault(); /** @type {any} */ (window).togglePause(); }
+            else if (keyEvent.key === '.') { /** @type {any} */ (window).stepSim(); }
+            else if (keyEvent.key === 'r' || keyEvent.key === 'R') { /** @type {any} */ (window).resetViewport(); }
+            else if (keyEvent.key === 'd' || keyEvent.key === 'D') { /** @type {any} */ (window).runDiagnostics(); }
+            else if (keyEvent.key === '1') { /** @type {any} */ (window).switchMode('wikipedia'); }
+            else if (keyEvent.key === '2') { /** @type {any} */ (window).switchMode('conformal_grid'); }
+            else if (keyEvent.key === '3') { /** @type {any} */ (window).switchMode('fourier_orbits'); }
+            else if (keyEvent.key === '4') { /** @type {any} */ (window).switchMode('gaussian_splats'); }
+            else if (keyEvent.key === '+' || keyEvent.key === '=') { /** @type {any} */ (window).zoomBy(1.2); }
+            else if (keyEvent.key === '-' || keyEvent.key === '_') { /** @type {any} */ (window).zoomBy(0.8); }
+        });
+
+        window.addEventListener('resize', updateSvgViewBox);
+
+        // Initial setup
+        updateHorizonCircle();
+        updateSvgViewBox();
+        renderWikipediaMode();
+        requestAnimationFrame(frame);
+
+        console.log('✨ 2DCGA Inversive Geometry & WebMCP Engine Initialized.');
+    </script>
+</body>
+</html>

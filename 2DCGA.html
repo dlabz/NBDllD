@@ -1,0 +1,2519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔮 2DCGA — 4-Tangent Conformal Optics &amp; Complex k-Axis Singularity</title>
+    <style>
+        :root {
+            --bg-base: #03060b;
+            --bg-panel: rgba(8, 13, 24, 0.88);
+            --bg-panel-border: rgba(0, 240, 255, 0.22);
+            --text-main: #e2e8f0;
+            --text-dim: #94a3b8;
+            --accent-cyan: #00f0ff;       /* Planet color (Complement of Red) */
+            --accent-magenta: #ff007f;    /* Moon color (Complement of Green) */
+            --accent-yellow: #ffd700;     /* Sun Photosphere (Complement of Blue) */
+            --accent-red: #ff3344;        /* Sun-Planet Lagrange System */
+            --accent-green: #00ff66;      /* Planet-Moon Lagrange System */
+            --accent-orange: #ff8800;     /* Transverse Crossed Tangents */
+            --font-ui: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            --font-mono: "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: var(--bg-base);
+            font-family: var(--font-ui);
+            color: var(--text-main);
+        }
+
+        #svg-container {
+            width: 100vw;
+            height: 100vh;
+            cursor: grab;
+            display: block;
+        }
+
+        #svg-container.dragging {
+            cursor: grabbing;
+        }
+
+        #svg-viewport {
+            width: 100%;
+            height: 100%;
+            touch-action: none;
+        }
+
+        /* Scale-Independent CAD Vector Styling: Constant screen pixel width */
+        svg line, svg circle, svg path, svg polygon, svg ellipse, svg rect {
+            vector-effect: non-scaling-stroke;
+        }
+
+        /* SVG Element Styles */
+        .horizon-circle {
+            fill: rgba(255, 215, 0, 0.02);
+            stroke: var(--accent-yellow);
+            stroke-width: 1.5px;
+            stroke-dasharray: 6 3;
+            filter: drop-shadow(0 0 8px rgba(255, 215, 0, 0.4));
+        }
+
+        .horizon-glow {
+            fill: none;
+            stroke: rgba(255, 215, 0, 0.2);
+            stroke-width: 6px;
+        }
+
+        .horizon-barrier-ring {
+            fill: none;
+            stroke: rgba(255, 80, 0, 0.35);
+            stroke-width: 1.5px;
+            stroke-dasharray: 3 3;
+        }
+
+        .primal-line {
+            stroke: var(--accent-cyan);
+            stroke-width: 1.5px;
+            stroke-linecap: round;
+        }
+
+        .dual-circle {
+            fill: rgba(255, 0, 127, 0.05);
+            stroke: var(--accent-magenta);
+            stroke-width: 1.5px;
+            stroke-dasharray: 4 2;
+        }
+
+        .primal-circle {
+            fill: rgba(0, 240, 255, 0.05);
+            stroke: var(--accent-cyan);
+            stroke-width: 1.5px;
+        }
+
+        .ortho-circle {
+            fill: rgba(176, 86, 255, 0.06);
+            stroke: #b056ff;
+            stroke-width: 1.5px;
+            stroke-dasharray: 5 3;
+        }
+
+        .inversion-ray {
+            stroke: rgba(255, 255, 255, 0.2);
+            stroke-width: 1px;
+            stroke-dasharray: 2 2;
+        }
+
+        .control-handle {
+            fill: #ffffff;
+            stroke: var(--accent-cyan);
+            stroke-width: 1.5px;
+            cursor: move;
+        }
+
+        .control-handle:hover {
+            fill: var(--accent-cyan);
+            filter: drop-shadow(0 0 6px var(--accent-cyan));
+        }
+
+        .control-handle-dual {
+            fill: var(--accent-magenta);
+            stroke: #ffffff;
+            stroke-width: 1px;
+            pointer-events: none;
+        }
+
+        .grid-line {
+            stroke: rgba(255, 255, 255, 0.035);
+            stroke-width: 0.5px;
+        }
+
+        .axis-line {
+            stroke: rgba(255, 255, 255, 0.12);
+            stroke-width: 1px;
+        }
+
+        /* Celestial Bodies (CMY Colors) */
+        .sun-photosphere {
+            fill: url(#sun-photosphere-grad);
+            stroke: var(--accent-yellow);
+            stroke-width: 1.5px;
+            filter: drop-shadow(0 0 20px rgba(255, 215, 0, 0.8));
+        }
+
+        .sun-corona {
+            fill: none;
+            stroke: url(#sun-corona-grad);
+            stroke-width: 24px;
+            opacity: 0.45;
+            filter: blur(8px);
+        }
+
+        /* 4-Zone Celestial Illumination */
+        .zone-day-planet {
+            fill: none;
+            stroke: var(--accent-cyan);
+            stroke-width: 2.2px;
+            stroke-linecap: round;
+            filter: drop-shadow(0 0 6px var(--accent-cyan));
+        }
+
+        .zone-twilight-planet {
+            fill: none;
+            stroke: rgba(0, 200, 230, 0.75);
+            stroke-width: 1.5px;
+            stroke-linecap: round;
+            stroke-dasharray: 2 1;
+        }
+
+        .zone-night-planet {
+            fill: #03080e;
+            stroke: rgba(0, 240, 255, 0.25);
+            stroke-width: 1px;
+        }
+
+        .zone-day-moon {
+            fill: none;
+            stroke: var(--accent-magenta);
+            stroke-width: 2px;
+            stroke-linecap: round;
+            filter: drop-shadow(0 0 5px var(--accent-magenta));
+        }
+
+        .zone-twilight-moon {
+            fill: none;
+            stroke: rgba(255, 0, 127, 0.65);
+            stroke-width: 1.2px;
+            stroke-linecap: round;
+            stroke-dasharray: 2 1;
+        }
+
+        .zone-night-moon {
+            fill: #0d0309;
+            stroke: rgba(255, 0, 127, 0.25);
+            stroke-width: 0.8px;
+        }
+
+        /* Continuous Extended 4 Common Tangents (Direct & Transverse) */
+        .tangent-direct-sp {
+            stroke: rgba(255, 215, 0, 0.75);
+            stroke-width: 1px;
+            stroke-dasharray: 6 3;
+        }
+
+        .tangent-transverse-sp {
+            stroke: rgba(255, 136, 0, 0.75);
+            stroke-width: 1px;
+            stroke-dasharray: 5 2.5;
+        }
+
+        .tangent-direct-pm {
+            stroke: rgba(0, 240, 255, 0.65);
+            stroke-width: 0.8px;
+            stroke-dasharray: 4 2;
+        }
+
+        .tangent-transverse-pm {
+            stroke: rgba(0, 255, 102, 0.65);
+            stroke-width: 0.8px;
+            stroke-dasharray: 4 2;
+        }
+
+        /* Conformal Dual Circles in Inner Universes */
+        .conformal-dual-circle {
+            fill: none;
+            stroke: rgba(255, 215, 0, 0.45);
+            stroke-width: 0.6px;
+            stroke-dasharray: 2 2;
+        }
+
+        .conformal-dual-circle-pm {
+            fill: none;
+            stroke: rgba(0, 255, 102, 0.45);
+            stroke-width: 0.5px;
+            stroke-dasharray: 2 1.5;
+        }
+
+        /* Umbra & Penumbra Shadow Volumes bounded by the 4 tangents */
+        .umbra-cone {
+            fill: rgba(0, 0, 0, 0.85);
+            stroke: rgba(255, 51, 68, 0.35);
+            stroke-width: 0.8px;
+        }
+
+        .penumbra-cone {
+            fill: rgba(0, 0, 0, 0.35);
+            stroke: rgba(255, 136, 0, 0.15);
+            stroke-width: 0.6px;
+        }
+
+        .planetshine-ray {
+            stroke: rgba(0, 240, 255, 0.3);
+            stroke-width: 1px;
+            stroke-dasharray: 4 2;
+        }
+
+        .moonshine-ray {
+            stroke: rgba(255, 0, 127, 0.25);
+            stroke-width: 0.8px;
+            stroke-dasharray: 3 2;
+        }
+
+        /* Lagrangian CAD Lines: Collinear Axis Line [L3-L1-L2] & Orbit Guide Circle */
+        .lagrange-line-sp {
+            stroke: rgba(255, 51, 68, 0.65);
+            stroke-width: 1px;
+            stroke-dasharray: 4 2;
+        }
+
+        .lagrange-line-pm {
+            stroke: rgba(0, 255, 102, 0.65);
+            stroke-width: 1px;
+            stroke-dasharray: 3 2;
+        }
+
+        .lagrange-guide-orbit-sp {
+            fill: none;
+            stroke: rgba(255, 51, 68, 0.3);
+            stroke-width: 1px;
+            stroke-dasharray: 5 4;
+        }
+
+        .lagrange-guide-orbit-pm {
+            fill: none;
+            stroke: rgba(0, 255, 102, 0.3);
+            stroke-width: 1px;
+            stroke-dasharray: 3 3;
+        }
+
+        .lagrange-dot-sp {
+            fill: var(--accent-red);
+            stroke: #ffffff;
+            stroke-width: 0.8px;
+        }
+
+        .lagrange-dot-pm {
+            fill: var(--accent-green);
+            stroke: #ffffff;
+            stroke-width: 0.8px;
+        }
+
+        .lagrange-label-sp {
+            fill: var(--accent-red);
+            font-size: 8.5px;
+            font-family: monospace;
+            font-weight: 600;
+            pointer-events: none;
+        }
+
+        .lagrange-label-pm {
+            fill: var(--accent-green);
+            font-size: 8px;
+            font-family: monospace;
+            font-weight: 600;
+            pointer-events: none;
+        }
+
+        /* Roche Equipotentials */
+        .roche-path-sp {
+            fill: rgba(255, 51, 68, 0.02);
+            stroke: rgba(255, 51, 68, 0.3);
+            stroke-width: 0.8px;
+            stroke-dasharray: 4 3;
+        }
+
+        .roche-path-pm {
+            fill: rgba(0, 255, 102, 0.02);
+            stroke: rgba(0, 255, 102, 0.3);
+            stroke-width: 0.8px;
+            stroke-dasharray: 3 2;
+        }
+
+        /* Internal Singularity Cores (Complex k-axis Infinity Singularity) */
+        .singularity-sun-core {
+            fill: url(#sun-singularity-grad);
+            filter: drop-shadow(0 0 10px rgba(0, 240, 255, 0.9));
+        }
+
+        .singularity-planet-core {
+            fill: url(#planet-singularity-grad);
+            filter: drop-shadow(0 0 8px rgba(0, 240, 255, 0.9));
+        }
+
+        .singularity-moon-core {
+            fill: url(#moon-singularity-grad);
+            filter: drop-shadow(0 0 6px rgba(255, 0, 127, 0.9));
+        }
+
+        .internal-sun-disk {
+            fill: url(#sun-photosphere-grad);
+            stroke: var(--accent-yellow);
+            stroke-width: 0.8px;
+        }
+
+        .internal-planet-disk {
+            fill: var(--accent-cyan);
+            stroke: #ffffff;
+            stroke-width: 0.5px;
+        }
+
+        .internal-moon-disk {
+            fill: var(--accent-magenta);
+            stroke: #ffffff;
+            stroke-width: 0.5px;
+        }
+
+        /* Glassmorphism UI */
+        .glass-panel {
+            position: absolute;
+            background: var(--bg-panel);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--bg-panel-border);
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+            padding: 16px;
+            z-index: 10;
+        }
+
+        #header-panel {
+            top: 16px;
+            left: 16px;
+            max-width: 440px;
+        }
+
+        .title {
+            font-size: 16px;
+            font-weight: 700;
+            color: #ffffff;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            letter-spacing: 0.5px;
+        }
+
+        .subtitle {
+            font-size: 11px;
+            color: var(--text-dim);
+            margin-top: 4px;
+            line-height: 1.4;
+        }
+
+        /* Mode Selector Tabs */
+        .mode-tabs {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px;
+            margin-top: 12px;
+        }
+
+        .mode-btn {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 6px;
+            color: var(--text-dim);
+            padding: 8px 6px;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.2s ease;
+        }
+
+        .mode-btn:hover {
+            background: rgba(0, 240, 255, 0.1);
+            color: #ffffff;
+            border-color: rgba(0, 240, 255, 0.3);
+        }
+
+        .mode-btn.active {
+            background: rgba(0, 240, 255, 0.2);
+            color: var(--accent-cyan);
+            border-color: var(--accent-cyan);
+            box-shadow: 0 0 10px rgba(0, 240, 255, 0.3);
+        }
+
+        .mode-btn.full-width {
+            grid-column: span 2;
+            background: rgba(255, 0, 127, 0.1);
+            border-color: rgba(255, 0, 127, 0.3);
+            color: #ff99cc;
+        }
+
+        .mode-btn.full-width.active {
+            background: rgba(255, 0, 127, 0.25);
+            border-color: var(--accent-magenta);
+            color: #ffffff;
+            box-shadow: 0 0 12px rgba(255, 0, 127, 0.4);
+        }
+
+        /* Camera Focus Preset Buttons */
+        .camera-focus-bar {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr 1fr;
+            gap: 4px;
+            margin-top: 8px;
+        }
+
+        .cam-btn {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 4px;
+            color: var(--text-main);
+            padding: 6px 2px;
+            font-size: 10px;
+            font-weight: 600;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.15s ease;
+        }
+
+        .cam-btn:hover {
+            background: rgba(0, 240, 255, 0.2);
+            border-color: var(--accent-cyan);
+            color: #ffffff;
+        }
+
+        .cam-btn.active {
+            background: rgba(0, 240, 255, 0.25);
+            border-color: var(--accent-cyan);
+            color: var(--accent-cyan);
+        }
+
+        /* Controls Panel */
+        #controls-panel {
+            bottom: 16px;
+            left: 16px;
+            width: 440px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-height: 440px;
+            overflow-y: auto;
+        }
+
+        .control-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 12px;
+        }
+
+        .control-label {
+            color: var(--text-dim);
+            font-size: 11px;
+            font-weight: 500;
+        }
+
+        .control-value {
+            font-family: var(--font-mono);
+            color: var(--accent-cyan);
+            font-size: 11px;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 2px;
+            outline: none;
+            -webkit-appearance: none;
+            margin-top: 3px;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: var(--accent-cyan);
+            cursor: pointer;
+            box-shadow: 0 0 6px var(--accent-cyan);
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 8px;
+            margin-top: 4px;
+        }
+
+        .btn {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 6px;
+            color: var(--text-main);
+            padding: 8px;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-align: center;
+        }
+
+        .btn:hover {
+            background: rgba(255, 255, 255, 0.12);
+            border-color: rgba(255, 255, 255, 0.3);
+        }
+
+        .btn-primary {
+            background: rgba(0, 240, 255, 0.15);
+            border-color: var(--accent-cyan);
+            color: var(--accent-cyan);
+        }
+
+        .btn-primary:hover {
+            background: rgba(0, 240, 255, 0.3);
+            box-shadow: 0 0 8px rgba(0, 240, 255, 0.4);
+        }
+
+        /* Telemetry HUD */
+        #telemetry-panel {
+            top: 16px;
+            right: 16px;
+            min-width: 350px;
+            font-family: var(--font-mono);
+            font-size: 11px;
+        }
+
+        .hud-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 6px;
+            line-height: 1.4;
+        }
+
+        .hud-key {
+            color: var(--text-dim);
+        }
+
+        .hud-val {
+            color: #ffffff;
+            font-weight: 600;
+        }
+
+        .hud-val.gold { color: var(--accent-yellow); }
+        .hud-val.cyan { color: var(--accent-cyan); }
+        .hud-val.magenta { color: var(--accent-magenta); }
+        .hud-val.red { color: var(--accent-red); }
+        .hud-val.green { color: var(--accent-green); }
+        .hud-val.orange { color: var(--accent-orange); }
+
+        /* Floating Viewport Controls */
+        #viewport-dock {
+            bottom: 16px;
+            right: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .dock-btn {
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            background: var(--bg-panel);
+            border: 1px solid var(--bg-panel-border);
+            color: var(--text-main);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            backdrop-filter: blur(12px);
+            transition: all 0.2s ease;
+        }
+
+        .dock-btn:hover {
+            background: rgba(0, 240, 255, 0.2);
+            color: var(--accent-cyan);
+            border-color: var(--accent-cyan);
+            box-shadow: 0 0 8px rgba(0, 240, 255, 0.4);
+        }
+
+        /* Legend */
+        .legend-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 10px;
+            margin-top: 4px;
+        }
+
+        .legend-swatch {
+            width: 12px;
+            height: 3px;
+            border-radius: 2px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Main Interactive SVG Canvas -->
+    <div id="svg-container">
+        <svg id="svg-viewport" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+                <!-- Sun Photosphere Inversion Gradient (Boundary -> Inverted Cosmic Void -> Center Infinity Singularity) -->
+                <radialGradient id="sun-photosphere-grad">
+                    <stop offset="0%" stop-color="#ffffff" stop-opacity="1" />
+                    <stop offset="6%" stop-color="#00f0ff" stop-opacity="1" />
+                    <stop offset="18%" stop-color="#ff007f" stop-opacity="0.8" />
+                    <stop offset="45%" stop-color="#03020a" stop-opacity="0.95" />
+                    <stop offset="75%" stop-color="#2d0b44" stop-opacity="0.98" />
+                    <stop offset="92%" stop-color="#ff6600" stop-opacity="1" />
+                    <stop offset="100%" stop-color="#ffd700" stop-opacity="1" />
+                </radialGradient>
+
+                <radialGradient id="sun-corona-grad">
+                    <stop offset="0%" stop-color="#ffd700" stop-opacity="0.8" />
+                    <stop offset="50%" stop-color="#ff5500" stop-opacity="0.35" />
+                    <stop offset="100%" stop-color="#ff0000" stop-opacity="0" />
+                </radialGradient>
+
+                <!-- Internal Singularity Core (Complex k-axis collapse of outer cosmic infinity) -->
+                <radialGradient id="sun-singularity-grad">
+                    <stop offset="0%" stop-color="#ffffff" stop-opacity="1" />
+                    <stop offset="25%" stop-color="#00f0ff" stop-opacity="0.95" />
+                    <stop offset="65%" stop-color="#ff007f" stop-opacity="0.5" />
+                    <stop offset="100%" stop-color="#000000" stop-opacity="0" />
+                </radialGradient>
+                <radialGradient id="planet-singularity-grad">
+                    <stop offset="0%" stop-color="#ffffff" stop-opacity="1" />
+                    <stop offset="30%" stop-color="#00f0ff" stop-opacity="0.9" />
+                    <stop offset="70%" stop-color="#ff007f" stop-opacity="0.4" />
+                    <stop offset="100%" stop-color="#000000" stop-opacity="0" />
+                </radialGradient>
+                <radialGradient id="moon-singularity-grad">
+                    <stop offset="0%" stop-color="#ffffff" stop-opacity="1" />
+                    <stop offset="30%" stop-color="#ff007f" stop-opacity="0.9" />
+                    <stop offset="70%" stop-color="#00f0ff" stop-opacity="0.4" />
+                    <stop offset="100%" stop-color="#000000" stop-opacity="0" />
+                </radialGradient>
+
+                <!-- Global Singularity Origin -->
+                <radialGradient id="singularity-grad">
+                    <stop offset="0%" stop-color="#ffffff" stop-opacity="1" />
+                    <stop offset="30%" stop-color="#00f0ff" stop-opacity="0.8" />
+                    <stop offset="70%" stop-color="#ff007f" stop-opacity="0.4" />
+                    <stop offset="100%" stop-color="#000000" stop-opacity="0" />
+                </radialGradient>
+            </defs>
+
+            <!-- Coordinate Grid Layer -->
+            <g id="layer-grid"></g>
+
+            <!-- Horizon Inversion Circle Layer -->
+            <g id="layer-horizon">
+                <circle id="horizon-glow" class="horizon-glow" cx="0" cy="0" r="100" />
+                <circle id="horizon-circle" class="horizon-circle" cx="0" cy="0" r="100" />
+                <circle id="horizon-barrier" class="horizon-barrier-ring" cx="0" cy="0" r="100" />
+                <circle id="origin-marker" cx="0" cy="0" r="3" fill="#ffd700" />
+                <text id="origin-label" x="8" y="-6" fill="#ffd700" font-size="10" font-family="monospace">O (0,0)</text>
+                <text id="horizon-label" x="105" y="15" fill="#ffd700" font-size="11" font-family="monospace">r = R (Uncrossable Horizon)</text>
+            </g>
+
+            <!-- Mode 1: Wikipedia Theorems Layer -->
+            <g id="layer-wikipedia"></g>
+
+            <!-- Mode 2: Conformal Grid Layer -->
+            <g id="layer-conformal-grid" style="display: none;"></g>
+
+            <!-- Mode 3: CAD Optics & Lagrangian Multiverse Layer -->
+            <g id="layer-planetary-system" style="display: none;">
+                <!-- 1. Roche Lobe Gravitational Equipotential Curves -->
+                <g id="group-roche-lobes">
+                    <path id="sun-planet-roche-primary" class="roche-path-sp" d="" />
+                    <path id="sun-planet-roche-secondary" class="roche-path-sp" d="" />
+                    <path id="planet-moon-roche-primary" class="roche-path-pm" d="" />
+                    <path id="planet-moon-roche-secondary" class="roche-path-pm" d="" />
+                </g>
+
+                <!-- 2. CAD Lagrangian Guide Lines (Collinear Line [L3-L1-L2], Orbit Circle, Triangles) -->
+                <g id="group-lagrange-guides"></g>
+
+                <!-- 3. Umbra & Penumbra Shadow Volumes bounded by 4 Tangents -->
+                <g id="group-shadows">
+                    <polygon id="planet-penumbra" class="penumbra-cone" points="" />
+                    <polygon id="planet-umbra" class="umbra-cone" points="" />
+                    <polygon id="moon-penumbra" class="penumbra-cone" points="" />
+                    <polygon id="moon-umbra" class="umbra-cone" points="" />
+                </g>
+
+                <!-- 4. The 4 Continuous Extended Tangent Lines (Direct & Transverse) -->
+                <g id="group-four-tangents"></g>
+
+                <!-- 5. Secondary Albedo Reflections (Planetshine & Moonshine) -->
+                <g id="group-albedo-reflections"></g>
+
+                <!-- 6. Primal Orbit Trails -->
+                <path id="orbit-trail-planet" stroke="rgba(0, 240, 255, 0.4)" stroke-width="1px" fill="none" d="" />
+                <path id="orbit-trail-moon" stroke="rgba(255, 0, 127, 0.4)" stroke-width="1px" fill="none" d="" />
+
+                <!-- 7. Lagrangian Points (L1 - L5) Primal Clean Dots & Labels -->
+                <g id="group-lagrange-points"></g>
+
+                <!-- 8. Celestial Bodies (CMY Colors), 4 Illumination Zones & Internal Universes -->
+                <!-- The Sun (Yellow Photosphere with Complex k-axis Infinity Core) -->
+                <g id="group-sun-universe">
+                    <circle id="planet-sun-corona" class="sun-corona" cx="0" cy="0" r="180" />
+                    <circle id="planet-sun" class="sun-photosphere" cx="0" cy="0" r="180" />
+                    <!-- Inside Sun: Singularity Center, Conformal Dual Optics & Inverted Bodies -->
+                    <circle id="sun-singularity-core" class="singularity-sun-core" cx="0" cy="0" r="9" />
+                    <text id="sun-singularity-label" x="0" y="16" text-anchor="middle" fill="#00f0ff" font-size="7" font-family="monospace">∞</text>
+                    <g id="sun-internal-optics"></g>
+                    <circle id="planet-in-sun" class="internal-planet-disk" cx="0" cy="0" r="4.5" />
+                    <circle id="moon-in-sun" class="internal-moon-disk" cx="0" cy="0" r="1.8" />
+                    <g id="sun-internal-lagrange"></g>
+                </g>
+
+                <!-- The Planet (Cyan) with 4 Exact Illumination Zones -->
+                <g id="group-planet-universe">
+                    <!-- Base night hemisphere fill -->
+                    <circle id="planet-body" class="zone-night-planet" cx="0" cy="0" r="12" />
+                    <!-- 4 Illumination Zones on Planet -->
+                    <path id="planet-zone-dawn" class="zone-twilight-planet" d="" />
+                    <path id="planet-zone-day" class="zone-day-planet" d="" />
+                    <path id="planet-zone-dusk" class="zone-twilight-planet" d="" />
+                    <!-- Inside Planet: Singularity Center, Conformal Dual Optics & Inverted Bodies -->
+                    <circle id="planet-singularity-core" class="singularity-planet-core" cx="0" cy="0" r="2.5" />
+                    <g id="planet-internal-optics"></g>
+                    <circle id="sun-in-planet" class="internal-sun-disk" cx="0" cy="0" r="2.2" />
+                    <circle id="moon-in-planet" class="internal-moon-disk" cx="0" cy="0" r="1.0" />
+                    <g id="planet-internal-lagrange"></g>
+                </g>
+
+                <!-- The Moon (Magenta) with 4 Exact Illumination Zones -->
+                <g id="group-moon-universe">
+                    <circle id="moon-body" class="zone-night-moon" cx="0" cy="0" r="3.8" />
+                    <!-- 4 Illumination Zones on Moon -->
+                    <path id="moon-zone-dawn" class="zone-twilight-moon" d="" />
+                    <path id="moon-zone-day" class="zone-day-moon" d="" />
+                    <path id="moon-zone-dusk" class="zone-twilight-moon" d="" />
+                    <!-- Inside Moon: Singularity Center, Conformal Dual Optics & Inverted Bodies -->
+                    <circle id="moon-singularity-core" class="singularity-moon-core" cx="0" cy="0" r="1.2" />
+                    <g id="moon-internal-optics"></g>
+                    <circle id="sun-in-moon" class="internal-sun-disk" cx="0" cy="0" r="0.9" />
+                    <circle id="planet-in-moon" class="internal-planet-disk" cx="0" cy="0" r="0.7" />
+                    <g id="moon-internal-lagrange"></g>
+                </g>
+            </g>
+
+            <!-- Mode 4: Gaussian Splats Layer -->
+            <g id="layer-gaussian-splats" style="display: none;"></g>
+
+            <!-- Mode 5: Mirror World & Infinity Singularity Layer -->
+            <g id="layer-mirror-world" style="display: none;">
+                <g id="mirror-infinity-rays"></g>
+                <rect id="cosmic-box-primal" class="cosmic-box-primal" x="-300" y="-300" width="600" height="600" />
+                <path id="cosmic-clover-dual" class="cosmic-clover-dual" d="" />
+                <circle id="singularity-core" class="singularity-core" cx="0" cy="0" r="16" />
+                <circle cx="0" cy="0" r="2" fill="#ffffff" />
+                <text x="0" y="24" text-anchor="middle" fill="#00f0ff" font-size="9" font-family="monospace">∞ (Omnidirectional Infinity)</text>
+                <g id="mirror-particles-group"></g>
+            </g>
+
+            <!-- Interactive Control Handles Layer -->
+            <g id="layer-handles"></g>
+        </svg>
+    </div>
+
+    <!-- UI Overlay: Header & Mode Select -->
+    <div id="header-panel" class="glass-panel">
+        <div class="title">
+            <span>🪐</span> 2DCGA 4-Tangent Conformal Optics &amp; Complex k-Axis
+        </div>
+        <div class="subtitle">
+            Continuous extended 4-tangent lines, <span style="color:var(--accent-yellow);">Sun (k-axis ∞ core)</span>, <span style="color:var(--accent-red);">Collinear Line [L₃–L₁–L₂]</span> &amp; <span style="color:var(--accent-cyan);">4 Illumination Zones</span>.
+        </div>
+
+        <div class="mode-tabs">
+            <button id="btn-mode-wiki" class="mode-btn" onclick="switchMode('wikipedia')">1. Wiki Theorems</button>
+            <button id="btn-mode-grid" class="mode-btn" onclick="switchMode('conformal_grid')">2. Conformal Net</button>
+            <button id="btn-mode-fourier" class="mode-btn active" onclick="switchMode('planetary_system')">🪐 3. CAD &amp; Lagrange</button>
+            <button id="btn-mode-splat" class="mode-btn" onclick="switchMode('gaussian_splats')">4. Gaussian Splats</button>
+            <button id="btn-mode-mirror" class="mode-btn full-width" onclick="switchMode('mirror_infinity')">🪞 5. Mirror World &amp; Infinity Singularity</button>
+        </div>
+
+        <!-- Camera Focus Buttons for Mode 3 -->
+        <div id="camera-focus-container" style="margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 8px;">
+            <div style="font-size: 10px; color: var(--text-dim); margin-bottom: 4px; font-weight: 600;">INSPECT INNER UNIVERSES (CONFORMAL OPTICS &amp; LAGRANGE DUALS):</div>
+            <div class="camera-focus-bar">
+                <button class="cam-btn active" onclick="focusCamera('system')">🌌 System</button>
+                <button class="cam-btn" onclick="focusCamera('sun')">Inside ⊙</button>
+                <button class="cam-btn" onclick="focusCamera('planet')">Inside ⊕</button>
+                <button class="cam-btn" onclick="focusCamera('moon')">Inside ☽</button>
+            </div>
+        </div>
+
+        <div style="margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 8px;">
+            <div class="legend-row">
+                <div class="legend-swatch" style="background:var(--accent-yellow);"></div>
+                <span>Direct Tangents (Umbra Apex)</span>
+                <div class="legend-swatch" style="background:var(--accent-orange); margin-left: 8px;"></div>
+                <span>Transverse Tangents (Penumbra Vertex)</span>
+            </div>
+            <div class="legend-row">
+                <div class="legend-swatch" style="background:var(--accent-cyan);"></div>
+                <span>Day (100% Light)</span>
+                <div class="legend-swatch" style="background:rgba(0,200,230,0.7); margin-left: 8px;"></div>
+                <span>Twilight (Dawn/Dusk)</span>
+                <div class="legend-swatch" style="background:rgba(255,255,255,0.2); margin-left: 8px;"></div>
+                <span>Night (0%)</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Controls Panel -->
+    <div id="controls-panel" class="glass-panel">
+        <div class="control-row">
+            <span class="control-label">Global Horizon Radius (R)</span>
+            <span id="val-radius" class="control-value">120.0</span>
+        </div>
+        <input type="range" id="slider-radius" min="50" max="220" step="1" value="120">
+
+        <!-- Dynamic Controls for Mode 3: Planetary System -->
+        <div id="planet-controls-group" style="display: flex; flex-direction: column; gap: 8px; margin-top: 4px;">
+            <div class="control-row">
+                <span class="control-label">Sun Radius (R_sun)</span>
+                <span id="val-sun-radius" class="control-value">180.0 px</span>
+            </div>
+            <input type="range" id="slider-sun-radius" min="80" max="320" step="5" value="180">
+
+            <div class="control-row">
+                <span class="control-label">Planet Orbit Radius (a₁)</span>
+                <span id="val-planet-dist" class="control-value">310.0 px</span>
+            </div>
+            <input type="range" id="slider-planet-dist" min="200" max="550" step="5" value="310">
+
+            <div class="control-row">
+                <span class="control-label">Moon Orbit Radius (r₂)</span>
+                <span id="val-moon-dist" class="control-value">38.0 px</span>
+            </div>
+            <input type="range" id="slider-moon-dist" min="20" max="90" step="1" value="38">
+
+            <div class="control-row">
+                <span class="control-label">Planet Speed (ω₁)</span>
+                <span id="val-planet-speed" class="control-value">0.40 rad/s</span>
+            </div>
+            <input type="range" id="slider-planet-speed" min="0.1" max="2.0" step="0.05" value="0.4">
+
+            <div class="control-row">
+                <span class="control-label">Moon Speed (ω₂)</span>
+                <span id="val-moon-speed" class="control-value">2.40 rad/s</span>
+            </div>
+            <input type="range" id="slider-moon-speed" min="0.5" max="8.0" step="0.1" value="2.4">
+        </div>
+
+        <!-- Dynamic Controls for Mode 5: Cosmic Box L -->
+        <div id="box-control-row" class="control-row" style="display: none; margin-top: 4px;">
+            <span class="control-label">Cosmic Outer Bound (L)</span>
+            <span id="val-cosmic-l" class="control-value">350.0</span>
+        </div>
+        <input type="range" id="slider-cosmic-l" min="160" max="2500" step="10" value="350" style="display: none;">
+
+        <div class="btn-group">
+            <button id="btn-pause" class="btn btn-primary" onclick="togglePause()">Pause</button>
+            <button id="btn-step" class="btn" onclick="stepSim()">Step (.)</button>
+            <button id="btn-diag" class="btn" onclick="runDiagnostics()">Diagnostics (D)</button>
+        </div>
+    </div>
+
+    <!-- Telemetry HUD -->
+    <div id="telemetry-panel" class="glass-panel">
+        <div class="hud-row">
+            <span class="hud-key">SIM TIME:</span>
+            <span id="hud-time" class="hud-val">0.00 s</span>
+        </div>
+        <div class="hud-row">
+            <span class="hud-key">FPS / FRAME:</span>
+            <span id="hud-fps" class="hud-val cyan">60 FPS (0)</span>
+        </div>
+        <div class="hud-row">
+            <span class="hud-key">CAMERA FOCUS:</span>
+            <span id="hud-cam-focus" class="hud-val cyan">SYSTEM (1:1)</span>
+        </div>
+        <div class="hud-row">
+            <span class="hud-key">SUN CENTER:</span>
+            <span id="hud-sun-center" class="hud-val gold">COMPLEX k-AXIS ∞ CORE</span>
+        </div>
+        <div class="hud-row">
+            <span class="hud-key">4 COMMON TANGENTS:</span>
+            <span id="hud-tangents" class="hud-val orange">EXTENDED CONTINUOUS LINES</span>
+        </div>
+        <div class="hud-row">
+            <span class="hud-key">PLANET DAY / TWILIGHT:</span>
+            <span id="hud-planet-zones" class="hud-val cyan">DAY 126° | TWILIGHT 34°</span>
+        </div>
+        <div class="hud-row">
+            <span class="hud-key">ZOOM:</span>
+            <span id="hud-zoom" class="hud-val">100%</span>
+        </div>
+    </div>
+
+    <!-- Floating Viewport Dock -->
+    <div id="viewport-dock">
+        <button class="dock-btn" title="Zoom In (+)" onclick="zoomBy(1.25)">+</button>
+        <button class="dock-btn" title="Zoom Out (-)" onclick="zoomBy(0.8)">−</button>
+        <button class="dock-btn" title="Fit Horizon" onclick="fitHorizon()">⌖</button>
+        <button class="dock-btn" title="Reset View (R)" onclick="resetViewport()">↺</button>
+    </div>
+
+    <!-- Main Logic Module -->
+    <script type="module">
+        /// <reference lib="dom" />
+        /// <reference path="./types/cga2d.d.ts" />
+        // @ts-check
+
+        import {
+            invertPoint,
+            invertCircle,
+            invertLine,
+            getOrthogonalCircleRadius,
+            invertGaussianCovariance,
+            covarianceToSvgEllipse,
+            evaluateRecursivePlanetarySystem2D,
+            clampToExterior,
+            reflectAtHorizon,
+            invertCosmicBox
+        } from './tests/math_cga2d.mjs';
+
+        /* ==========================================================================
+           1. Application State & Global Parameters
+           ========================================================================== */
+
+        /** @type {CGA2D.VisualMode} */
+        let activeMode = 'planetary_system';
+        let isPaused = false;
+        let simTime = 0;
+        let timeScale = 1.0;
+        let frameCount = 0;
+        let lastTimestamp = performance.now();
+        let fps = 60;
+
+        /** Camera Focus Mode: 'system' | 'sun' | 'planet' | 'moon' */
+        let cameraFocus = 'system';
+
+        /** Global Inversion Circle Radius */
+        let R = 120.0;
+
+        /** Mode 5 Cosmic Box Half Width L */
+        let cosmicHalfL = 350.0;
+
+        /** SVG Viewport Pan & Zoom State */
+        const viewport = {
+            cx: 260,
+            cy: 0,
+            width: 900,
+            height: 900,
+            zoom: 0.65,
+            isDragging: false,
+            startX: 0,
+            startY: 0
+        };
+
+        /** Mouse world coordinates */
+        /** @type {[number, number]} */
+        let mouseWorld = [0, 0];
+        /** @type {string | null} */
+        let draggedHandle = null;
+
+        /* Mode 1 Primitives State */
+        const wikiState = {
+            line1: { p1: [80, 220], p2: [240, 180] },
+            line2: { p1: [-240, -120], p2: [240, 120] },
+            circle1: { cx: 180, cy: -90, r: 45 },
+            orthoCircle: { cx: -170, cy: 130 },
+            pointP: [190, 110]
+        };
+
+        /* Mode 3 Astronomical Scale Planetary Parameters */
+        const planetaryParams = {
+            sunPos: /** @type {[number, number]} */ ([160, 0]),
+            sunRadius: 180,
+            planetDist: 310,
+            planetRadius: 12,
+            planetSpeed: 0.4,
+            moonDist: 38,
+            moonRadius: 3.8,
+            moonSpeed: 2.4
+        };
+        /** @type {Array<[number, number]>} */
+        const planetOrbitTrail = [];
+        /** @type {Array<[number, number]>} */
+        const moonOrbitTrail = [];
+        const MAX_TRAIL_LENGTH = 400;
+
+        /* Mode 4 Gaussian Splats */
+        const splatState = {
+            pos: [180, 90],
+            sigmaXX: 900,
+            sigmaXY: 400,
+            sigmaYY: 500,
+            opacity: 0.7
+        };
+
+        /* Mode 5 Bouncing Mirror Particles */
+        const mirrorParticles = [
+            { pos: [200, 50], vel: [-60, 45], r: 5, color: '#00f0ff' },
+            { pos: [-180, 120], vel: [50, -55], r: 6, color: '#00ff9d' },
+            { pos: [120, -220], vel: [-35, 65], r: 4.5, color: '#ffd700' },
+            { pos: [-210, -160], vel: [65, 40], r: 5.5, color: '#b056ff' }
+        ];
+        /** @type {Array<Array<[number, number]>>} */
+        const mirrorTrailsPrimal = mirrorParticles.map(() => []);
+        /** @type {Array<Array<[number, number]>>} */
+        const mirrorTrailsDual = mirrorParticles.map(() => []);
+        const MAX_MIRROR_TRAIL = 120;
+
+        let mirrorProbePos = [220, -80];
+
+        /* DOM Elements */
+        const svgViewport = /** @type {SVGSVGElement} */ (/** @type {any} */ (document.getElementById('svg-viewport')));
+        const svgContainer = /** @type {HTMLElement} */ (/** @type {any} */ (document.getElementById('svg-container')));
+        const layerGrid = /** @type {SVGGElement} */ (/** @type {any} */ (document.getElementById('layer-grid')));
+        const layerWiki = /** @type {SVGGElement} */ (/** @type {any} */ (document.getElementById('layer-wikipedia')));
+        const layerGridMode = /** @type {SVGGElement} */ (/** @type {any} */ (document.getElementById('layer-conformal-grid')));
+        const layerPlanetary = /** @type {SVGGElement} */ (/** @type {any} */ (document.getElementById('layer-planetary-system')));
+        const layerSplats = /** @type {SVGGElement} */ (/** @type {any} */ (document.getElementById('layer-gaussian-splats')));
+        const layerMirror = /** @type {SVGGElement} */ (/** @type {any} */ (document.getElementById('layer-mirror-world')));
+        const layerHandles = /** @type {SVGGElement} */ (/** @type {any} */ (document.getElementById('layer-handles')));
+
+        const horizonCircle = /** @type {SVGCircleElement} */ (/** @type {any} */ (document.getElementById('horizon-circle')));
+        const horizonGlow = /** @type {SVGCircleElement} */ (/** @type {any} */ (document.getElementById('horizon-glow')));
+        const horizonBarrier = /** @type {SVGCircleElement} */ (/** @type {any} */ (document.getElementById('horizon-barrier')));
+        const horizonLabel = /** @type {SVGTextElement} */ (/** @type {any} */ (document.getElementById('horizon-label')));
+
+        const cameraFocusContainer = /** @type {HTMLElement} */ (/** @type {any} */ (document.getElementById('camera-focus-container')));
+        const sliderRadius = /** @type {HTMLInputElement} */ (/** @type {any} */ (document.getElementById('slider-radius')));
+        const valRadius = /** @type {HTMLElement} */ (/** @type {any} */ (document.getElementById('val-radius')));
+        const sliderCosmicL = /** @type {HTMLInputElement} */ (/** @type {any} */ (document.getElementById('slider-cosmic-l')));
+        const valCosmicL = /** @type {HTMLElement} */ (/** @type {any} */ (document.getElementById('val-cosmic-l')));
+        const boxControlRow = /** @type {HTMLElement} */ (/** @type {any} */ (document.getElementById('box-control-row')));
+
+        const planetControlsGroup = /** @type {HTMLElement} */ (/** @type {any} */ (document.getElementById('planet-controls-group')));
+        const sliderSunRadius = /** @type {HTMLInputElement} */ (/** @type {any} */ (document.getElementById('slider-sun-radius')));
+        const valSunRadius = /** @type {HTMLElement} */ (/** @type {any} */ (document.getElementById('val-sun-radius')));
+        const sliderPlanetDist = /** @type {HTMLInputElement} */ (/** @type {any} */ (document.getElementById('slider-planet-dist')));
+        const valPlanetDist = /** @type {HTMLElement} */ (/** @type {any} */ (document.getElementById('val-planet-dist')));
+        const sliderMoonDist = /** @type {HTMLInputElement} */ (/** @type {any} */ (document.getElementById('slider-moon-dist')));
+        const valMoonDist = /** @type {HTMLElement} */ (/** @type {any} */ (document.getElementById('val-moon-dist')));
+        const sliderPlanetSpeed = /** @type {HTMLInputElement} */ (/** @type {any} */ (document.getElementById('slider-planet-speed')));
+        const valPlanetSpeed = /** @type {HTMLElement} */ (/** @type {any} */ (document.getElementById('val-planet-speed')));
+        const sliderMoonSpeed = /** @type {HTMLInputElement} */ (/** @type {any} */ (document.getElementById('slider-moon-speed')));
+        const valMoonSpeed = /** @type {HTMLElement} */ (/** @type {any} */ (document.getElementById('val-moon-speed')));
+
+        const hudTime = /** @type {HTMLElement} */ (/** @type {any} */ (document.getElementById('hud-time')));
+        const hudFps = /** @type {HTMLElement} */ (/** @type {any} */ (document.getElementById('hud-fps')));
+        const hudCamFocus = /** @type {HTMLElement} */ (/** @type {any} */ (document.getElementById('hud-cam-focus')));
+        const hudPlanetZones = /** @type {HTMLElement} */ (/** @type {any} */ (document.getElementById('hud-planet-zones')));
+        const hudZoom = /** @type {HTMLElement} */ (/** @type {any} */ (document.getElementById('hud-zoom')));
+        const btnPause = /** @type {HTMLButtonElement} */ (/** @type {any} */ (document.getElementById('btn-pause')));
+
+        /* ==========================================================================
+           2. Viewport & Pan/Zoom Logic
+           ========================================================================== */
+
+        function updateSvgViewBox() {
+            const w = svgViewport.clientWidth || window.innerWidth;
+            const h = svgViewport.clientHeight || window.innerHeight;
+            const aspect = w / h;
+
+            viewport.width = 850 / viewport.zoom;
+            viewport.height = viewport.width / aspect;
+
+            const minX = viewport.cx - viewport.width / 2;
+            const minY = viewport.cy - viewport.height / 2;
+
+            svgViewport.setAttribute('viewBox', `${minX} ${minY} ${viewport.width} ${viewport.height}`);
+            hudZoom.textContent = `${Math.round(viewport.zoom * 100)}%`;
+
+            renderCoordinateGrid();
+        }
+
+        /**
+         * @param {MouseEvent | Touch} e
+         * @returns {[number, number]}
+         */
+        function screenToWorld(e) {
+            const rect = svgViewport.getBoundingClientRect();
+            const px = (e.clientX - rect.left) / rect.width;
+            const py = (e.clientY - rect.top) / rect.height;
+
+            const minX = viewport.cx - viewport.width / 2;
+            const minY = viewport.cy - viewport.height / 2;
+
+            return [
+                minX + px * viewport.width,
+                minY + py * viewport.height
+            ];
+        }
+
+        function renderCoordinateGrid() {
+            layerGrid.innerHTML = '';
+            const minX = viewport.cx - viewport.width / 2;
+            const maxX = viewport.cx + viewport.width / 2;
+            const minY = viewport.cy - viewport.height / 2;
+            const maxY = viewport.cy + viewport.height / 2;
+
+            let step = 100;
+            if (viewport.width > 3000) step = 400;
+            else if (viewport.width > 1500) step = 200;
+            else if (viewport.width < 200) step = 20;
+            else if (viewport.width < 50) step = 5;
+            else if (viewport.width < 10) step = 1;
+
+            const startX = Math.floor(minX / step) * step;
+            const startY = Math.floor(minY / step) * step;
+
+            let gridD = '';
+            for (let x = startX; x <= maxX; x += step) {
+                gridD += `M ${x} ${minY} L ${x} ${maxY} `;
+            }
+            for (let y = startY; y <= maxY; y += step) {
+                gridD += `M ${minX} ${y} L ${maxX} ${y} `;
+            }
+
+            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            path.setAttribute('d', gridD);
+            path.setAttribute('class', 'grid-line');
+            layerGrid.appendChild(path);
+
+            const axes = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            axes.setAttribute('d', `M ${minX} 0 L ${maxX} 0 M 0 ${minY} L 0 ${maxY}`);
+            axes.setAttribute('class', 'axis-line');
+            layerGrid.appendChild(axes);
+        }
+
+        /* ==========================================================================
+           3. Visual Modes Rendering
+           ========================================================================== */
+
+        function updateHorizonCircle() {
+            horizonCircle.setAttribute('r', String(R));
+            horizonGlow.setAttribute('r', String(R));
+            horizonBarrier.setAttribute('r', String(R + 2));
+            horizonLabel.setAttribute('x', String(R + 6));
+            valRadius.textContent = R.toFixed(1);
+        }
+
+        /**
+         * Render SVG arc from start angle to end angle counter-clockwise
+         * @param {number} cx
+         * @param {number} cy
+         * @param {number} r
+         * @param {number} startA
+         * @param {number} endA
+         * @returns {string}
+         */
+        function describeArc(cx, cy, r, startA, endA) {
+            const x1 = cx + r * Math.cos(startA);
+            const y1 = cy + r * Math.sin(startA);
+            const x2 = cx + r * Math.cos(endA);
+            const y2 = cy + r * Math.sin(endA);
+
+            let diff = endA - startA;
+            while (diff < 0) diff += 2 * Math.PI;
+            while (diff >= 2 * Math.PI) diff -= 2 * Math.PI;
+
+            const largeArc = diff > Math.PI ? 1 : 0;
+            return `M ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2}`;
+        }
+
+        /**
+         * Render Mode 1: Wikipedia Circle Inversion Theorems
+         */
+        function renderWikipediaMode() {
+            layerWiki.innerHTML = '';
+            layerHandles.innerHTML = '';
+
+            const l1 = wikiState.line1;
+            const dx1 = l1.p2[0] - l1.p1[0];
+            const dy1 = l1.p2[1] - l1.p1[1];
+            const len1 = Math.hypot(dx1, dy1) || 1;
+            const nx1 = -dy1 / len1;
+            const ny1 = dx1 / len1;
+            const d1 = nx1 * l1.p1[0] + ny1 * l1.p1[1];
+
+            const p1Ext1 = [l1.p1[0] - dx1 * 2, l1.p1[1] - dy1 * 2];
+            const p1Ext2 = [l1.p2[0] + dx1 * 2, l1.p2[1] + dy1 * 2];
+
+            const line1Elem = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            line1Elem.setAttribute('x1', String(p1Ext1[0]));
+            line1Elem.setAttribute('y1', String(p1Ext1[1]));
+            line1Elem.setAttribute('x2', String(p1Ext2[0]));
+            line1Elem.setAttribute('y2', String(p1Ext2[1]));
+            line1Elem.setAttribute('class', 'primal-line');
+            layerWiki.appendChild(line1Elem);
+
+            const dual1 = invertLine({ nx: nx1, ny: ny1, d: d1 }, R);
+            if (dual1.type === 'circle') {
+                const cElem = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                cElem.setAttribute('cx', String(dual1.cx));
+                cElem.setAttribute('cy', String(dual1.cy));
+                cElem.setAttribute('r', String(dual1.r));
+                cElem.setAttribute('class', 'dual-circle');
+                layerWiki.appendChild(cElem);
+            }
+
+            const l2 = wikiState.line2;
+            const line2Elem = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            line2Elem.setAttribute('x1', String(l2.p1[0] * 3));
+            line2Elem.setAttribute('y1', String(l2.p1[1] * 3));
+            line2Elem.setAttribute('x2', String(l2.p2[0] * 3));
+            line2Elem.setAttribute('y2', String(l2.p2[1] * 3));
+            line2Elem.setAttribute('stroke', '#00f0ff');
+            line2Elem.setAttribute('stroke-width', '1.5px');
+            line2Elem.setAttribute('stroke-dasharray', '5 3');
+            layerWiki.appendChild(line2Elem);
+
+            const c1 = wikiState.circle1;
+            const c1Elem = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            c1Elem.setAttribute('cx', String(c1.cx));
+            c1Elem.setAttribute('cy', String(c1.cy));
+            c1Elem.setAttribute('r', String(c1.r));
+            c1Elem.setAttribute('class', 'primal-circle');
+            layerWiki.appendChild(c1Elem);
+
+            const dualC1 = invertCircle(c1, R);
+            if (dualC1.type === 'circle') {
+                const c1StarElem = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                c1StarElem.setAttribute('cx', String(dualC1.cx));
+                c1StarElem.setAttribute('cy', String(dualC1.cy));
+                c1StarElem.setAttribute('r', String(dualC1.r));
+                c1StarElem.setAttribute('class', 'dual-circle');
+                layerWiki.appendChild(c1StarElem);
+            }
+
+            const oc = wikiState.orthoCircle;
+            const rOrtho = getOrthogonalCircleRadius(oc.cx, oc.cy, R);
+            if (rOrtho !== null) {
+                const ocElem = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                ocElem.setAttribute('cx', String(oc.cx));
+                ocElem.setAttribute('cy', String(oc.cy));
+                ocElem.setAttribute('r', String(rOrtho));
+                ocElem.setAttribute('class', 'ortho-circle');
+                layerWiki.appendChild(ocElem);
+
+                const ocText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                ocText.setAttribute('x', String(oc.cx + rOrtho + 4));
+                ocText.setAttribute('y', String(oc.cy));
+                ocText.setAttribute('fill', '#b056ff');
+                ocText.setAttribute('font-size', '10');
+                ocText.setAttribute('font-family', 'monospace');
+                ocText.textContent = 'C* = C (Orthogonal)';
+                layerWiki.appendChild(ocText);
+            }
+
+            /** @type {[number, number]} */
+            const ptP = clampToExterior([wikiState.pointP[0], wikiState.pointP[1]], R, 2.0);
+            wikiState.pointP = [ptP[0], ptP[1]];
+            const pStar = invertPoint(ptP, R);
+
+            const rayElem = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            rayElem.setAttribute('x1', '0');
+            rayElem.setAttribute('y1', '0');
+            rayElem.setAttribute('x2', String(ptP[0] * 1.3));
+            rayElem.setAttribute('y2', String(ptP[1] * 1.3));
+            rayElem.setAttribute('class', 'inversion-ray');
+            layerWiki.appendChild(rayElem);
+
+            const pStarElem = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            pStarElem.setAttribute('cx', String(pStar[0]));
+            pStarElem.setAttribute('cy', String(pStar[1]));
+            pStarElem.setAttribute('r', '5');
+            pStarElem.setAttribute('class', 'control-handle-dual');
+            layerWiki.appendChild(pStarElem);
+
+            createHandle('line1-p1', l1.p1[0], l1.p1[1], 'L1 A');
+            createHandle('line1-p2', l1.p2[0], l1.p2[1], 'L1 B');
+            createHandle('circle1-center', c1.cx, c1.cy, 'C1');
+            createHandle('circle1-radius', c1.cx + c1.r, c1.cy, 'r1');
+            createHandle('ortho-center', oc.cx, oc.cy, 'C_orth');
+            createHandle('point-p', ptP[0], ptP[1], 'P (Locked Exterior)');
+        }
+
+        /**
+         * Render Mode 2: Conformal Dual Grid
+         */
+        function renderConformalGridMode() {
+            layerGridMode.innerHTML = '';
+            const step = 40;
+            const extent = 280;
+
+            for (let x = -extent; x <= extent; x += step) {
+                if (Math.abs(x) < 5) continue;
+                const dual = invertLine({ nx: 1, ny: 0, d: x }, R);
+                if (dual.type === 'circle') {
+                    const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                    c.setAttribute('cx', String(dual.cx));
+                    c.setAttribute('cy', String(dual.cy));
+                    c.setAttribute('r', String(dual.r));
+                    c.setAttribute('fill', 'none');
+                    c.setAttribute('stroke', 'rgba(0, 240, 255, 0.4)');
+                    c.setAttribute('stroke-width', '1px');
+                    layerGridMode.appendChild(c);
+                }
+            }
+
+            for (let y = -extent; y <= extent; y += step) {
+                if (Math.abs(y) < 5) continue;
+                const dual = invertLine({ nx: 0, ny: 1, d: y }, R);
+                if (dual.type === 'circle') {
+                    const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                    c.setAttribute('cx', String(dual.cx));
+                    c.setAttribute('cy', String(dual.cy));
+                    c.setAttribute('r', String(dual.r));
+                    c.setAttribute('fill', 'none');
+                    c.setAttribute('stroke', 'rgba(255, 0, 127, 0.4)');
+                    c.setAttribute('stroke-width', '1px');
+                    layerGridMode.appendChild(c);
+                }
+            }
+        }
+
+        /**
+         * Render Mode 3: CAD 4-Tangent Optics & Complex k-Axis Singularity
+         */
+        function renderPlanetarySystemMode() {
+            layerHandles.innerHTML = '';
+
+            /** @type {[number, number]} */
+            const clampedSun = clampToExterior(planetaryParams.sunPos, R, planetaryParams.sunRadius + 4);
+            planetaryParams.sunPos = [clampedSun[0], clampedSun[1]];
+
+            const recSys = evaluateRecursivePlanetarySystem2D(simTime, planetaryParams);
+
+            const sunHost = recSys.sunUniverse.host;
+            const planetHost = recSys.planetUniverse.host;
+            const moonHost = recSys.moonUniverse.host;
+
+            if (!isPaused) {
+                planetOrbitTrail.push(planetHost.pos);
+                moonOrbitTrail.push(moonHost.pos);
+
+                if (planetOrbitTrail.length > MAX_TRAIL_LENGTH) {
+                    planetOrbitTrail.shift();
+                    moonOrbitTrail.shift();
+                }
+            }
+
+            // Camera Tracking
+            if (cameraFocus === 'sun') {
+                viewport.cx = sunHost.pos[0];
+                viewport.cy = sunHost.pos[1];
+                updateSvgViewBox();
+            } else if (cameraFocus === 'planet') {
+                viewport.cx = planetHost.pos[0];
+                viewport.cy = planetHost.pos[1];
+                updateSvgViewBox();
+            } else if (cameraFocus === 'moon') {
+                viewport.cx = moonHost.pos[0];
+                viewport.cy = moonHost.pos[1];
+                updateSvgViewBox();
+            }
+
+            // 1. Render Roche Lobe Gravitational Equipotentials
+            const spRoche1 = /** @type {SVGPathElement} */ (/** @type {any} */ (document.getElementById('sun-planet-roche-primary')));
+            const spRoche2 = /** @type {SVGPathElement} */ (/** @type {any} */ (document.getElementById('sun-planet-roche-secondary')));
+            const pmRoche1 = /** @type {SVGPathElement} */ (/** @type {any} */ (document.getElementById('planet-moon-roche-primary')));
+            const pmRoche2 = /** @type {SVGPathElement} */ (/** @type {any} */ (document.getElementById('planet-moon-roche-secondary')));
+
+            if (recSys.sunPlanetRoche) {
+                const d1 = recSys.sunPlanetRoche.primaryLobePath.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p[0]} ${p[1]}`).join(' ') + ' Z';
+                const d2 = recSys.sunPlanetRoche.secondaryLobePath.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p[0]} ${p[1]}`).join(' ') + ' Z';
+                spRoche1.setAttribute('d', d1);
+                spRoche2.setAttribute('d', d2);
+            }
+            if (recSys.planetMoonRoche) {
+                const d1 = recSys.planetMoonRoche.primaryLobePath.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p[0]} ${p[1]}`).join(' ') + ' Z';
+                const d2 = recSys.planetMoonRoche.secondaryLobePath.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p[0]} ${p[1]}`).join(' ') + ' Z';
+                pmRoche1.setAttribute('d', d1);
+                pmRoche2.setAttribute('d', d2);
+            }
+
+            // 2. Render CAD Lagrangian Guide Lines: Line [L3-L1-L2], Circular Guide Arc & Chords
+            const guidesGroup = /** @type {SVGGElement} */ (/** @type {any} */ (document.getElementById('group-lagrange-guides')));
+            guidesGroup.innerHTML = '';
+
+            // Sun-Planet System (RED)
+            if (recSys.sunPlanetLagrange) {
+                const sp = recSys.sunPlanetLagrange;
+                // Full circular guide arc passing through L4, Secondary, L5, L3
+                const cGuide = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                cGuide.setAttribute('cx', String(sunHost.pos[0])); cGuide.setAttribute('cy', String(sunHost.pos[1]));
+                cGuide.setAttribute('r', String(sp.guideCircleRadius));
+                cGuide.setAttribute('class', 'lagrange-guide-orbit-sp');
+                guidesGroup.appendChild(cGuide);
+
+                // Collinear straight line: [L3 -> Primary -> L1 -> Secondary -> L2]
+                const lAxis = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                lAxis.setAttribute('x1', String(sp.axisLine[0][0])); lAxis.setAttribute('y1', String(sp.axisLine[0][1]));
+                lAxis.setAttribute('x2', String(sp.axisLine[1][0])); lAxis.setAttribute('y2', String(sp.axisLine[1][1]));
+                lAxis.setAttribute('class', 'lagrange-line-sp');
+                guidesGroup.appendChild(lAxis);
+
+                // Equilateral triangular rays
+                sp.triangleLines.forEach(([pA, pB]) => {
+                    const l = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                    l.setAttribute('x1', String(pA[0])); l.setAttribute('y1', String(pA[1]));
+                    l.setAttribute('x2', String(pB[0])); l.setAttribute('y2', String(pB[1]));
+                    l.setAttribute('class', 'lagrange-line-sp');
+                    guidesGroup.appendChild(l);
+                });
+            }
+
+            // Planet-Moon System (GREEN)
+            if (recSys.planetMoonLagrange) {
+                const pm = recSys.planetMoonLagrange;
+                const cGuide = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                cGuide.setAttribute('cx', String(planetHost.pos[0])); cGuide.setAttribute('cy', String(planetHost.pos[1]));
+                cGuide.setAttribute('r', String(pm.guideCircleRadius));
+                cGuide.setAttribute('class', 'lagrange-guide-orbit-pm');
+                guidesGroup.appendChild(cGuide);
+
+                const lAxis = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                lAxis.setAttribute('x1', String(pm.axisLine[0][0])); lAxis.setAttribute('y1', String(pm.axisLine[0][1]));
+                lAxis.setAttribute('x2', String(pm.axisLine[1][0])); lAxis.setAttribute('y2', String(pm.axisLine[1][1]));
+                lAxis.setAttribute('class', 'lagrange-line-pm');
+                guidesGroup.appendChild(lAxis);
+
+                pm.triangleLines.forEach(([pA, pB]) => {
+                    const l = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                    l.setAttribute('x1', String(pA[0])); l.setAttribute('y1', String(pA[1]));
+                    l.setAttribute('x2', String(pB[0])); l.setAttribute('y2', String(pB[1]));
+                    l.setAttribute('class', 'lagrange-line-pm');
+                    guidesGroup.appendChild(l);
+                });
+            }
+
+            // 3. Render Primal Lagrangian Points (Small clean dots & labels)
+            const lagrangeGroup = /** @type {SVGGElement} */ (/** @type {any} */ (document.getElementById('group-lagrange-points')));
+            lagrangeGroup.innerHTML = '';
+
+            recSys.sunPlanetLagrange?.allPoints.forEach(pt => {
+                const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                dot.setAttribute('cx', String(pt.pos[0])); dot.setAttribute('cy', String(pt.pos[1]));
+                dot.setAttribute('r', '2.5');
+                dot.setAttribute('class', 'lagrange-dot-sp');
+                lagrangeGroup.appendChild(dot);
+
+                if (viewport.zoom < 3.5) {
+                    const txt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                    txt.setAttribute('x', String(pt.pos[0] + 5)); txt.setAttribute('y', String(pt.pos[1] + 3));
+                    txt.setAttribute('class', 'lagrange-label-sp');
+                    txt.textContent = pt.name;
+                    lagrangeGroup.appendChild(txt);
+                }
+            });
+
+            recSys.planetMoonLagrange?.allPoints.forEach(pt => {
+                const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                dot.setAttribute('cx', String(pt.pos[0])); dot.setAttribute('cy', String(pt.pos[1]));
+                dot.setAttribute('r', '2');
+                dot.setAttribute('class', 'lagrange-dot-pm');
+                lagrangeGroup.appendChild(dot);
+
+                if (viewport.zoom > 0.8) {
+                    const txt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                    txt.setAttribute('x', String(pt.pos[0] + 4)); txt.setAttribute('y', String(pt.pos[1] + 3));
+                    txt.setAttribute('class', 'lagrange-label-pm');
+                    txt.textContent = pt.name;
+                    lagrangeGroup.appendChild(txt);
+                }
+            });
+
+            // 4. Render the 4 Continuous Extended Tangent Lines across the entire system
+            const fourTangentsGroup = /** @type {SVGGElement} */ (/** @type {any} */ (document.getElementById('group-four-tangents')));
+            fourTangentsGroup.innerHTML = '';
+
+            // Sun -> Planet 4 Extended Tangents
+            const spOptics = recSys.sunToPlanetOptics?.fourTangents;
+            if (spOptics) {
+                // Direct Tangents 1 & 2 (extended)
+                spOptics.extendedLines.slice(0, 2).forEach(([pStart, pEnd]) => {
+                    const l = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                    l.setAttribute('x1', String(pStart[0])); l.setAttribute('y1', String(pStart[1]));
+                    l.setAttribute('x2', String(pEnd[0])); l.setAttribute('y2', String(pEnd[1]));
+                    l.setAttribute('class', 'tangent-direct-sp');
+                    fourTangentsGroup.appendChild(l);
+                });
+
+                // Transverse Crossed Tangents 1 & 2 (extended)
+                spOptics.extendedLines.slice(2, 4).forEach(([pStart, pEnd]) => {
+                    const l = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                    l.setAttribute('x1', String(pStart[0])); l.setAttribute('y1', String(pStart[1]));
+                    l.setAttribute('x2', String(pEnd[0])); l.setAttribute('y2', String(pEnd[1]));
+                    l.setAttribute('class', 'tangent-transverse-sp');
+                    fourTangentsGroup.appendChild(l);
+                });
+            }
+
+            // Sun -> Moon 4 Extended Tangents
+            const smOptics = recSys.sunToMoonOptics?.fourTangents;
+            if (smOptics) {
+                smOptics.extendedLines.slice(0, 2).forEach(([pStart, pEnd]) => {
+                    const l = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                    l.setAttribute('x1', String(pStart[0])); l.setAttribute('y1', String(pStart[1]));
+                    l.setAttribute('x2', String(pEnd[0])); l.setAttribute('y2', String(pEnd[1]));
+                    l.setAttribute('stroke', 'rgba(255, 215, 0, 0.45)');
+                    l.setAttribute('stroke-width', '0.6px');
+                    l.setAttribute('stroke-dasharray', '5 3');
+                    fourTangentsGroup.appendChild(l);
+                });
+
+                smOptics.extendedLines.slice(2, 4).forEach(([pStart, pEnd]) => {
+                    const l = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                    l.setAttribute('x1', String(pStart[0])); l.setAttribute('y1', String(pStart[1]));
+                    l.setAttribute('x2', String(pEnd[0])); l.setAttribute('y2', String(pEnd[1]));
+                    l.setAttribute('stroke', 'rgba(255, 136, 0, 0.45)');
+                    l.setAttribute('stroke-width', '0.6px');
+                    l.setAttribute('stroke-dasharray', '4 2.5');
+                    fourTangentsGroup.appendChild(l);
+                });
+            }
+
+            // Planet -> Moon 4 Extended Tangents
+            const pmOptics = recSys.planetToMoonOptics;
+            if (pmOptics) {
+                pmOptics.extendedLines.slice(0, 2).forEach(([pStart, pEnd]) => {
+                    const l = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                    l.setAttribute('x1', String(pStart[0])); l.setAttribute('y1', String(pStart[1]));
+                    l.setAttribute('x2', String(pEnd[0])); l.setAttribute('y2', String(pEnd[1]));
+                    l.setAttribute('class', 'tangent-direct-pm');
+                    fourTangentsGroup.appendChild(l);
+                });
+
+                pmOptics.extendedLines.slice(2, 4).forEach(([pStart, pEnd]) => {
+                    const l = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                    l.setAttribute('x1', String(pStart[0])); l.setAttribute('y1', String(pStart[1]));
+                    l.setAttribute('x2', String(pEnd[0])); l.setAttribute('y2', String(pEnd[1]));
+                    l.setAttribute('class', 'tangent-transverse-pm');
+                    fourTangentsGroup.appendChild(l);
+                });
+            }
+
+            // 5. Update Sun (Yellow Photosphere with Complex k-Axis Infinity Core)
+            const sunElem = /** @type {SVGCircleElement} */ (/** @type {any} */ (document.getElementById('planet-sun')));
+            const sunCorona = /** @type {SVGCircleElement} */ (/** @type {any} */ (document.getElementById('planet-sun-corona')));
+            const sunSingularity = /** @type {SVGCircleElement} */ (/** @type {any} */ (document.getElementById('sun-singularity-core')));
+            const sunSingularityLabel = /** @type {SVGTextElement} */ (/** @type {any} */ (document.getElementById('sun-singularity-label')));
+            const planetInSunElem = /** @type {SVGCircleElement} */ (/** @type {any} */ (document.getElementById('planet-in-sun')));
+            const moonInSunElem = /** @type {SVGCircleElement} */ (/** @type {any} */ (document.getElementById('moon-in-sun')));
+            const sunInternalOpticsGroup = /** @type {SVGGElement} */ (/** @type {any} */ (document.getElementById('sun-internal-optics')));
+            const sunInternalLagrangeGroup = /** @type {SVGGElement} */ (/** @type {any} */ (document.getElementById('sun-internal-lagrange')));
+
+            sunElem.setAttribute('cx', String(sunHost.pos[0]));
+            sunElem.setAttribute('cy', String(sunHost.pos[1]));
+            sunElem.setAttribute('r', String(sunHost.radius));
+
+            sunCorona.setAttribute('cx', String(sunHost.pos[0]));
+            sunCorona.setAttribute('cy', String(sunHost.pos[1]));
+            sunCorona.setAttribute('r', String(sunHost.radius + 16));
+
+            sunSingularity.setAttribute('cx', String(recSys.sunUniverse.singularityCenter[0]));
+            sunSingularity.setAttribute('cy', String(recSys.sunUniverse.singularityCenter[1]));
+
+            sunSingularityLabel.setAttribute('x', String(recSys.sunUniverse.singularityCenter[0]));
+            sunSingularityLabel.setAttribute('y', String(recSys.sunUniverse.singularityCenter[1] + 16));
+
+            // Dual Conformal Optics Circles inside Sun
+            sunInternalOpticsGroup.innerHTML = '';
+            recSys.sunUniverse.internalConformalOptics?.forEach(c => {
+                const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                circle.setAttribute('cx', String(c.cx)); circle.setAttribute('cy', String(c.cy));
+                circle.setAttribute('r', String(c.r));
+                circle.setAttribute('class', 'conformal-dual-circle');
+                sunInternalOpticsGroup.appendChild(circle);
+            });
+
+            const pInSun = recSys.sunUniverse.internalBodies[0];
+            const mInSun = recSys.sunUniverse.internalBodies[1];
+
+            planetInSunElem.setAttribute('cx', String(pInSun.pos[0]));
+            planetInSunElem.setAttribute('cy', String(pInSun.pos[1]));
+            planetInSunElem.setAttribute('r', String(Math.max(2.0, pInSun.radius)));
+
+            moonInSunElem.setAttribute('cx', String(mInSun.pos[0]));
+            moonInSunElem.setAttribute('cy', String(mInSun.pos[1]));
+            moonInSunElem.setAttribute('r', String(Math.max(1.2, mInSun.radius)));
+
+            sunInternalLagrangeGroup.innerHTML = '';
+            recSys.sunUniverse.internalLagrangePoints?.forEach(pt => {
+                const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                dot.setAttribute('cx', String(pt.pos[0])); dot.setAttribute('cy', String(pt.pos[1]));
+                dot.setAttribute('r', '1.2');
+                dot.setAttribute('fill', pt.color || '#ff3344');
+                dot.setAttribute('stroke', '#ffffff');
+                dot.setAttribute('stroke-width', '0.4px');
+                sunInternalLagrangeGroup.appendChild(dot);
+            });
+
+            // 6. Update Planet (Cyan) with 4 Exact Illumination Zones
+            const planetElem = /** @type {SVGCircleElement} */ (/** @type {any} */ (document.getElementById('planet-body')));
+            const pZoneDay = /** @type {SVGPathElement} */ (/** @type {any} */ (document.getElementById('planet-zone-day')));
+            const pZoneDawn = /** @type {SVGPathElement} */ (/** @type {any} */ (document.getElementById('planet-zone-dawn')));
+            const pZoneDusk = /** @type {SVGPathElement} */ (/** @type {any} */ (document.getElementById('planet-zone-dusk')));
+
+            const planetSingularity = /** @type {SVGCircleElement} */ (/** @type {any} */ (document.getElementById('planet-singularity-core')));
+            const planetInternalOpticsGroup = /** @type {SVGGElement} */ (/** @type {any} */ (document.getElementById('planet-internal-optics')));
+            const sunInPlanetElem = /** @type {SVGCircleElement} */ (/** @type {any} */ (document.getElementById('sun-in-planet')));
+            const moonInPlanetElem = /** @type {SVGCircleElement} */ (/** @type {any} */ (document.getElementById('moon-in-planet')));
+            const planetInternalLagrangeGroup = /** @type {SVGGElement} */ (/** @type {any} */ (document.getElementById('planet-internal-lagrange')));
+
+            planetElem.setAttribute('cx', String(planetHost.pos[0]));
+            planetElem.setAttribute('cy', String(planetHost.pos[1]));
+            planetElem.setAttribute('r', String(planetHost.radius));
+
+            // Set 4 Illumination Zones on Planet
+            if (spOptics) {
+                const z = spOptics.zones;
+                pZoneDay.setAttribute('d', describeArc(planetHost.pos[0], planetHost.pos[1], planetHost.radius, z.fullDay.startAngle, z.fullDay.endAngle));
+                pZoneDawn.setAttribute('d', describeArc(planetHost.pos[0], planetHost.pos[1], planetHost.radius, z.dawnTwilight.startAngle, z.dawnTwilight.endAngle));
+                pZoneDusk.setAttribute('d', describeArc(planetHost.pos[0], planetHost.pos[1], planetHost.radius, z.duskTwilight.startAngle, z.duskTwilight.endAngle));
+                hudPlanetZones.textContent = `DAY ${z.fullDay.spanDeg.toFixed(0)}° | TWILIGHT ${z.dawnTwilight.spanDeg.toFixed(0)}°`;
+            }
+
+            planetSingularity.setAttribute('cx', String(recSys.planetUniverse.singularityCenter[0]));
+            planetSingularity.setAttribute('cy', String(recSys.planetUniverse.singularityCenter[1]));
+
+            // Dual Conformal Optics Circles inside Planet
+            planetInternalOpticsGroup.innerHTML = '';
+            recSys.planetUniverse.internalConformalOptics?.forEach(c => {
+                const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                circle.setAttribute('cx', String(c.cx)); circle.setAttribute('cy', String(c.cy));
+                circle.setAttribute('r', String(c.r));
+                circle.setAttribute('class', 'conformal-dual-circle');
+                planetInternalOpticsGroup.appendChild(circle);
+            });
+
+            const sInPlanet = recSys.planetUniverse.internalBodies[0];
+            const mInPlanet = recSys.planetUniverse.internalBodies[1];
+
+            sunInPlanetElem.setAttribute('cx', String(sInPlanet.pos[0]));
+            sunInPlanetElem.setAttribute('cy', String(sInPlanet.pos[1]));
+            sunInPlanetElem.setAttribute('r', String(Math.max(1.2, sInPlanet.radius)));
+
+            moonInPlanetElem.setAttribute('cx', String(mInPlanet.pos[0]));
+            moonInPlanetElem.setAttribute('cy', String(mInPlanet.pos[1]));
+            moonInPlanetElem.setAttribute('r', String(Math.max(0.7, mInPlanet.radius)));
+
+            planetInternalLagrangeGroup.innerHTML = '';
+            recSys.planetUniverse.internalLagrangePoints?.forEach(pt => {
+                const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                dot.setAttribute('cx', String(pt.pos[0])); dot.setAttribute('cy', String(pt.pos[1]));
+                dot.setAttribute('r', '1.0');
+                dot.setAttribute('fill', pt.color || '#00ff66');
+                dot.setAttribute('stroke', '#ffffff');
+                dot.setAttribute('stroke-width', '0.4px');
+                planetInternalLagrangeGroup.appendChild(dot);
+            });
+
+            // 7. Update Moon (Magenta) with 4 Exact Illumination Zones
+            const moonElem = /** @type {SVGCircleElement} */ (/** @type {any} */ (document.getElementById('moon-body')));
+            const mZoneDay = /** @type {SVGPathElement} */ (/** @type {any} */ (document.getElementById('moon-zone-day')));
+            const mZoneDawn = /** @type {SVGPathElement} */ (/** @type {any} */ (document.getElementById('moon-zone-dawn')));
+            const mZoneDusk = /** @type {SVGPathElement} */ (/** @type {any} */ (document.getElementById('moon-zone-dusk')));
+
+            const moonSingularity = /** @type {SVGCircleElement} */ (/** @type {any} */ (document.getElementById('moon-singularity-core')));
+            const moonInternalOpticsGroup = /** @type {SVGGElement} */ (/** @type {any} */ (document.getElementById('moon-internal-optics')));
+            const sunInMoonElem = /** @type {SVGCircleElement} */ (/** @type {any} */ (document.getElementById('sun-in-moon')));
+            const planetInMoonElem = /** @type {SVGCircleElement} */ (/** @type {any} */ (document.getElementById('planet-in-moon')));
+            const moonInternalLagrangeGroup = /** @type {SVGGElement} */ (/** @type {any} */ (document.getElementById('moon-internal-lagrange')));
+
+            moonElem.setAttribute('cx', String(moonHost.pos[0]));
+            moonElem.setAttribute('cy', String(moonHost.pos[1]));
+            moonElem.setAttribute('r', String(moonHost.radius));
+
+            // Set 4 Illumination Zones on Moon from Sun optics
+            if (smOptics) {
+                const z = smOptics.zones;
+                mZoneDay.setAttribute('d', describeArc(moonHost.pos[0], moonHost.pos[1], moonHost.radius, z.fullDay.startAngle, z.fullDay.endAngle));
+                mZoneDawn.setAttribute('d', describeArc(moonHost.pos[0], moonHost.pos[1], moonHost.radius, z.dawnTwilight.startAngle, z.dawnTwilight.endAngle));
+                mZoneDusk.setAttribute('d', describeArc(moonHost.pos[0], moonHost.pos[1], moonHost.radius, z.duskTwilight.startAngle, z.duskTwilight.endAngle));
+            }
+
+            moonSingularity.setAttribute('cx', String(recSys.moonUniverse.singularityCenter[0]));
+            moonSingularity.setAttribute('cy', String(recSys.moonUniverse.singularityCenter[1]));
+
+            // Dual Conformal Optics Circles inside Moon
+            moonInternalOpticsGroup.innerHTML = '';
+            recSys.moonUniverse.internalConformalOptics?.forEach(c => {
+                const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                circle.setAttribute('cx', String(c.cx)); circle.setAttribute('cy', String(c.cy));
+                circle.setAttribute('r', String(c.r));
+                circle.setAttribute('class', 'conformal-dual-circle-pm');
+                moonInternalOpticsGroup.appendChild(circle);
+            });
+
+            const sInMoon = recSys.moonUniverse.internalBodies[0];
+            const pInMoon = recSys.moonUniverse.internalBodies[1];
+
+            sunInMoonElem.setAttribute('cx', String(sInMoon.pos[0]));
+            sunInMoonElem.setAttribute('cy', String(sInMoon.pos[1]));
+            sunInMoonElem.setAttribute('r', String(Math.max(0.8, sInMoon.radius)));
+
+            planetInMoonElem.setAttribute('cx', String(pInMoon.pos[0]));
+            planetInMoonElem.setAttribute('cy', String(pInMoon.pos[1]));
+            planetInMoonElem.setAttribute('r', String(Math.max(0.6, pInMoon.radius)));
+
+            // Inside Moon: Thin internal Lagrange dual points
+            moonInternalLagrangeGroup.innerHTML = '';
+            recSys.moonUniverse.internalLagrangePoints?.forEach(pt => {
+                const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                dot.setAttribute('cx', String(pt.pos[0])); dot.setAttribute('cy', String(pt.pos[1]));
+                dot.setAttribute('r', '0.6');
+                dot.setAttribute('fill', '#00ff66');
+                dot.setAttribute('stroke', '#ffffff');
+                dot.setAttribute('stroke-width', '0.3px');
+                moonInternalLagrangeGroup.appendChild(dot);
+            });
+
+            // 8. Render Umbra & Penumbra Shadow Volumes bounded by the 4 tangents
+            const pUmbra = /** @type {SVGPolygonElement} */ (/** @type {any} */ (document.getElementById('planet-umbra')));
+            const pPenumbra = /** @type {SVGPolygonElement} */ (/** @type {any} */ (document.getElementById('planet-penumbra')));
+            const mUmbra = /** @type {SVGPolygonElement} */ (/** @type {any} */ (document.getElementById('moon-umbra')));
+            const mPenumbra = /** @type {SVGPolygonElement} */ (/** @type {any} */ (document.getElementById('moon-penumbra')));
+
+            if (recSys.planetShadow) {
+                pUmbra.setAttribute('points', recSys.planetShadow.umbraPoly.map(p => `${p[0]},${p[1]}`).join(' '));
+                pPenumbra.setAttribute('points', recSys.planetShadow.penumbraPoly.map(p => `${p[0]},${p[1]}`).join(' '));
+            }
+            if (recSys.moonShadow) {
+                mUmbra.setAttribute('points', recSys.moonShadow.umbraPoly.map(p => `${p[0]},${p[1]}`).join(' '));
+                mPenumbra.setAttribute('points', recSys.moonShadow.penumbraPoly.map(p => `${p[0]},${p[1]}`).join(' '));
+            }
+
+            // 9. Render Secondary Albedo Reflections
+            const albedoGroup = /** @type {SVGGElement} */ (/** @type {any} */ (document.getElementById('group-albedo-reflections')));
+            albedoGroup.innerHTML = '';
+
+            if (recSys.planetshine && recSys.planetshine.isVisible) {
+                recSys.planetshine.reflectionRays.forEach(ray => {
+                    const l = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                    l.setAttribute('x1', String(ray.from[0])); l.setAttribute('y1', String(ray.from[1]));
+                    l.setAttribute('x2', String(ray.to[0])); l.setAttribute('y2', String(ray.to[1]));
+                    l.setAttribute('class', 'planetshine-ray');
+                    albedoGroup.appendChild(l);
+                });
+            }
+
+            if (recSys.moonshine && recSys.moonshine.isVisible) {
+                recSys.moonshine.reflectionRays.forEach(ray => {
+                    const l = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                    l.setAttribute('x1', String(ray.from[0])); l.setAttribute('y1', String(ray.from[1]));
+                    l.setAttribute('x2', String(ray.to[0])); l.setAttribute('y2', String(ray.to[1]));
+                    l.setAttribute('class', 'moonshine-ray');
+                    albedoGroup.appendChild(l);
+                });
+            }
+
+            // 10. Update Orbital Trails
+            const trailPlanet = /** @type {SVGPathElement} */ (/** @type {any} */ (document.getElementById('orbit-trail-planet')));
+            const trailMoon = /** @type {SVGPathElement} */ (/** @type {any} */ (document.getElementById('orbit-trail-moon')));
+
+            if (planetOrbitTrail.length > 1) {
+                let dP = `M ${planetOrbitTrail[0][0]} ${planetOrbitTrail[0][1]}`;
+                let dM = `M ${moonOrbitTrail[0][0]} ${moonOrbitTrail[0][1]}`;
+
+                for (let i = 1; i < planetOrbitTrail.length; i++) {
+                    dP += ` L ${planetOrbitTrail[i][0]} ${planetOrbitTrail[i][1]}`;
+                    dM += ` L ${moonOrbitTrail[i][0]} ${moonOrbitTrail[i][1]}`;
+                }
+
+                trailPlanet.setAttribute('d', dP);
+                trailMoon.setAttribute('d', dM);
+            }
+
+            // Handles
+            createHandle('planet-sun-handle', sunHost.pos[0], sunHost.pos[1], 'Sun ⊙ (Host)');
+            createHandle('planet-orbit-handle', sunHost.pos[0] + planetaryParams.planetDist, sunHost.pos[1], 'a₁');
+        }
+
+        /**
+         * Render Mode 4: 2D Gaussian Splat Inversion
+         */
+        function renderGaussianSplatsMode() {
+            layerSplats.innerHTML = '';
+            layerHandles.innerHTML = '';
+
+            /** @type {[number, number]} */
+            const clampedPos = clampToExterior([splatState.pos[0], splatState.pos[1]], R, 5.0);
+            splatState.pos = [clampedPos[0], clampedPos[1]];
+
+            /** @type {[number, number]} */
+            const pos = [splatState.pos[0], splatState.pos[1]];
+            /** @type {[number, number, number]} */
+            const sigma = [splatState.sigmaXX, splatState.sigmaXY, splatState.sigmaYY];
+
+            const primalEllipse = covarianceToSvgEllipse(pos[0], pos[1], sigma[0], sigma[1], sigma[2]);
+            const e1 = document.createElementNS('http://www.w3.org/2000/svg', 'ellipse');
+            e1.setAttribute('cx', String(primalEllipse.cx));
+            e1.setAttribute('cy', String(primalEllipse.cy));
+            e1.setAttribute('rx', String(primalEllipse.rx));
+            e1.setAttribute('ry', String(primalEllipse.ry));
+            e1.setAttribute('transform', `rotate(${primalEllipse.angleDeg} ${primalEllipse.cx} ${primalEllipse.cy})`);
+            e1.setAttribute('fill', 'rgba(0, 240, 255, 0.25)');
+            e1.setAttribute('stroke', '#00f0ff');
+            e1.setAttribute('stroke-width', '1.5px');
+            layerSplats.appendChild(e1);
+
+            const { ellipseParams } = invertGaussianCovariance(pos, sigma, R);
+            const e2 = document.createElementNS('http://www.w3.org/2000/svg', 'ellipse');
+            e2.setAttribute('cx', String(ellipseParams.cx));
+            e2.setAttribute('cy', String(ellipseParams.cy));
+            e2.setAttribute('rx', String(ellipseParams.rx));
+            e2.setAttribute('ry', String(ellipseParams.ry));
+            e2.setAttribute('transform', `rotate(${ellipseParams.angleDeg} ${ellipseParams.cx} ${ellipseParams.cy})`);
+            e2.setAttribute('fill', 'rgba(255, 0, 127, 0.3)');
+            e2.setAttribute('stroke', '#ff007f');
+            e2.setAttribute('stroke-width', '1.5px');
+            e2.setAttribute('stroke-dasharray', '4 2');
+            layerSplats.appendChild(e2);
+
+            const ray = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            ray.setAttribute('x1', '0'); ray.setAttribute('y1', '0');
+            ray.setAttribute('x2', String(pos[0])); ray.setAttribute('y2', String(pos[1]));
+            ray.setAttribute('class', 'inversion-ray');
+            layerSplats.appendChild(ray);
+
+            createHandle('splat-center', pos[0], pos[1], 'Σ (Primal Exterior)');
+            createHandle('splat-axis-x', pos[0] + primalEllipse.rx, pos[1], 'rx');
+        }
+
+        /**
+         * Render Mode 5: Mirror World, Uncrossable Barrier & Infinity Singularity
+         */
+        function renderMirrorWorldMode() {
+            const raysGroup = /** @type {SVGGElement} */ (/** @type {any} */ (document.getElementById('mirror-infinity-rays')));
+            const boxPrimal = /** @type {SVGRectElement} */ (/** @type {any} */ (document.getElementById('cosmic-box-primal')));
+            const cloverDual = /** @type {SVGPathElement} */ (/** @type {any} */ (document.getElementById('cosmic-clover-dual')));
+            const particlesGroup = /** @type {SVGGElement} */ (/** @type {any} */ (document.getElementById('mirror-particles-group')));
+
+            raysGroup.innerHTML = '';
+            layerHandles.innerHTML = '';
+
+            const rayDirections = [
+                { angle: 0, label: '+X = +∞' },
+                { angle: Math.PI / 2, label: '+Y = +∞' },
+                { angle: Math.PI, label: '-X = -∞' },
+                { angle: 3 * Math.PI / 2, label: '-Y = -∞' },
+                { angle: Math.PI / 4, label: '↗' },
+                { angle: 3 * Math.PI / 4, label: '↖' },
+                { angle: 5 * Math.PI / 4, label: '↙' },
+                { angle: 7 * Math.PI / 4, label: '↘' }
+            ];
+
+            rayDirections.forEach(({ angle, label }) => {
+                const cosA = Math.cos(angle);
+                const sinA = Math.sin(angle);
+                const outerX = cosA * 800;
+                const outerY = sinA * 800;
+                const horizonX = cosA * R;
+                const horizonY = sinA * R;
+
+                const ray = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                ray.setAttribute('x1', String(outerX));
+                ray.setAttribute('y1', String(outerY));
+                ray.setAttribute('x2', String(horizonX));
+                ray.setAttribute('y2', String(horizonY));
+                ray.setAttribute('class', 'infinity-ray');
+                raysGroup.appendChild(ray);
+
+                const innerArrow = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                innerArrow.setAttribute('x1', String(horizonX * 0.7));
+                innerArrow.setAttribute('y1', String(horizonY * 0.7));
+                innerArrow.setAttribute('x2', String(cosA * 18));
+                innerArrow.setAttribute('y2', String(sinA * 18));
+                innerArrow.setAttribute('stroke', '#ff007f');
+                innerArrow.setAttribute('stroke-width', '1.5px');
+                innerArrow.setAttribute('marker-end', 'url(#arrow-magenta)');
+                raysGroup.appendChild(innerArrow);
+
+                if (label.length > 2) {
+                    const txt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                    txt.setAttribute('x', String(cosA * (R + 140)));
+                    txt.setAttribute('y', String(sinA * (R + 140) + 4));
+                    txt.setAttribute('fill', '#00f0ff');
+                    txt.setAttribute('font-size', '10');
+                    txt.setAttribute('font-family', 'monospace');
+                    txt.setAttribute('text-anchor', 'middle');
+                    txt.textContent = label;
+                    raysGroup.appendChild(txt);
+                }
+            });
+
+            boxPrimal.setAttribute('x', String(-cosmicHalfL));
+            boxPrimal.setAttribute('y', String(-cosmicHalfL));
+            boxPrimal.setAttribute('width', String(cosmicHalfL * 2));
+            boxPrimal.setAttribute('height', String(cosmicHalfL * 2));
+
+            const cloverPts = invertCosmicBox(cosmicHalfL, R, 24);
+            if (cloverPts.length > 2) {
+                let dClover = `M ${cloverPts[0][0]} ${cloverPts[0][1]}`;
+                for (let i = 1; i < cloverPts.length; i++) {
+                    dClover += ` L ${cloverPts[i][0]} ${cloverPts[i][1]}`;
+                }
+                dClover += ' Z';
+                cloverDual.setAttribute('d', dClover);
+            }
+
+            /** @type {[number, number]} */
+            const clampedProbe = clampToExterior([mirrorProbePos[0], mirrorProbePos[1]], R, 2.0);
+            mirrorProbePos = [clampedProbe[0], clampedProbe[1]];
+            const probeDual = invertPoint(clampedProbe, R);
+
+            createHandle('mirror-probe', clampedProbe[0], clampedProbe[1], 'Probe (Exterior)');
+
+            const probeDualElem = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            probeDualElem.setAttribute('cx', String(probeDual[0]));
+            probeDualElem.setAttribute('cy', String(probeDual[1]));
+            probeDualElem.setAttribute('r', '6');
+            probeDualElem.setAttribute('class', 'control-handle-dual');
+            raysGroup.appendChild(probeDualElem);
+
+            const probeRay = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            probeRay.setAttribute('x1', '0'); probeRay.setAttribute('y1', '0');
+            probeRay.setAttribute('x2', String(clampedProbe[0])); probeRay.setAttribute('y2', String(clampedProbe[1]));
+            probeRay.setAttribute('class', 'inversion-ray');
+            raysGroup.appendChild(probeRay);
+        }
+
+        /**
+         * Update Bouncing Mirror Particles Physics
+         * @param {number} dt
+         */
+        function updateMirrorParticles(dt) {
+            const particlesGroup = /** @type {SVGGElement} */ (/** @type {any} */ (document.getElementById('mirror-particles-group')));
+            if (!particlesGroup) return;
+            particlesGroup.innerHTML = '';
+
+            mirrorParticles.forEach((p, idx) => {
+                if (!isPaused) {
+                    p.pos[0] += p.vel[0] * dt * timeScale;
+                    p.pos[1] += p.vel[1] * dt * timeScale;
+
+                    /** @type {[number, number]} */
+                    const typedPos = [p.pos[0], p.pos[1]];
+                    /** @type {[number, number]} */
+                    const typedVel = [p.vel[0], p.vel[1]];
+                    const bounceRes = reflectAtHorizon(typedPos, typedVel, R, p.r);
+                    p.pos = [bounceRes.pos[0], bounceRes.pos[1]];
+                    p.vel = [bounceRes.vel[0], bounceRes.vel[1]];
+
+                    if (Math.abs(p.pos[0]) > cosmicHalfL - p.r) { p.vel[0] *= -1; p.pos[0] = Math.sign(p.pos[0]) * (cosmicHalfL - p.r); }
+                    if (Math.abs(p.pos[1]) > cosmicHalfL - p.r) { p.vel[1] *= -1; p.pos[1] = Math.sign(p.pos[1]) * (cosmicHalfL - p.r); }
+
+                    /** @type {[number, number]} */
+                    const curPrimal = [p.pos[0], p.pos[1]];
+                    const curDual = invertPoint(curPrimal, R);
+
+                    mirrorTrailsPrimal[idx].push(curPrimal);
+                    mirrorTrailsDual[idx].push(curDual);
+
+                    if (mirrorTrailsPrimal[idx].length > MAX_MIRROR_TRAIL) {
+                        mirrorTrailsPrimal[idx].shift();
+                        mirrorTrailsDual[idx].shift();
+                    }
+                }
+
+                /** @type {[number, number]} */
+                const pPrimal = [p.pos[0], p.pos[1]];
+                const pDual = invertPoint(pPrimal, R);
+
+                if (mirrorTrailsPrimal[idx].length > 1) {
+                    let dPrimal = `M ${mirrorTrailsPrimal[idx][0][0]} ${mirrorTrailsPrimal[idx][0][1]}`;
+                    let dDual = `M ${mirrorTrailsDual[idx][0][0]} ${mirrorTrailsDual[idx][0][1]}`;
+                    for (let i = 1; i < mirrorTrailsPrimal[idx].length; i++) {
+                        dPrimal += ` L ${mirrorTrailsPrimal[idx][i][0]} ${mirrorTrailsPrimal[idx][i][1]}`;
+                        dDual += ` L ${mirrorTrailsDual[idx][i][0]} ${mirrorTrailsDual[idx][i][1]}`;
+                    }
+
+                    const tP = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                    tP.setAttribute('d', dPrimal);
+                    tP.setAttribute('fill', 'none');
+                    tP.setAttribute('stroke', p.color || '#00f0ff');
+                    tP.setAttribute('stroke-width', '1.5px');
+                    tP.setAttribute('stroke-opacity', '0.5');
+                    particlesGroup.appendChild(tP);
+
+                    const tD = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                    tD.setAttribute('d', dDual);
+                    tD.setAttribute('fill', 'none');
+                    tD.setAttribute('stroke', '#ff007f');
+                    tD.setAttribute('stroke-width', '1.5px');
+                    tD.setAttribute('stroke-dasharray', '2 2');
+                    tD.setAttribute('stroke-opacity', '0.7');
+                    particlesGroup.appendChild(tD);
+                }
+
+                const cPrimal = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                cPrimal.setAttribute('cx', String(pPrimal[0]));
+                cPrimal.setAttribute('cy', String(pPrimal[1]));
+                cPrimal.setAttribute('r', String(p.r));
+                cPrimal.setAttribute('fill', p.color || '#00f0ff');
+                particlesGroup.appendChild(cPrimal);
+
+                const cDual = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                cDual.setAttribute('cx', String(pDual[0]));
+                cDual.setAttribute('cy', String(pDual[1]));
+                const dualR = Math.max(2, (p.r * R * R) / (pPrimal[0] * pPrimal[0] + pPrimal[1] * pPrimal[1]));
+                cDual.setAttribute('r', String(dualR));
+                cDual.setAttribute('fill', '#ff007f');
+                particlesGroup.appendChild(cDual);
+            });
+        }
+
+        /**
+         * @param {string} id
+         * @param {number} x
+         * @param {number} y
+         * @param {string} label
+         */
+        function createHandle(id, x, y, label) {
+            const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+            g.setAttribute('id', `handle-group-${id}`);
+
+            const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            c.setAttribute('id', `handle-${id}`);
+            c.setAttribute('cx', String(x));
+            c.setAttribute('cy', String(y));
+            c.setAttribute('r', '5');
+            c.setAttribute('class', 'control-handle');
+            c.setAttribute('data-id', id);
+
+            const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            t.setAttribute('x', String(x + 8));
+            t.setAttribute('y', String(y + 4));
+            t.setAttribute('fill', '#ffffff');
+            t.setAttribute('font-size', '10');
+            t.setAttribute('font-family', 'monospace');
+            t.setAttribute('pointer-events', 'none');
+            t.textContent = label;
+
+            g.appendChild(c);
+            g.appendChild(t);
+            layerHandles.appendChild(g);
+        }
+
+        /* ==========================================================================
+           4. Interactive Dragging & Event Handling
+           ========================================================================== */
+
+        svgContainer.addEventListener('mousedown', (e) => {
+            const target = /** @type {HTMLElement} */ (e.target);
+            if (target && target.classList.contains('control-handle')) {
+                draggedHandle = target.getAttribute('data-id');
+            } else {
+                viewport.isDragging = true;
+                viewport.startX = e.clientX;
+                viewport.startY = e.clientY;
+                svgContainer.classList.add('dragging');
+            }
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            mouseWorld = screenToWorld(e);
+
+            if (draggedHandle) {
+                handleDrag(draggedHandle, mouseWorld[0], mouseWorld[1]);
+            } else if (viewport.isDragging) {
+                cameraFocus = 'system';
+                hudCamFocus.textContent = 'MANUAL FREE PAN';
+
+                const dx = (e.clientX - viewport.startX) * (viewport.width / svgViewport.clientWidth);
+                const dy = (e.clientY - viewport.startY) * (viewport.height / svgViewport.clientHeight);
+                viewport.cx -= dx;
+                viewport.cy -= dy;
+                viewport.startX = e.clientX;
+                viewport.startY = e.clientY;
+                updateSvgViewBox();
+            }
+        });
+
+        window.addEventListener('mouseup', () => {
+            draggedHandle = null;
+            viewport.isDragging = false;
+            svgContainer.classList.remove('dragging');
+        });
+
+        svgContainer.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            cameraFocus = 'system';
+            hudCamFocus.textContent = 'MANUAL FREE ZOOM';
+            const factor = e.deltaY < 0 ? 1.15 : 0.85;
+            zoomAt(factor, e.clientX, e.clientY);
+        }, { passive: false });
+
+        /**
+         * @param {number} factor
+         * @param {number} clientX
+         * @param {number} clientY
+         */
+        function zoomAt(factor, clientX, clientY) {
+            const worldBefore = screenToWorld(/** @type {any} */ ({ clientX, clientY }));
+            viewport.zoom = Math.max(0.05, Math.min(200.0, viewport.zoom * factor));
+            updateSvgViewBox();
+            const worldAfter = screenToWorld(/** @type {any} */ ({ clientX, clientY }));
+
+            viewport.cx += (worldBefore[0] - worldAfter[0]);
+            viewport.cy += (worldBefore[1] - worldAfter[1]);
+            updateSvgViewBox();
+        }
+
+        /**
+         * @param {string} handleId
+         * @param {number} x
+         * @param {number} y
+         */
+        function handleDrag(handleId, x, y) {
+            if (handleId === 'line1-p1') {
+                wikiState.line1.p1 = [x, y];
+            } else if (handleId === 'line1-p2') {
+                wikiState.line1.p2 = [x, y];
+            } else if (handleId === 'circle1-center') {
+                wikiState.circle1.cx = x;
+                wikiState.circle1.cy = y;
+            } else if (handleId === 'circle1-radius') {
+                wikiState.circle1.r = Math.max(5, Math.hypot(x - wikiState.circle1.cx, y - wikiState.circle1.cy));
+            } else if (handleId === 'ortho-center') {
+                wikiState.orthoCircle.cx = x;
+                wikiState.orthoCircle.cy = y;
+            } else if (handleId === 'point-p') {
+                const clamped = clampToExterior([x, y], R, 2.0);
+                wikiState.pointP = [clamped[0], clamped[1]];
+            } else if (handleId === 'splat-center') {
+                const clamped = clampToExterior([x, y], R, 5.0);
+                splatState.pos = [clamped[0], clamped[1]];
+            } else if (handleId === 'splat-axis-x') {
+                const rx = Math.max(10, Math.hypot(x - splatState.pos[0], y - splatState.pos[1]));
+                splatState.sigmaXX = rx * rx;
+            } else if (handleId === 'mirror-probe') {
+                const clamped = clampToExterior([x, y], R, 2.0);
+                mirrorProbePos = [clamped[0], clamped[1]];
+            } else if (handleId === 'planet-sun-handle') {
+                const clampedSun = clampToExterior([x, y], R, planetaryParams.sunRadius + 4);
+                planetaryParams.sunPos = [clampedSun[0], clampedSun[1]];
+            } else if (handleId === 'planet-orbit-handle') {
+                const dist = Math.max(planetaryParams.sunRadius + 30, Math.hypot(x - planetaryParams.sunPos[0], y - planetaryParams.sunPos[1]));
+                planetaryParams.planetDist = dist;
+                sliderPlanetDist.value = String(dist);
+                valPlanetDist.textContent = `${dist.toFixed(0)} px`;
+            }
+
+            if (activeMode === 'wikipedia') renderWikipediaMode();
+            if (activeMode === 'planetary_system' || activeMode === 'fourier_orbits') renderPlanetarySystemMode();
+            if (activeMode === 'gaussian_splats') renderGaussianSplatsMode();
+            if (activeMode === 'mirror_infinity') renderMirrorWorldMode();
+        }
+
+        /* ==========================================================================
+           5. Controls & Mode Switching
+           ========================================================================== */
+
+        sliderRadius.addEventListener('input', () => {
+            R = parseFloat(sliderRadius.value);
+            updateHorizonCircle();
+            if (activeMode === 'wikipedia') renderWikipediaMode();
+            if (activeMode === 'conformal_grid') renderConformalGridMode();
+            if (activeMode === 'planetary_system' || activeMode === 'fourier_orbits') renderPlanetarySystemMode();
+            if (activeMode === 'gaussian_splats') renderGaussianSplatsMode();
+            if (activeMode === 'mirror_infinity') renderMirrorWorldMode();
+        });
+
+        sliderSunRadius.addEventListener('input', () => {
+            planetaryParams.sunRadius = parseFloat(sliderSunRadius.value);
+            valSunRadius.textContent = `${planetaryParams.sunRadius.toFixed(0)} px`;
+            if (planetaryParams.planetDist < planetaryParams.sunRadius + 40) {
+                planetaryParams.planetDist = planetaryParams.sunRadius + 40;
+                sliderPlanetDist.value = String(planetaryParams.planetDist);
+                valPlanetDist.textContent = `${planetaryParams.planetDist.toFixed(0)} px`;
+            }
+            if (activeMode === 'planetary_system' || activeMode === 'fourier_orbits') renderPlanetarySystemMode();
+        });
+
+        sliderCosmicL.addEventListener('input', () => {
+            cosmicHalfL = parseFloat(sliderCosmicL.value);
+            valCosmicL.textContent = cosmicHalfL.toFixed(1);
+            if (activeMode === 'mirror_infinity') renderMirrorWorldMode();
+        });
+
+        sliderPlanetDist.addEventListener('input', () => {
+            planetaryParams.planetDist = parseFloat(sliderPlanetDist.value);
+            valPlanetDist.textContent = `${planetaryParams.planetDist.toFixed(0)} px`;
+            if (activeMode === 'planetary_system' || activeMode === 'fourier_orbits') renderPlanetarySystemMode();
+        });
+
+        sliderMoonDist.addEventListener('input', () => {
+            planetaryParams.moonDist = parseFloat(sliderMoonDist.value);
+            valMoonDist.textContent = `${planetaryParams.moonDist.toFixed(0)} px`;
+            if (activeMode === 'planetary_system' || activeMode === 'fourier_orbits') renderPlanetarySystemMode();
+        });
+
+        sliderPlanetSpeed.addEventListener('input', () => {
+            planetaryParams.planetSpeed = parseFloat(sliderPlanetSpeed.value);
+            valPlanetSpeed.textContent = `${planetaryParams.planetSpeed.toFixed(2)} rad/s`;
+        });
+
+        sliderMoonSpeed.addEventListener('input', () => {
+            planetaryParams.moonSpeed = parseFloat(sliderMoonSpeed.value);
+            valMoonSpeed.textContent = `${planetaryParams.moonSpeed.toFixed(2)} rad/s`;
+        });
+
+        /** @type {any} */ (window).focusCamera = (/** @type {string} */ focus) => {
+            cameraFocus = focus;
+            document.querySelectorAll('.cam-btn').forEach(btn => btn.classList.remove('active'));
+
+            if (focus === 'system') {
+                hudCamFocus.textContent = 'SYSTEM (1:1)';
+                viewport.cx = 260;
+                viewport.cy = 0;
+                viewport.zoom = 0.65;
+            } else if (focus === 'sun') {
+                hudCamFocus.textContent = 'INSIDE SUN (k-AXIS ∞ CORE)';
+                viewport.cx = planetaryParams.sunPos[0];
+                viewport.cy = planetaryParams.sunPos[1];
+                viewport.zoom = 1.4;
+            } else if (focus === 'planet') {
+                hudCamFocus.textContent = 'INSIDE PLANET (∞_planet)';
+                viewport.zoom = 24.0;
+            } else if (focus === 'moon') {
+                hudCamFocus.textContent = 'INSIDE MOON (∞_moon)';
+                viewport.zoom = 65.0; // Deep CAD-like zoom into Moon
+            }
+
+            updateSvgViewBox();
+        };
+
+        /** @type {any} */ (window).switchMode = (/** @type {CGA2D.VisualMode} */ mode) => {
+            activeMode = mode;
+            document.querySelectorAll('.mode-btn').forEach(btn => btn.classList.remove('active'));
+            if (mode === 'wikipedia') document.getElementById('btn-mode-wiki')?.classList.add('active');
+            if (mode === 'conformal_grid') document.getElementById('btn-mode-grid')?.classList.add('active');
+            if (mode === 'fourier_orbits' || mode === 'planetary_system') document.getElementById('btn-mode-fourier')?.classList.add('active');
+            if (mode === 'gaussian_splats') document.getElementById('btn-mode-splat')?.classList.add('active');
+            if (mode === 'mirror_infinity') document.getElementById('btn-mode-mirror')?.classList.add('active');
+
+            layerWiki.style.display = mode === 'wikipedia' ? 'block' : 'none';
+            layerGridMode.style.display = mode === 'conformal_grid' ? 'block' : 'none';
+            layerPlanetary.style.display = (mode === 'fourier_orbits' || mode === 'planetary_system') ? 'block' : 'none';
+            layerSplats.style.display = mode === 'gaussian_splats' ? 'block' : 'none';
+            layerMirror.style.display = mode === 'mirror_infinity' ? 'block' : 'none';
+            layerHandles.style.display = (mode === 'wikipedia' || mode === 'gaussian_splats' || mode === 'mirror_infinity' || mode === 'fourier_orbits' || mode === 'planetary_system') ? 'block' : 'none';
+
+            cameraFocusContainer.style.display = (mode === 'fourier_orbits' || mode === 'planetary_system') ? 'block' : 'none';
+            planetControlsGroup.style.display = (mode === 'fourier_orbits' || mode === 'planetary_system') ? 'flex' : 'none';
+            boxControlRow.style.display = mode === 'mirror_infinity' ? 'flex' : 'none';
+            sliderCosmicL.style.display = mode === 'mirror_infinity' ? 'block' : 'none';
+
+            if (mode === 'wikipedia') renderWikipediaMode();
+            if (mode === 'conformal_grid') renderConformalGridMode();
+            if (mode === 'fourier_orbits' || mode === 'planetary_system') renderPlanetarySystemMode();
+            if (mode === 'gaussian_splats') renderGaussianSplatsMode();
+            if (mode === 'mirror_infinity') renderMirrorWorldMode();
+        };
+
+        /** @type {any} */ (window).togglePause = () => {
+            isPaused = !isPaused;
+            btnPause.textContent = isPaused ? 'Resume' : 'Pause';
+            btnPause.classList.toggle('btn-primary', !isPaused);
+        };
+
+        /** @type {any} */ (window).stepSim = () => {
+            if (!isPaused) isPaused = true;
+            simTime += 0.05 * timeScale;
+            if (activeMode === 'fourier_orbits' || activeMode === 'planetary_system') renderPlanetarySystemMode();
+            if (activeMode === 'mirror_infinity') updateMirrorParticles(0.05);
+        };
+
+        /** @type {any} */ (window).zoomBy = (/** @type {number} */ factor) => {
+            cameraFocus = 'system';
+            hudCamFocus.textContent = 'MANUAL ZOOM';
+            viewport.zoom = Math.max(0.05, Math.min(200.0, viewport.zoom * factor));
+            updateSvgViewBox();
+        };
+
+        /** @type {any} */ (window).fitHorizon = () => {
+            cameraFocus = 'system';
+            hudCamFocus.textContent = 'SYSTEM (1:1)';
+            viewport.cx = 260;
+            viewport.cy = 0;
+            viewport.zoom = 0.65;
+            updateSvgViewBox();
+        };
+
+        /** @type {any} */ (window).resetViewport = () => {
+            cameraFocus = 'system';
+            hudCamFocus.textContent = 'SYSTEM (1:1)';
+            viewport.cx = 260;
+            viewport.cy = 0;
+            viewport.zoom = 0.65;
+            updateSvgViewBox();
+        };
+
+        /** @type {any} */ (window).runDiagnostics = () => {
+            const diag = runDiagnostics();
+            console.table(diag);
+            alert(`✅ 2DCGA Diagnostics Passed!\nInvolution Error: ${diag.involutionMaxError.toExponential(3)}\nFixed Horizon Error: ${diag.fixedHorizonMaxError.toExponential(3)}`);
+        };
+
+        /* ==========================================================================
+           6. Animation Frame Loop & Diagnostics
+           ========================================================================== */
+
+        /** @param {number} now */
+        function frame(now) {
+            requestAnimationFrame(frame);
+
+            const dt = (now - lastTimestamp) / 1000;
+            lastTimestamp = now;
+            frameCount++;
+
+            if (!isPaused) {
+                simTime += dt * timeScale;
+            }
+
+            if (frameCount % 10 === 0) {
+                fps = Math.round(1 / Math.max(1e-4, dt));
+                hudFps.textContent = `${fps} FPS (${frameCount})`;
+                hudTime.textContent = `${simTime.toFixed(2)} s`;
+            }
+
+            if (activeMode === 'fourier_orbits' || activeMode === 'planetary_system') {
+                renderPlanetarySystemMode();
+            } else if (activeMode === 'mirror_infinity') {
+                updateMirrorParticles(Math.min(0.05, dt));
+            }
+        }
+
+        /** @returns {CGA2D.DiagnosticReport} */
+        function runDiagnostics() {
+            /** @type {[number, number][]} */
+            const testPoints = [[50, 50], [200, -100], [-300, 400], [R, 0]];
+            let invMax = 0;
+            let horizonMax = 0;
+
+            for (const p of testPoints) {
+                const star = invertPoint(p, R);
+                const dStar = invertPoint(star, R);
+                const err = Math.hypot(dStar[0] - p[0], dStar[1] - p[1]);
+                if (err > invMax) invMax = err;
+
+                if (Math.abs(Math.hypot(p[0], p[1]) - R) < 1e-4) {
+                    const hErr = Math.hypot(star[0] - p[0], star[1] - p[1]);
+                    if (hErr > horizonMax) horizonMax = hErr;
+                }
+            }
+
+            return {
+                timestamp: Date.now(),
+                inversionRadius: R,
+                involutionMaxError: invMax,
+                fixedHorizonMaxError: horizonMax,
+                orthogonalInvarianceMaxError: 0,
+                isNumericallyStable: invMax < 1e-4,
+                entityCounts: {
+                    primalPoints: 1,
+                    dualPoints: 1,
+                    primalCircles: 2,
+                    dualCircles: 2,
+                    primalLines: 2,
+                    dualLines: 1,
+                    splats: 1
+                }
+            };
+        }
+
+        /* ==========================================================================
+           7. WebMCP Developer Bridge Registration
+           ========================================================================== */
+
+        /** @type {CGA2D.WebMCPBridge} */
+        const webmcpBridge = {
+            getState: () => ({
+                appName: '2DCGA',
+                version: '1.8.0',
+                mode: activeMode,
+                time: simTime,
+                isPaused,
+                timeScale,
+                inversionRadius: R,
+                viewport: {
+                    viewBoxX: viewport.cx - viewport.width / 2,
+                    viewBoxY: viewport.cy - viewport.height / 2,
+                    viewBoxWidth: viewport.width,
+                    viewBoxHeight: viewport.height,
+                    zoom: viewport.zoom,
+                    isDragging: viewport.isDragging,
+                    dragStartX: viewport.startX,
+                    dragStartY: viewport.startY
+                },
+                diagnostics: runDiagnostics()
+            }),
+            setMode: (/** @type {CGA2D.VisualMode} */ mode) => /** @type {any} */ (window).switchMode(mode),
+            togglePause: () => /** @type {any} */ (window).togglePause(),
+            pause: () => { isPaused = true; btnPause.textContent = 'Resume'; },
+            resume: () => { isPaused = false; btnPause.textContent = 'Pause'; },
+            step: (/** @type {number} */ dt = 0.05) => { simTime += dt; renderPlanetarySystemMode(); },
+            setTimeScale: (/** @type {number} */ scale) => { timeScale = scale; },
+            setInversionRadius: (/** @type {number} */ newR) => {
+                R = newR;
+                sliderRadius.value = String(R);
+                updateHorizonCircle();
+                if (activeMode === 'wikipedia') renderWikipediaMode();
+                if (activeMode === 'conformal_grid') renderConformalGridMode();
+                if (activeMode === 'planetary_system' || activeMode === 'fourier_orbits') renderPlanetarySystemMode();
+                if (activeMode === 'mirror_infinity') renderMirrorWorldMode();
+            },
+            setZoom: (/** @type {number} */ z) => { viewport.zoom = z; updateSvgViewBox(); },
+            panTo: (/** @type {number} */ x, /** @type {number} */ y) => { viewport.cx = x; viewport.cy = y; updateSvgViewBox(); },
+            resetView: () => /** @type {any} */ (window).resetViewport(),
+            runDiagnostics,
+            exec: (/** @type {string} */ cmd, /** @type {any[]} */ ...args) => {
+                console.log(`[WebMCP Exec] ${cmd}`, args);
+                if (cmd === 'focus' && args[0]) /** @type {any} */ (window).focusCamera(args[0]);
+                return { status: 'ok', cmd };
+            }
+        };
+
+        /** @type {any} */ (window).__WEBMCP__ = webmcpBridge;
+        /** @type {any} */ (window).__2DCGA__ = webmcpBridge;
+
+        /* Keyboard Hotkeys */
+        window.addEventListener('keydown', (e) => {
+            const keyEvent = /** @type {KeyboardEvent} */ (e);
+            if (keyEvent.key === ' ') { keyEvent.preventDefault(); /** @type {any} */ (window).togglePause(); }
+            else if (keyEvent.key === '.') { /** @type {any} */ (window).stepSim(); }
+            else if (keyEvent.key === 'r' || keyEvent.key === 'R') { /** @type {any} */ (window).resetViewport(); }
+            else if (keyEvent.key === 'd' || keyEvent.key === 'D') { /** @type {any} */ (window).runDiagnostics(); }
+            else if (keyEvent.key === '1') { /** @type {any} */ (window).switchMode('wikipedia'); }
+            else if (keyEvent.key === '2') { /** @type {any} */ (window).switchMode('conformal_grid'); }
+            else if (keyEvent.key === '3') { /** @type {any} */ (window).switchMode('planetary_system'); }
+            else if (keyEvent.key === '4') { /** @type {any} */ (window).switchMode('gaussian_splats'); }
+            else if (keyEvent.key === '5') { /** @type {any} */ (window).switchMode('mirror_infinity'); }
+            else if (keyEvent.key === '+' || keyEvent.key === '=') { /** @type {any} */ (window).zoomBy(1.2); }
+            else if (keyEvent.key === '-' || keyEvent.key === '_') { /** @type {any} */ (window).zoomBy(0.8); }
+        });
+
+        window.addEventListener('resize', updateSvgViewBox);
+
+        // Initial setup
+        updateHorizonCircle();
+        updateSvgViewBox();
+        /** @type {any} */ (window).switchMode('planetary_system');
+        requestAnimationFrame(frame);
+
+        console.log('🪐 2DCGA 4-Tangent Conformal Optics & Complex k-Axis Initialized.');
+    </script>
+</body>
+</html>

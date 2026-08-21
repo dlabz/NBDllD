@@ -1,0 +1,874 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>N-Body Projective Clustered Engine v6 (Known Astronomical Star Clusters &amp; Orbital Paths)</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #010206; color: #e2e8f0; font-family: system-ui, -apple-system, sans-serif; overflow: hidden; }
+  #c { display: block; width: 100vw; height: 100vh; }
+  .glass {
+    background: rgba(8, 12, 26, 0.88);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(56, 189, 248, 0.25);
+    border-radius: 12px;
+    box-shadow: 0 20px 45px -15px rgba(0, 0, 0, 0.85), 0 0 30px rgba(56, 189, 248, 0.08);
+  }
+  .code-font {
+    font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  input[type="range"] {
+    accent-color: #38bdf8;
+  }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.15rem 0.5rem;
+    border-radius: 9999px;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+</style>
+</head>
+<body class="relative select-none">
+<canvas id="c"></canvas>
+
+<!-- Top Left Control & Stats Panel -->
+<div class="absolute top-4 left-4 z-10 glass p-5 max-w-md w-full pointer-events-auto space-y-3.5 max-h-[95vh] overflow-y-auto">
+  <div class="flex justify-between items-start">
+    <div>
+      <div class="flex gap-1.5 mb-1">
+        <span class="badge bg-sky-500/10 text-sky-400 border border-sky-500/30">Star Clusters v6</span>
+        <span class="badge bg-purple-500/10 text-purple-400 border border-purple-500/30">Orbital Paths</span>
+      </div>
+      <h1 class="text-lg font-bold bg-gradient-to-r from-sky-400 via-teal-300 to-purple-400 bg-clip-text text-transparent">
+        Known Star Clusters &amp; Galactic Orbits
+      </h1>
+    </div>
+    <div class="text-right code-font text-xs">
+      <span id="fpsDisplay" class="text-emerald-400 font-bold block text-sm">60 FPS</span>
+      <span id="gflopsDisplay" class="text-slate-400 text-[10px]">~28.4 GFLOPS</span>
+    </div>
+  </div>
+
+  <!-- The Pleiades: Seven Sisters Selector -->
+  <div>
+    <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-1.5">Pleiades (M45): The Seven Sisters</span>
+    <div class="grid grid-cols-3 gap-1 text-[11px]">
+      <button onclick="focusSister(0)" id="sister-btn-0" class="py-1 px-1.5 rounded bg-sky-600 text-white font-bold text-center transition shadow">
+        Alcyone
+      </button>
+      <button onclick="focusSister(1)" id="sister-btn-1" class="py-1 px-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-center transition">
+        Atlas
+      </button>
+      <button onclick="focusSister(2)" id="sister-btn-2" class="py-1 px-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-center transition">
+        Electra
+      </button>
+      <button onclick="focusSister(3)" id="sister-btn-3" class="py-1 px-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-center transition">
+        Maia
+      </button>
+      <button onclick="focusSister(4)" id="sister-btn-4" class="py-1 px-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-center transition">
+        Merope
+      </button>
+      <button onclick="focusSister(5)" id="sister-btn-5" class="py-1 px-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-center transition">
+        Taygeta
+      </button>
+      <button onclick="focusSister(6)" id="sister-btn-6" class="py-1 px-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-center transition">
+        Pleione
+      </button>
+      <button onclick="focusSister(7)" id="sister-btn-7" class="py-1 px-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-center transition">
+        Celaeno
+      </button>
+      <button onclick="focusSister(8)" id="sister-btn-8" class="py-1 px-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-center transition">
+        Asterope
+      </button>
+    </div>
+    <div class="mt-1.5 flex gap-1">
+      <button onclick="focusSister(-1)" id="sister-btn-all" class="flex-1 py-1 px-2 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs transition text-center">
+        Full Pleiades Cluster View
+      </button>
+      <button onclick="focusSister(-2)" id="sister-btn-galactic" class="flex-1 py-1 px-2 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs transition text-center">
+        Galactic Orbit View
+      </button>
+    </div>
+  </div>
+
+  <!-- Live Cluster Telemetry -->
+  <div class="grid grid-cols-2 gap-2 text-[11px] code-font bg-slate-950/70 p-2.5 rounded-lg border border-slate-800/80">
+    <div>
+      <span class="text-slate-500 block text-[9px]">ACTIVE SISTER STAR</span>
+      <span id="activeSisterName" class="text-sky-300 font-bold">Alcyone (Eta Tau)</span>
+    </div>
+    <div>
+      <span class="text-slate-500 block text-[9px]">SPECTRAL CLASS</span>
+      <span id="sisterSpecLabel" class="text-amber-300 font-bold">B7IIIe Giant</span>
+    </div>
+    <div>
+      <span class="text-slate-500 block text-[9px]">TOTAL SWARM BODIES</span>
+      <span id="bodyCountLabel" class="text-purple-300 font-bold">4,096 Stars</span>
+    </div>
+    <div>
+      <span class="text-slate-500 block text-[9px]">REFLECTION NEBULOSITY</span>
+      <span class="text-emerald-400 font-bold">Sapphire Gas Cloud</span>
+    </div>
+  </div>
+
+  <!-- Body Density Presets -->
+  <div class="space-y-1.5">
+    <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">Particle Density</span>
+    <div class="grid grid-cols-4 gap-1.5 text-xs">
+      <button onclick="setBodyPreset(32)" class="py-1.5 px-2 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 transition text-center font-semibold" id="btn-1k">1,024</button>
+      <button onclick="setBodyPreset(64)" class="py-1.5 px-2 rounded bg-sky-600 text-white font-bold text-center transition shadow" id="btn-4k">4,096</button>
+      <button onclick="setBodyPreset(96)" class="py-1.5 px-2 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 transition text-center font-semibold" id="btn-9k">9,216</button>
+      <button onclick="setBodyPreset(128)" class="py-1.5 px-2 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 transition text-center font-semibold" id="btn-16k">16,384</button>
+    </div>
+  </div>
+
+  <!-- Dynamic Control Sliders -->
+  <div class="space-y-2.5">
+    <!-- Orbital Speed Slider -->
+    <div>
+      <div class="flex justify-between text-xs mb-1">
+        <span class="text-slate-300 font-medium">Cluster Orbital Speed</span>
+        <span id="valSpeed" class="code-font text-sky-300">1.0x</span>
+      </div>
+      <input type="range" id="sliderSpeed" min="0.1" max="3.0" step="0.1" value="1.0" class="w-full">
+    </div>
+
+    <!-- Cluster Tidal Reach Radius -->
+    <div>
+      <div class="flex justify-between text-xs mb-1">
+        <span class="text-slate-300 font-medium">Cluster Tidal Reach (R_reach)</span>
+        <span id="valReach" class="code-font text-amber-300">38 px</span>
+      </div>
+      <input type="range" id="sliderReach" min="15" max="90" step="2" value="38" class="w-full">
+    </div>
+
+    <!-- Brownian Dispersion -->
+    <div>
+      <div class="flex justify-between text-xs mb-1">
+        <span class="text-slate-300 font-medium">Interstellar Gas Brownian Drag</span>
+        <span id="valBrownian" class="code-font text-purple-300">0.020</span>
+      </div>
+      <input type="range" id="sliderBrownian" min="0.0" max="0.10" step="0.005" value="0.020" class="w-full">
+    </div>
+
+    <!-- Central Sgr A* Core Mass -->
+    <div>
+      <div class="flex justify-between text-xs mb-1">
+        <span class="text-slate-300 font-medium">Galactic Core Mass (Sgr A*)</span>
+        <span id="valCoreMass" class="code-font text-teal-300">55,000 M☉</span>
+      </div>
+      <input type="range" id="sliderCoreMass" min="10000" max="120000" step="5000" value="55000" class="w-full">
+    </div>
+  </div>
+
+  <!-- Action Buttons -->
+  <div class="flex gap-2 pt-1 border-t border-slate-800">
+    <button onclick="resetScenario()" class="flex-1 py-1.5 px-3 rounded bg-sky-600 hover:bg-sky-500 text-white font-bold transition text-xs shadow">
+      Reset Clusters
+    </button>
+    <button id="btnToggleOrbits" onclick="toggleOrbitalPaths()" class="flex-1 py-1.5 px-3 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 transition text-xs font-semibold">
+      Toggle Orbit Paths
+    </button>
+  </div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+// @ts-check
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GPUComputationRenderer } from 'three/addons/misc/GPUComputationRenderer.js';
+
+// ═══════════════════════════════════════════════════════════════
+// §1  Scene & Three.js Canvas Setup
+// ═══════════════════════════════════════════════════════════════
+const canvas = document.getElementById('c');
+if (!canvas) throw new Error('Canvas not found');
+
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x010206);
+scene.fog = new THREE.FogExp2(0x010206, 0.0018);
+
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 12000);
+camera.position.set(85, 70, 110);
+
+const controls = new OrbitControls(camera, canvas);
+controls.target.set(85, 0, 0);
+controls.enableDamping = true;
+controls.dampingFactor = 0.05;
+controls.minDistance = 3.0;
+controls.maxDistance = 5000.0;
+controls.minPolarAngle = 0.01;
+controls.maxPolarAngle = Math.PI - 0.01;
+
+// @ts-ignore
+window.camera = camera;
+// @ts-ignore
+window.controls = controls;
+
+// ═══════════════════════════════════════════════════════════════
+// §2  Astronomical Seven Sisters (Pleiades M45) & Cluster Catalogs
+// ═══════════════════════════════════════════════════════════════
+let WIDTH = 64; // 64 x 64 = 4,096 bodies
+let N_BODIES = WIDTH * WIDTH;
+
+let G_CONST = 0.045;
+let SGR_MASS = 55000.0;
+let REACH_RADIUS = 38.0;
+let BROWNIAN_STRENGTH = 0.020;
+let TIME_SCALE = 1.0;
+let focusedSisterIndex = -1; // -1: All Seven Sisters, 0..8: Individual Sister
+let showOrbits = true;
+let showStarLabels = true;
+
+// The Seven Sisters (plus Atlas & Pleione) — Real Astronomical Pleiades Primary Stars
+const SEVEN_SISTERS = [
+  { name: 'Alcyone (Eta Tau)', mass: 9200.0, radius: 5.5, color: new THREE.Color(0x60a5fa), off: [0.0, 0.0, 0.0], spec: 'B7IIIe (Brightest Sister)' },
+  { name: 'Atlas (27 Tau)', mass: 6800.0, radius: 4.8, color: new THREE.Color(0x93c5fd), off: [18.5, 2.1, 8.4], spec: 'B8III (Father Star)' },
+  { name: 'Electra (17 Tau)', mass: 5400.0, radius: 4.5, color: new THREE.Color(0x38bdf8), off: [-14.2, -1.8, -12.6], spec: 'B6IIIe (Rapid Rotator)' },
+  { name: 'Maia (20 Tau)', mass: 5100.0, radius: 4.4, color: new THREE.Color(0x7dd3fc), off: [-6.4, 3.2, 11.8], spec: 'B8III (Nebular Sister)' },
+  { name: 'Merope (23 Tau)', mass: 4800.0, radius: 4.3, color: new THREE.Color(0x38bdf8), off: [-2.1, -4.5, 16.2], spec: 'B6IVe (Barnard Nebula)' },
+  { name: 'Taygeta (19 Tau)', mass: 4200.0, radius: 4.0, color: new THREE.Color(0xbae6fd), off: [-12.8, 1.5, 14.5], spec: 'B6V (Binary Star)' },
+  { name: 'Pleione (28 Tau)', mass: 3900.0, radius: 3.8, color: new THREE.Color(0xc084fc), off: [19.2, 3.8, 9.6], spec: 'B8IVe (Mother / Shell Star)' },
+  { name: 'Celaeno (16 Tau)', mass: 2800.0, radius: 3.4, color: new THREE.Color(0x38bdf8), off: [-17.5, -2.4, -6.8], spec: 'B7IV (Lost Sister)' },
+  { name: 'Asterope (21 Tau)', mass: 2500.0, radius: 3.2, color: new THREE.Color(0x93c5fd), off: [-8.8, 5.1, 18.4], spec: 'B8V (Double Star)' }
+];
+
+const NUM_PRIMARY_STARS = SEVEN_SISTERS.length; // 9 Named Sister Stars!
+
+let gpuCompute;
+let positionVar, velocityVar;
+let dtPosition, dtVelocity, dtMassData;
+let particleMesh;
+let orbitLineGroup;
+
+// ═══════════════════════════════════════════════════════════════
+// §3  GPGPU Initialization with the Full Seven Sisters Swarm
+// ═══════════════════════════════════════════════════════════════
+
+function packColor(c) {
+  return (Math.floor(c.r * 255) << 16) | (Math.floor(c.g * 255) << 8) | Math.floor(c.b * 255);
+}
+
+function initClusterData() {
+  const pA = dtPosition.image.data;
+  const vA = dtVelocity.image.data;
+  const mA = dtMassData.image.data;
+
+  const pleiadesOrbitR = 85.0;
+  const pleiadesOrbSpeed = Math.sqrt((G_CONST * SGR_MASS) / pleiadesOrbitR) * 0.95;
+
+  // 1. Pack All 9 Primary Sister Stars
+  for (let s = 0; s < NUM_PRIMARY_STARS; s++) {
+    const sister = SEVEN_SISTERS[s];
+    
+    // Cluster base position + sister offset inside the Pleiades Open Cluster
+    const px = pleiadesOrbitR + sister.off[0];
+    const py = sister.off[1];
+    const pz = sister.off[2];
+
+    // Orbital velocity + internal virial mutual drift
+    const internalV = 0.25;
+    const vx = (Math.random() - 0.5) * internalV;
+    const vy = (Math.random() - 0.5) * internalV * 0.3;
+    const vz = pleiadesOrbSpeed + (Math.random() - 0.5) * internalV;
+
+    pA[s * 4 + 0] = px;
+    pA[s * 4 + 1] = py;
+    pA[s * 4 + 2] = pz;
+    pA[s * 4 + 3] = 1.0;
+
+    vA[s * 4 + 0] = vx;
+    vA[s * 4 + 1] = vy;
+    vA[s * 4 + 2] = vz;
+    vA[s * 4 + 3] = 1.0;
+
+    mA[s * 4 + 0] = sister.mass;
+    mA[s * 4 + 1] = sister.radius;
+    mA[s * 4 + 2] = 1.0; // Is Primary Star
+    mA[s * 4 + 3] = packColor(sister.color);
+  }
+
+  // 2. Distribute Constituent Stars, Asteroids & Reflection Nebulosity Dust
+  for (let i = NUM_PRIMARY_STARS; i < N_BODIES; i++) {
+    const sIdx = i % NUM_PRIMARY_STARS;
+    const sister = SEVEN_SISTERS[sIdx];
+
+    // Plummer distribution around the selected sister star
+    const u = Math.random();
+    const rPlummer = 6.0 + 22.0 * Math.sqrt(Math.pow(u, -2/3) - 1) * 0.28;
+    const theta = Math.random() * Math.PI * 2;
+    const phi = (Math.random() - 0.5) * Math.PI * 0.6;
+
+    const offX = rPlummer * Math.cos(theta) * Math.cos(phi);
+    const offY = rPlummer * Math.sin(phi);
+    const offZ = rPlummer * Math.sin(theta) * Math.cos(phi);
+
+    const parentPx = pA[sIdx * 4 + 0];
+    const parentPy = pA[sIdx * 4 + 1];
+    const parentPz = pA[sIdx * 4 + 2];
+
+    const parentVx = vA[sIdx * 4 + 0];
+    const parentVy = vA[sIdx * 4 + 1];
+    const parentVz = vA[sIdx * 4 + 2];
+
+    const vOrbit = Math.sqrt((G_CONST * sister.mass) / (rPlummer + 4.0)) * 0.85;
+    const dvx = -vOrbit * Math.sin(theta);
+    const dvy = (Math.random() - 0.5) * 0.1;
+    const dvz = vOrbit * Math.cos(theta);
+
+    pA[i * 4 + 0] = parentPx + offX;
+    pA[i * 4 + 1] = parentPy + offY;
+    pA[i * 4 + 2] = parentPz + offZ;
+    pA[i * 4 + 3] = 1.0;
+
+    vA[i * 4 + 0] = parentVx + dvx;
+    vA[i * 4 + 1] = parentVy + dvy;
+    vA[i * 4 + 2] = parentVz + dvz;
+    vA[i * 4 + 3] = 1.0;
+
+    const starMass = 0.05 + Math.random() * 1.5;
+    mA[i * 4 + 0] = starMass;
+    mA[i * 4 + 1] = 0.35 + Math.random() * 0.35;
+    mA[i * 4 + 2] = 0.0;
+
+    // Luminous Sapphire Reflection Nebulosity & Warm Stardust
+    const isNebula = Math.random() < 0.7;
+    const memberColor = isNebula
+      ? new THREE.Color(0x38bdf8).lerp(new THREE.Color(0xffffff), Math.random() * 0.35)
+      : new THREE.Color(0xfef08a).lerp(new THREE.Color(0xf43f5e), Math.random() * 0.4);
+
+    mA[i * 4 + 3] = packColor(memberColor);
+  }
+}
+
+function initGPGPU() {
+  gpuCompute = new GPUComputationRenderer(WIDTH, WIDTH, renderer);
+
+  dtPosition = gpuCompute.createTexture();
+  dtVelocity = gpuCompute.createTexture();
+  dtMassData = gpuCompute.createTexture();
+
+  initClusterData();
+
+  const computeVelocityShader = `
+    uniform float dt;
+    uniform float G;
+    uniform float sgrMass;
+    uniform float softening;
+    uniform float reachRadius;
+    uniform float brownianStrength;
+    uniform float time;
+    uniform sampler2D textureMassData;
+
+    void main() {
+      vec2 uv = gl_FragCoord.xy / resolution.xy;
+      vec3 pos = texture2D(texturePosition, uv).xyz;
+      vec3 vel = texture2D(textureVelocity, uv).xyz;
+      vec4 myData = texture2D(textureMassData, uv);
+
+      // Guard against NaN or infinite inputs
+      if (isnan(pos.x) || isnan(pos.y) || isnan(pos.z) || abs(pos.x) > 4000.0) {
+        pos = vec3(85.0, 0.0, 0.0);
+      }
+      if (isnan(vel.x) || isnan(vel.y) || isnan(vel.z) || abs(vel.x) > 400.0) {
+        vel = vec3(0.0, 0.0, 1.0);
+      }
+
+      vec3 accel = vec3(0.0);
+
+      // 1. Galactic Core Potential (Sgr A* at origin)
+      float coreDistSq = dot(pos, pos) + 80.0;
+      float invCoreDist = inversesqrt(coreDistSq);
+      accel += -pos * (G * sgrMass * invCoreDist * invCoreDist * invCoreDist);
+
+      // 2. Direct High-Precision Mutual Gravitational Coupling for ALL 9 Seven Sisters!
+      for (int s = 0; s < 9; s++) {
+        vec2 sUv = vec2(float(s) + 0.5, 0.5) / resolution.xy;
+        vec3 sPos = texture2D(texturePosition, sUv).xyz;
+        vec4 sData = texture2D(textureMassData, sUv);
+
+        vec3 d = sPos - pos;
+        float distSq = dot(d, d) + softening;
+        float invDist = inversesqrt(distSq);
+        accel += d * (G * sData.x * invDist * invDist * invDist);
+      }
+
+      // 3. Smooth Macro Swarm Gravitation
+      float stepSize = max(1.0, resolution.x / 8.0);
+      for (float y = 0.5; y < resolution.y; y += stepSize) {
+        for (float x = 0.5; x < resolution.x; x += stepSize) {
+          vec2 mUv = vec2(x, y) / resolution.xy;
+          vec3 mPos = texture2D(texturePosition, mUv).xyz;
+          float mMass = texture2D(textureMassData, mUv).x * (stepSize * stepSize * 0.08);
+
+          vec3 md = mPos - pos;
+          float mDistSq = dot(md, md) + (reachRadius * reachRadius);
+          float invMDist = inversesqrt(mDistSq);
+          accel += md * (G * mMass * invMDist * invMDist * invMDist);
+        }
+      }
+
+      // 4. Smooth Continuous Brownian Turbulence
+      if (myData.z < 0.5) {
+        vec2 p = uv * 35.0;
+        float t = time * 0.7;
+        vec3 noise = vec3(
+          sin(p.y * 1.5 + t) + cos(p.x * 1.1 - t * 0.8),
+          sin(p.x * 1.3 + t * 0.9) + cos(p.y * 1.2 + t * 0.6),
+          sin(p.x * 1.7 - t * 0.5) + cos(p.y * 1.4 + t * 1.1)
+        );
+        accel += noise * (brownianStrength * 1.8 / sqrt(myData.x + 0.1));
+      }
+
+      // Strict clamp on acceleration & velocity
+      accel = clamp(accel, vec3(-300.0), vec3(300.0));
+      vel = clamp(vel + accel * dt, vec3(-250.0), vec3(250.0));
+
+      gl_FragColor = vec4(vel, 1.0);
+    }
+  `;
+
+  const computePositionShader = `
+    uniform float dt;
+    void main() {
+      vec2 uv = gl_FragCoord.xy / resolution.xy;
+      vec3 pos = texture2D(texturePosition, uv).xyz;
+      vec3 vel = texture2D(textureVelocity, uv).xyz;
+
+      if (isnan(pos.x) || isnan(pos.y) || isnan(pos.z) || abs(pos.x) > 4000.0) {
+        pos = vec3(85.0, 0.0, 0.0);
+      }
+      if (isnan(vel.x) || isnan(vel.y) || isnan(vel.z)) {
+        vel = vec3(0.0, 0.0, 0.0);
+      }
+
+      pos = clamp(pos + vel * dt, vec3(-3000.0), vec3(3000.0));
+      gl_FragColor = vec4(pos, 1.0);
+    }
+  `;
+
+  velocityVar = gpuCompute.addVariable("textureVelocity", computeVelocityShader, dtVelocity);
+  positionVar = gpuCompute.addVariable("texturePosition", computePositionShader, dtPosition);
+
+  gpuCompute.setVariableDependencies(velocityVar, [positionVar, velocityVar]);
+  gpuCompute.setVariableDependencies(positionVar, [positionVar, velocityVar]);
+
+  velocityVar.material.uniforms['dt'] = { value: 0.012 * TIME_SCALE };
+  velocityVar.material.uniforms['G'] = { value: G_CONST };
+  velocityVar.material.uniforms['sgrMass'] = { value: SGR_MASS };
+  velocityVar.material.uniforms['softening'] = { value: 3.0 };
+  velocityVar.material.uniforms['reachRadius'] = { value: REACH_RADIUS };
+  velocityVar.material.uniforms['brownianStrength'] = { value: BROWNIAN_STRENGTH };
+  velocityVar.material.uniforms['time'] = { value: 0.0 };
+  velocityVar.material.uniforms['textureMassData'] = { value: dtMassData };
+
+  positionVar.material.uniforms['dt'] = { value: 0.012 * TIME_SCALE };
+
+  const error = gpuCompute.init();
+  if (error !== null) console.error('GPUComputationRenderer Error:', error);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// §4  Rendering, Nebulosity Shaders & Orbital Visualizers
+// ═══════════════════════════════════════════════════════════════
+
+function createParticleMesh() {
+  if (particleMesh) scene.remove(particleMesh);
+
+  const geo = new THREE.BufferGeometry();
+  const positions = new Float32Array(N_BODIES * 3);
+  const uvs = new Float32Array(N_BODIES * 2);
+
+  for (let i = 0; i < N_BODIES; i++) {
+    uvs[i * 2 + 0] = (i % WIDTH + 0.5) / WIDTH;
+    uvs[i * 2 + 1] = (Math.floor(i / WIDTH) + 0.5) / WIDTH;
+  }
+
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+
+  const mat = new THREE.ShaderMaterial({
+    uniforms: {
+      uPositionTexture: { value: null },
+      uMassDataTexture: { value: dtMassData },
+      uTexRes: { value: WIDTH }
+    },
+    vertexShader: `
+      uniform sampler2D uPositionTexture;
+      uniform sampler2D uMassDataTexture;
+      uniform float uTexRes;
+
+      varying vec3 vColor;
+      varying float vIsStar;
+      varying float vRadius;
+
+      vec3 unpackColor(float f) {
+        int c = int(f);
+        float r = float(c / 65536) / 255.0;
+        float g = float((c / 256) - (c / 65536) * 256) / 255.0;
+        float b = float(c - (c / 256) * 256) / 255.0;
+        return vec3(r, g, b);
+      }
+
+      void main() {
+        vec3 pos = texture2D(uPositionTexture, uv).xyz;
+        vec4 massData = texture2D(uMassDataTexture, uv);
+
+        vIsStar = massData.z;
+        vRadius = massData.y;
+        vColor = unpackColor(massData.w);
+
+        vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
+
+        // Near-plane discard: discard any particle near or behind camera plane
+        if (mvPosition.z >= -1.0) {
+          gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+          gl_PointSize = 0.0;
+          return;
+        }
+
+        float depth = -mvPosition.z;
+        float pSize = (vIsStar > 0.5) ? (vRadius * 5.0) : (vRadius * 2.2);
+        float maxPx = (vIsStar > 0.5) ? 54.0 : 20.0;
+        gl_PointSize = clamp(pSize * (180.0 / depth), 1.0, maxPx);
+        gl_Position = projectionMatrix * mvPosition;
+      }
+    `,
+    fragmentShader: `
+      varying vec3 vColor;
+      varying float vIsStar;
+      varying float vRadius;
+
+      void main() {
+        vec2 coord = gl_PointCoord - vec2(0.5);
+        float distSq = dot(coord, coord);
+        if (distSq > 0.25) discard;
+
+        if (vIsStar > 0.5) {
+          // Primary Seven Sister Stellar Core
+          float glow = exp(-distSq * 12.0) * 1.8;
+          float core = smoothstep(0.25, 0.0, distSq);
+          vec3 finalColor = vColor * (core + glow) * 1.5;
+          gl_FragColor = vec4(clamp(finalColor, vec3(0.0), vec3(2.0)), 1.0);
+          return;
+        }
+
+        // Member Stars & Reflection Nebulosity Dust
+        float alpha = smoothstep(0.25, 0.04, distSq) * 0.85;
+        float coreBright = smoothstep(0.12, 0.0, distSq) * 0.4;
+        vec3 col = vColor * (0.9 + coreBright);
+        gl_FragColor = vec4(col, alpha);
+      }
+    `,
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false
+  });
+
+  particleMesh = new THREE.Points(geo, mat);
+  scene.add(particleMesh);
+}
+
+// 3D Orbital Trajectory Lines for Galactic Orbit & Sister Network
+function createOrbitalPaths() {
+  if (orbitLineGroup) scene.remove(orbitLineGroup);
+  orbitLineGroup = new THREE.Group();
+
+  // 1. Pleiades Galactic Orbit Path around Sgr A*
+  const segments = 128;
+  const pleiadesOrbitR = 85.0;
+  const points = [];
+  for (let i = 0; i <= segments; i++) {
+    const a = (i / segments) * Math.PI * 2;
+    points.push(new THREE.Vector3(pleiadesOrbitR * Math.cos(a), 0, pleiadesOrbitR * Math.sin(a)));
+  }
+  const orbitGeo = new THREE.BufferGeometry().setFromPoints(points);
+  const orbitMat = new THREE.LineBasicMaterial({
+    color: 0x38bdf8,
+    transparent: true,
+    opacity: 0.35
+  });
+  orbitLineGroup.add(new THREE.Line(orbitGeo, orbitMat));
+
+  // 2. Seven Sisters Local Gravitational Network Lines
+  const sisterPoints = [];
+  SEVEN_SISTERS.forEach(s => {
+    sisterPoints.push(new THREE.Vector3(pleiadesOrbitR + s.off[0], s.off[1], s.off[2]));
+  });
+  const netGeo = new THREE.BufferGeometry().setFromPoints(sisterPoints);
+  const netMat = new THREE.LineBasicMaterial({
+    color: 0x93c5fd,
+    transparent: true,
+    opacity: 0.25
+  });
+  orbitLineGroup.add(new THREE.LineLoop(netGeo, netMat));
+
+  scene.add(orbitLineGroup);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// §5  Animation, Simulation Lifecycle & Camera Tracking
+// ═══════════════════════════════════════════════════════════════
+
+function initScene() {
+  initGPGPU();
+  createParticleMesh();
+  createOrbitalPaths();
+}
+
+initScene();
+
+let lastTime = performance.now();
+let frames = 0;
+let fpsTimer = 0;
+
+let clusterOrbitPhase = 0.0;
+const pleiadesOrbitR = 85.0;
+
+function animate() {
+  requestAnimationFrame(animate);
+
+  const now = performance.now();
+  const dt = Math.min((now - lastTime) / 1000.0, 0.05);
+  lastTime = now;
+
+  frames++;
+  fpsTimer += dt;
+  if (fpsTimer >= 0.5) {
+    const fps = Math.round(frames / fpsTimer);
+    const fpsEl = document.getElementById('fpsDisplay');
+    if (fpsEl) fpsEl.innerText = `${fps} FPS`;
+
+    const gflops = ((N_BODIES * 68 * 32 * fps) / 1e9).toFixed(1);
+    const gflopsEl = document.getElementById('gflopsDisplay');
+    if (gflopsEl) gflopsEl.innerText = `~${gflops} GFLOPS`;
+
+    frames = 0;
+    fpsTimer = 0;
+  }
+
+  // Step GPGPU Simulation
+  if (velocityVar) {
+    velocityVar.material.uniforms.time.value = now * 0.001;
+  }
+  gpuCompute.compute();
+
+  // Feed Position Texture to Point-Cloud Rendering Pipeline
+  const currentPosTex = gpuCompute.getCurrentRenderTarget(positionVar).texture;
+  particleMesh.material.uniforms.uPositionTexture.value = currentPosTex;
+
+  // ═══════════════════════════════════════════════════════════════
+  // Smooth Orbital Camera Following (OrbitControls Native Target Tracking)
+  // ═══════════════════════════════════════════════════════════════
+  const pleiadesOrbSpeed = Math.sqrt((G_CONST * SGR_MASS) / pleiadesOrbitR) * 0.95;
+  const angularVel = (pleiadesOrbSpeed / pleiadesOrbitR) * 0.012 * TIME_SCALE * 60.0;
+  clusterOrbitPhase += angularVel * dt;
+
+  const currentClusterX = pleiadesOrbitR * Math.cos(clusterOrbitPhase);
+  const currentClusterZ = pleiadesOrbitR * Math.sin(clusterOrbitPhase);
+
+  // Recovery guard if camera coordinates become non-finite
+  if (!Number.isFinite(camera.position.x) || !Number.isFinite(camera.position.y) || !Number.isFinite(camera.position.z) ||
+      !Number.isFinite(controls.target.x) || !Number.isFinite(controls.target.y) || !Number.isFinite(controls.target.z)) {
+    controls.target.set(currentClusterX, 0, currentClusterZ);
+    camera.position.set(currentClusterX, 45, currentClusterZ + 75);
+  }
+
+  if (focusedSisterIndex === -1) {
+    // Full Pleiades Cluster
+    controls.target.lerp(new THREE.Vector3(currentClusterX, 0, currentClusterZ), 0.1);
+  } else if (focusedSisterIndex >= 0 && focusedSisterIndex < SEVEN_SISTERS.length) {
+    // Specific Sister Star
+    const sister = SEVEN_SISTERS[focusedSisterIndex];
+    const targetPos = new THREE.Vector3(currentClusterX + sister.off[0], sister.off[1], currentClusterZ + sister.off[2]);
+    controls.target.lerp(targetPos, 0.1);
+  } else {
+    // Full Galactic View (Target Sgr A* at origin)
+    controls.target.lerp(new THREE.Vector3(0, 0, 0), 0.05);
+  }
+
+  controls.update();
+
+  renderer.render(scene, camera);
+}
+
+animate();
+
+// ═══════════════════════════════════════════════════════════════
+// §6  Global Window Handlers, Focus & Presets
+// ═══════════════════════════════════════════════════════════════
+
+// @ts-ignore
+window.focusSister = function(sIdx) {
+  focusedSisterIndex = sIdx;
+
+  for (let s = 0; s < 9; s++) {
+    const btn = document.getElementById(`sister-btn-${s}`);
+    if (btn) {
+      btn.className = s === sIdx
+        ? "py-1 px-1.5 rounded bg-sky-600 text-white font-bold text-center transition shadow"
+        : "py-1 px-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-center transition";
+    }
+  }
+
+  const allBtn = document.getElementById('sister-btn-all');
+  if (allBtn) {
+    allBtn.className = sIdx === -1
+      ? "flex-1 py-1 px-2 rounded bg-sky-600 text-white font-bold text-xs transition text-center shadow"
+      : "flex-1 py-1 px-2 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs transition text-center";
+  }
+
+  const galBtn = document.getElementById('sister-btn-galactic');
+  if (galBtn) {
+    galBtn.className = sIdx === -2
+      ? "flex-1 py-1 px-2 rounded bg-sky-600 text-white font-bold text-xs transition text-center shadow"
+      : "flex-1 py-1 px-2 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs transition text-center";
+  }
+
+  const nameLabel = document.getElementById('activeSisterName');
+  const specLabel = document.getElementById('sisterSpecLabel');
+
+  const currentClusterX = pleiadesOrbitR * Math.cos(clusterOrbitPhase);
+  const currentClusterZ = pleiadesOrbitR * Math.sin(clusterOrbitPhase);
+
+  if (sIdx >= 0 && sIdx < SEVEN_SISTERS.length) {
+    const sister = SEVEN_SISTERS[sIdx];
+    if (nameLabel) nameLabel.innerText = sister.name;
+    if (specLabel) specLabel.innerText = sister.spec;
+
+    const targetX = currentClusterX + sister.off[0];
+    const targetY = sister.off[1];
+    const targetZ = currentClusterZ + sister.off[2];
+
+    controls.target.set(targetX, targetY, targetZ);
+    camera.position.set(targetX + 8, targetY + 15, targetZ + 25);
+  } else if (sIdx === -1) {
+    if (nameLabel) nameLabel.innerText = "Pleiades (All 7 Sisters)";
+    if (specLabel) specLabel.innerText = "Open Cluster (M45)";
+    controls.target.set(currentClusterX, 0, currentClusterZ);
+    camera.position.set(currentClusterX, 45, currentClusterZ + 75);
+  } else {
+    if (nameLabel) nameLabel.innerText = "Milky Way Galactic System";
+    if (specLabel) specLabel.innerText = "Central Sgr A* Core";
+    controls.target.set(0, 0, 0);
+    camera.position.set(0, 240, 380);
+  }
+};
+
+// @ts-ignore
+window.setBodyPreset = function(w) {
+  WIDTH = w;
+  N_BODIES = WIDTH * WIDTH;
+  const label = document.getElementById('bodyCountLabel');
+  if (label) label.innerText = `${N_BODIES.toLocaleString()} Stars`;
+
+  ['btn-1k', 'btn-4k', 'btn-9k', 'btn-16k'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.className = "py-1.5 px-2 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 transition text-center font-semibold";
+    }
+  });
+
+  const activeId = w === 32 ? 'btn-1k' : w === 64 ? 'btn-4k' : w === 96 ? 'btn-9k' : 'btn-16k';
+  const activeEl = document.getElementById(activeId);
+  if (activeEl) {
+    activeEl.className = "py-1.5 px-2 rounded bg-sky-600 text-white font-bold text-center transition shadow";
+  }
+
+  initScene();
+};
+
+// @ts-ignore
+window.resetScenario = function() {
+  initScene();
+};
+
+// @ts-ignore
+window.toggleOrbitalPaths = function() {
+  showOrbits = !showOrbits;
+  if (orbitLineGroup) orbitLineGroup.visible = showOrbits;
+  const btn = document.getElementById('btnToggleOrbits');
+  if (btn) {
+    btn.className = showOrbits
+      ? "flex-1 py-1.5 px-3 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 transition text-xs font-semibold"
+      : "flex-1 py-1.5 px-3 rounded bg-purple-900/60 border border-purple-500/40 text-purple-200 transition text-xs font-bold";
+  }
+};
+
+// Sliders Listeners
+document.getElementById('sliderSpeed')?.addEventListener('input', (e) => {
+  // @ts-ignore
+  TIME_SCALE = parseFloat(e.target.value);
+  const sEl = document.getElementById('valSpeed');
+  if (sEl) sEl.innerText = `${TIME_SCALE.toFixed(1)}x`;
+  if (velocityVar) velocityVar.material.uniforms.dt.value = 0.012 * TIME_SCALE;
+  if (positionVar) positionVar.material.uniforms.dt.value = 0.012 * TIME_SCALE;
+});
+
+document.getElementById('sliderReach')?.addEventListener('input', (e) => {
+  // @ts-ignore
+  REACH_RADIUS = parseFloat(e.target.value);
+  const rEl = document.getElementById('valReach');
+  if (rEl) rEl.innerText = `${REACH_RADIUS} px`;
+  if (velocityVar) velocityVar.material.uniforms.reachRadius.value = REACH_RADIUS;
+});
+
+document.getElementById('sliderBrownian')?.addEventListener('input', (e) => {
+  // @ts-ignore
+  BROWNIAN_STRENGTH = parseFloat(e.target.value);
+  const bEl = document.getElementById('valBrownian');
+  if (bEl) bEl.innerText = BROWNIAN_STRENGTH.toFixed(3);
+  if (velocityVar) velocityVar.material.uniforms.brownianStrength.value = BROWNIAN_STRENGTH;
+});
+
+document.getElementById('sliderCoreMass')?.addEventListener('input', (e) => {
+  // @ts-ignore
+  SGR_MASS = parseFloat(e.target.value);
+  const mEl = document.getElementById('valCoreMass');
+  if (mEl) mEl.innerText = `${SGR_MASS.toLocaleString()} M☉`;
+  if (velocityVar) velocityVar.material.uniforms.sgrMass.value = SGR_MASS;
+});
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// WebMCP Developer Bridge
+// @ts-ignore
+window.__WEBMCP__ = {
+  getState: () => ({
+    appName: 'N-Body Projective Star Clusters Engine v6',
+    focusedCluster: focusedClusterIndex,
+    bodyCount: N_BODIES,
+    sgrMass: SGR_MASS,
+    reachRadius: REACH_RADIUS,
+    brownianStrength: BROWNIAN_STRENGTH
+  }),
+  focusCluster: (c) => window.focusCluster(c),
+  setBodyCount: (w) => window.setBodyPreset(w)
+};
+// @ts-ignore
+window.__3DGSIL__ = window.__WEBMCP__;
+</script>
+</body>
+</html>

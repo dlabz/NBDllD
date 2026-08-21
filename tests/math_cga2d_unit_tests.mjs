@@ -1,4 +1,5 @@
 // @ts-check
+/// <reference path="../types/cga2d.d.ts" />
 /**
  * @file Automated Unit Test Suite for 2D Inversive Geometry & 4D CGA Mathematical Invariants
  * @project 3DGSIL

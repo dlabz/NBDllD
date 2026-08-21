@@ -64,60 +64,60 @@
         .horizon-circle {
             fill: rgba(255, 215, 0, 0.02);
             stroke: var(--accent-yellow);
-            stroke-width: 1.5px;
+            stroke-width: 0.8px;
             stroke-dasharray: 6 3;
-            filter: drop-shadow(0 0 8px rgba(255, 215, 0, 0.4));
+            filter: drop-shadow(0 0 8px rgba(255, 215, 0, 0.35));
         }
 
         .horizon-glow {
             fill: none;
-            stroke: rgba(255, 215, 0, 0.2);
-            stroke-width: 6px;
+            stroke: rgba(255, 215, 0, 0.15);
+            stroke-width: 3px;
         }
 
         .horizon-barrier-ring {
             fill: none;
             stroke: rgba(255, 80, 0, 0.35);
-            stroke-width: 1.5px;
+            stroke-width: 0.6px;
             stroke-dasharray: 3 3;
         }
 
         .primal-line {
             stroke: var(--accent-cyan);
-            stroke-width: 1.5px;
+            stroke-width: 0.8px;
             stroke-linecap: round;
         }
 
         .dual-circle {
             fill: rgba(255, 0, 127, 0.05);
             stroke: var(--accent-magenta);
-            stroke-width: 1.5px;
+            stroke-width: 0.6px;
             stroke-dasharray: 4 2;
         }
 
         .primal-circle {
             fill: rgba(0, 240, 255, 0.05);
             stroke: var(--accent-cyan);
-            stroke-width: 1.5px;
+            stroke-width: 0.8px;
         }
 
         .ortho-circle {
             fill: rgba(176, 86, 255, 0.06);
             stroke: #b056ff;
-            stroke-width: 1.5px;
+            stroke-width: 0.6px;
             stroke-dasharray: 5 3;
         }
 
         .inversion-ray {
             stroke: rgba(255, 255, 255, 0.2);
-            stroke-width: 1px;
+            stroke-width: 0.5px;
             stroke-dasharray: 2 2;
         }
 
         .control-handle {
             fill: #ffffff;
             stroke: var(--accent-cyan);
-            stroke-width: 1.5px;
+            stroke-width: 0.8px;
             cursor: move;
         }
 
@@ -129,49 +129,49 @@
         .control-handle-dual {
             fill: var(--accent-magenta);
             stroke: #ffffff;
-            stroke-width: 1px;
+            stroke-width: 0.5px;
             pointer-events: none;
         }
 
         .grid-line {
             stroke: rgba(255, 255, 255, 0.035);
-            stroke-width: 0.5px;
+            stroke-width: 0.4px;
         }
 
         .axis-line {
             stroke: rgba(255, 255, 255, 0.12);
-            stroke-width: 1px;
+            stroke-width: 0.5px;
         }
 
         /* Celestial Bodies (CMY Colors) */
         .sun-photosphere {
             fill: url(#sun-photosphere-grad);
             stroke: var(--accent-yellow);
-            stroke-width: 1.5px;
-            filter: drop-shadow(0 0 20px rgba(255, 215, 0, 0.8));
+            stroke-width: 0.8px;
+            filter: drop-shadow(0 0 16px rgba(255, 215, 0, 0.7));
         }
 
         .sun-corona {
             fill: none;
             stroke: url(#sun-corona-grad);
-            stroke-width: 24px;
-            opacity: 0.45;
-            filter: blur(8px);
+            stroke-width: 14px;
+            opacity: 0.4;
+            filter: blur(6px);
         }
 
         /* 4-Zone Celestial Illumination */
         .zone-day-planet {
             fill: none;
             stroke: var(--accent-cyan);
-            stroke-width: 2.2px;
+            stroke-width: 0.8px;
             stroke-linecap: round;
-            filter: drop-shadow(0 0 6px var(--accent-cyan));
+            filter: drop-shadow(0 0 5px var(--accent-cyan));
         }
 
         .zone-twilight-planet {
             fill: none;
             stroke: rgba(0, 200, 230, 0.75);
-            stroke-width: 1.5px;
+            stroke-width: 0.6px;
             stroke-linecap: round;
             stroke-dasharray: 2 1;
         }
@@ -179,21 +179,21 @@
         .zone-night-planet {
             fill: #03080e;
             stroke: rgba(0, 240, 255, 0.25);
-            stroke-width: 1px;
+            stroke-width: 0.5px;
         }
 
         .zone-day-moon {
             fill: none;
             stroke: var(--accent-magenta);
-            stroke-width: 2px;
+            stroke-width: 0.8px;
             stroke-linecap: round;
-            filter: drop-shadow(0 0 5px var(--accent-magenta));
+            filter: drop-shadow(0 0 4px var(--accent-magenta));
         }
 
         .zone-twilight-moon {
             fill: none;
             stroke: rgba(255, 0, 127, 0.65);
-            stroke-width: 1.2px;
+            stroke-width: 0.6px;
             stroke-linecap: round;
             stroke-dasharray: 2 1;
         }
@@ -201,31 +201,31 @@
         .zone-night-moon {
             fill: #0d0309;
             stroke: rgba(255, 0, 127, 0.25);
-            stroke-width: 0.8px;
+            stroke-width: 0.5px;
         }
 
         /* Continuous Extended 4 Common Tangents (Direct & Transverse) */
         .tangent-direct-sp {
             stroke: rgba(255, 215, 0, 0.75);
-            stroke-width: 1px;
+            stroke-width: 0.6px;
             stroke-dasharray: 6 3;
         }
 
         .tangent-transverse-sp {
             stroke: rgba(255, 136, 0, 0.75);
-            stroke-width: 1px;
+            stroke-width: 0.6px;
             stroke-dasharray: 5 2.5;
         }
 
         .tangent-direct-pm {
             stroke: rgba(0, 240, 255, 0.65);
-            stroke-width: 0.8px;
+            stroke-width: 0.5px;
             stroke-dasharray: 4 2;
         }
 
         .tangent-transverse-pm {
             stroke: rgba(0, 255, 102, 0.65);
-            stroke-width: 0.8px;
+            stroke-width: 0.5px;
             stroke-dasharray: 4 2;
         }
 
@@ -233,7 +233,7 @@
         .conformal-dual-circle {
             fill: none;
             stroke: rgba(255, 215, 0, 0.45);
-            stroke-width: 0.6px;
+            stroke-width: 0.5px;
             stroke-dasharray: 2 2;
         }
 
@@ -248,64 +248,64 @@
         .umbra-cone {
             fill: rgba(0, 0, 0, 0.85);
             stroke: rgba(255, 51, 68, 0.35);
-            stroke-width: 0.8px;
+            stroke-width: 0.5px;
         }
 
         .penumbra-cone {
             fill: rgba(0, 0, 0, 0.35);
             stroke: rgba(255, 136, 0, 0.15);
-            stroke-width: 0.6px;
+            stroke-width: 0.5px;
         }
 
         .planetshine-ray {
             stroke: rgba(0, 240, 255, 0.3);
-            stroke-width: 1px;
+            stroke-width: 0.5px;
             stroke-dasharray: 4 2;
         }
 
         .moonshine-ray {
             stroke: rgba(255, 0, 127, 0.25);
-            stroke-width: 0.8px;
+            stroke-width: 0.5px;
             stroke-dasharray: 3 2;
         }
 
         /* Lagrangian CAD Lines: Collinear Axis Line [L3-L1-L2] & Orbit Guide Circle */
         .lagrange-line-sp {
             stroke: rgba(255, 51, 68, 0.65);
-            stroke-width: 1px;
+            stroke-width: 0.6px;
             stroke-dasharray: 4 2;
         }
 
         .lagrange-line-pm {
             stroke: rgba(0, 255, 102, 0.65);
-            stroke-width: 1px;
+            stroke-width: 0.6px;
             stroke-dasharray: 3 2;
         }
 
         .lagrange-guide-orbit-sp {
             fill: none;
             stroke: rgba(255, 51, 68, 0.3);
-            stroke-width: 1px;
+            stroke-width: 0.6px;
             stroke-dasharray: 5 4;
         }
 
         .lagrange-guide-orbit-pm {
             fill: none;
             stroke: rgba(0, 255, 102, 0.3);
-            stroke-width: 1px;
+            stroke-width: 0.6px;
             stroke-dasharray: 3 3;
         }
 
         .lagrange-dot-sp {
             fill: var(--accent-red);
             stroke: #ffffff;
-            stroke-width: 0.8px;
+            stroke-width: 0.5px;
         }
 
         .lagrange-dot-pm {
             fill: var(--accent-green);
             stroke: #ffffff;
-            stroke-width: 0.8px;
+            stroke-width: 0.5px;
         }
 
         .lagrange-label-sp {
@@ -328,14 +328,14 @@
         .roche-path-sp {
             fill: rgba(255, 51, 68, 0.02);
             stroke: rgba(255, 51, 68, 0.3);
-            stroke-width: 0.8px;
+            stroke-width: 0.5px;
             stroke-dasharray: 4 3;
         }
 
         .roche-path-pm {
             fill: rgba(0, 255, 102, 0.02);
             stroke: rgba(0, 255, 102, 0.3);
-            stroke-width: 0.8px;
+            stroke-width: 0.5px;
             stroke-dasharray: 3 2;
         }
 
@@ -358,19 +358,19 @@
         .internal-sun-disk {
             fill: url(#sun-photosphere-grad);
             stroke: var(--accent-yellow);
-            stroke-width: 0.8px;
+            stroke-width: 0.5px;
         }
 
         .internal-planet-disk {
             fill: var(--accent-cyan);
             stroke: #ffffff;
-            stroke-width: 0.5px;
+            stroke-width: 0.4px;
         }
 
         .internal-moon-disk {
             fill: var(--accent-magenta);
             stroke: #ffffff;
-            stroke-width: 0.5px;
+            stroke-width: 0.4px;
         }
 
         /* Glassmorphism UI */
@@ -757,8 +757,8 @@
                 <g id="group-albedo-reflections"></g>
 
                 <!-- 6. Primal Orbit Trails -->
-                <path id="orbit-trail-planet" stroke="rgba(0, 240, 255, 0.4)" stroke-width="1px" fill="none" d="" />
-                <path id="orbit-trail-moon" stroke="rgba(255, 0, 127, 0.4)" stroke-width="1px" fill="none" d="" />
+                <path id="orbit-trail-planet" stroke="rgba(0, 240, 255, 0.4)" stroke-width="0.6px" fill="none" d="" />
+                <path id="orbit-trail-moon" stroke="rgba(255, 0, 127, 0.4)" stroke-width="0.6px" fill="none" d="" />
 
                 <!-- 7. Lagrangian Points (L1 - L5) Primal Clean Dots & Labels -->
                 <g id="group-lagrange-points"></g>
@@ -1273,7 +1273,7 @@
             line2Elem.setAttribute('x2', String(l2.p2[0] * 3));
             line2Elem.setAttribute('y2', String(l2.p2[1] * 3));
             line2Elem.setAttribute('stroke', '#00f0ff');
-            line2Elem.setAttribute('stroke-width', '1.5px');
+            line2Elem.setAttribute('stroke-width', '0.6px');
             line2Elem.setAttribute('stroke-dasharray', '5 3');
             layerWiki.appendChild(line2Elem);
 
@@ -1361,7 +1361,7 @@
                     c.setAttribute('r', String(dual.r));
                     c.setAttribute('fill', 'none');
                     c.setAttribute('stroke', 'rgba(0, 240, 255, 0.4)');
-                    c.setAttribute('stroke-width', '1px');
+                    c.setAttribute('stroke-width', '0.5px');
                     layerGridMode.appendChild(c);
                 }
             }
@@ -1376,7 +1376,7 @@
                     c.setAttribute('r', String(dual.r));
                     c.setAttribute('fill', 'none');
                     c.setAttribute('stroke', 'rgba(255, 0, 127, 0.4)');
-                    c.setAttribute('stroke-width', '1px');
+                    c.setAttribute('stroke-width', '0.5px');
                     layerGridMode.appendChild(c);
                 }
             }
@@ -1865,7 +1865,7 @@
             e1.setAttribute('transform', `rotate(${primalEllipse.angleDeg} ${primalEllipse.cx} ${primalEllipse.cy})`);
             e1.setAttribute('fill', 'rgba(0, 240, 255, 0.25)');
             e1.setAttribute('stroke', '#00f0ff');
-            e1.setAttribute('stroke-width', '1.5px');
+            e1.setAttribute('stroke-width', '0.6px');
             layerSplats.appendChild(e1);
 
             const { ellipseParams } = invertGaussianCovariance(pos, sigma, R);
@@ -1877,7 +1877,7 @@
             e2.setAttribute('transform', `rotate(${ellipseParams.angleDeg} ${ellipseParams.cx} ${ellipseParams.cy})`);
             e2.setAttribute('fill', 'rgba(255, 0, 127, 0.3)');
             e2.setAttribute('stroke', '#ff007f');
-            e2.setAttribute('stroke-width', '1.5px');
+            e2.setAttribute('stroke-width', '0.6px');
             e2.setAttribute('stroke-dasharray', '4 2');
             layerSplats.appendChild(e2);
 
@@ -1936,7 +1936,7 @@
                 innerArrow.setAttribute('x2', String(cosA * 18));
                 innerArrow.setAttribute('y2', String(sinA * 18));
                 innerArrow.setAttribute('stroke', '#ff007f');
-                innerArrow.setAttribute('stroke-width', '1.5px');
+                innerArrow.setAttribute('stroke-width', '0.6px');
                 innerArrow.setAttribute('marker-end', 'url(#arrow-magenta)');
                 raysGroup.appendChild(innerArrow);
 
@@ -2043,7 +2043,7 @@
                     tP.setAttribute('d', dPrimal);
                     tP.setAttribute('fill', 'none');
                     tP.setAttribute('stroke', p.color || '#00f0ff');
-                    tP.setAttribute('stroke-width', '1.5px');
+                    tP.setAttribute('stroke-width', '0.6px');
                     tP.setAttribute('stroke-opacity', '0.5');
                     particlesGroup.appendChild(tP);
 
@@ -2051,7 +2051,7 @@
                     tD.setAttribute('d', dDual);
                     tD.setAttribute('fill', 'none');
                     tD.setAttribute('stroke', '#ff007f');
-                    tD.setAttribute('stroke-width', '1.5px');
+                    tD.setAttribute('stroke-width', '0.6px');
                     tD.setAttribute('stroke-dasharray', '2 2');
                     tD.setAttribute('stroke-opacity', '0.7');
                     particlesGroup.appendChild(tD);

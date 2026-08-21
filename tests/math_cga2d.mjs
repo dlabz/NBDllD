@@ -1,4 +1,5 @@
 // @ts-check
+/// <reference path="../types/cga2d.d.ts" />
 /**
  * @file Pure JavaScript Mathematical Reference Module for 2D Inversive Geometry & 4D CGA
  * @project 3DGSIL

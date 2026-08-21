@@ -280,10 +280,29 @@ Benchmarked on Apple Silicon (Metal WebGPU Backend):
 
 ---
 
-## 7. References & Further Reading
+---
 
-1. **Projective Inverted Occlusion Engine**: [`artifacts/nbody_projective_v6.html`](file:///Users/dlabz/Workspace_AI/3DGSIL/artifacts/nbody_projective_v6.html)
-2. **5D CGA Raytracer**: [`5DCGA.html`](file:///Users/dlabz/Workspace_AI/3DGSIL/5DCGA.html)
-3. **Pleiades Open Cluster Engine**: [`webgpu_star_clusters.html`](file:///Users/dlabz/Workspace_AI/3DGSIL/webgpu_star_clusters.html)
-4. **Code Style & Engineering Standards**: [`.agents/rules/code-style-guide.md`](file:///Users/dlabz/Workspace_AI/3DGSIL/.agents/rules/code-style-guide.md)
-5. **WebGPU Skill Guide**: [`.agents/skills/webgpu/SKILL.md`](file:///Users/dlabz/Workspace_AI/3DGSIL/.agents/skills/webgpu/SKILL.md)
+## 7. Autonomous Agent Skills & Engineering Standards (`.agents/`)
+
+This repository includes a comprehensive, modular suite of custom **AI Agent Skills & Engineering Rules** in [`.agents/`](file:///Users/dlabz/Workspace_AI/3DGSIL/.agents/) designed to automate mathematical modeling, shader authoring, and stability testing across geometric algebra and WebGPU domains:
+
+### 📐 Available Skills & References
+
+| Skill / Domain | Location | Core Scope & Topics |
+| :--- | :--- | :--- |
+| **5D Conformal Geometric Algebra** | [`.agents/skills/conformal-geometric-algebra/`](file:///Users/dlabz/Workspace_AI/3DGSIL/.agents/skills/conformal-geometric-algebra/SKILL.md) | $\mathcal{G}(4,1)$ null bases ($e_0, e_\infty$), inner product null spaces (IPNS/OPNS), dual spherical inversions, point pairs, analytic ray-sphere intersections, and conformal versors. |
+| **Clifford Algebras & Spinors** | [`.agents/skills/clifford-algebra-and-spinors/`](file:///Users/dlabz/Workspace_AI/3DGSIL/.agents/skills/clifford-algebra-and-spinors/SKILL.md) | $\text{Cl}(p,q,r)$ multivector arithmetic, rotor SLERP interpolation, $\text{Spin}(p,q)$ minimal left ideals, and WGSL spinor transformations. |
+| **3D Gaussian Splatting (3DGS)** | [`.agents/skills/3d-gaussian-splatting/`](file:///Users/dlabz/Workspace_AI/3DGSIL/.agents/skills/3d-gaussian-splatting/SKILL.md) | 3D covariance parameterization ($\mathbf{\Sigma} = \mathbf{R} \mathbf{S} \mathbf{S}^\top \mathbf{R}^\top$), 2D EWA projective Jacobian ($\mathbf{J}$), spherical harmonics radiance, and tile-based rasterization. |
+| **WebGPU & WGSL Stability** | [`.agents/skills/webgpu/`](file:///Users/dlabz/Workspace_AI/3DGSIL/.agents/skills/webgpu/SKILL.md) | Metal / Apple Silicon division-by-zero guards, memory layout alignment, double-buffered compute ping-pong patterns, and zero-allocation hot loops. |
+| **Code Style & Standards** | [`.agents/rules/code-style-guide.md`](file:///Users/dlabz/Workspace_AI/3DGSIL/.agents/rules/code-style-guide.md) | Type safety via strict JSDoc (`// @ts-check`), zero-build vanilla ES modules, symplectic energy conservation, and WebMCP developer bridge interfaces. |
+
+---
+
+## 8. References & Related Implementations
+
+1. **Pleiades Open Cluster Engine**: [`webgpu_star_clusters.html`](file:///Users/dlabz/Workspace_AI/3DGSIL/webgpu_star_clusters.html) ([Live Artifact](file:///Users/dlabz/Workspace_AI/3DGSIL/artifacts/webgpu_star_clusters.html))
+2. **Projective Inverted Occlusion Engine**: [`artifacts/nbody_projective_v6.html`](file:///Users/dlabz/Workspace_AI/3DGSIL/artifacts/nbody_projective_v6.html)
+3. **5D CGA Dual Leap Raytracer**: [`5DCGA.html`](file:///Users/dlabz/Workspace_AI/3DGSIL/5DCGA.html)
+4. **One Sphere Universe**: [`one_sphere_universe.html`](file:///Users/dlabz/Workspace_AI/3DGSIL/one_sphere_universe.html)
+5. **Interactive Math Test Suite**: [`tests/test_runner.html`](file:///Users/dlabz/Workspace_AI/3DGSIL/tests/test_runner.html)
+

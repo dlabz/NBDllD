@@ -795,8 +795,8 @@
                     <circle id="sun-singularity-core" class="singularity-sun-core" cx="0" cy="0" r="9" />
                     <text id="sun-singularity-label" x="0" y="16" text-anchor="middle" fill="#00f0ff" font-size="7" font-family="monospace">∞</text>
                     <g id="sun-internal-optics"></g>
-                    <circle id="planet-in-sun" class="internal-planet-disk" cx="0" cy="0" r="4.5" />
-                    <circle id="moon-in-sun" class="internal-moon-disk" cx="0" cy="0" r="1.8" />
+                    <path id="planet-in-sun" class="internal-planet-disk" d="" />
+                    <path id="moon-in-sun" class="internal-moon-disk" d="" />
                     <g id="sun-internal-lagrange"></g>
                 </g>
 
@@ -813,8 +813,8 @@
                     <!-- Inside Planet: Singularity Center, Conformal Dual Optics & Inverted Bodies -->
                     <circle id="planet-singularity-core" class="singularity-planet-core" cx="0" cy="0" r="2.5" />
                     <g id="planet-internal-optics"></g>
-                    <circle id="sun-in-planet" class="internal-sun-disk" cx="0" cy="0" r="2.2" />
-                    <circle id="moon-in-planet" class="internal-moon-disk" cx="0" cy="0" r="1.0" />
+                    <path id="sun-in-planet" class="internal-sun-disk" d="" />
+                    <path id="moon-in-planet" class="internal-moon-disk" d="" />
                     <g id="planet-internal-lagrange"></g>
                 </g>
 
@@ -830,8 +830,8 @@
                     <!-- Inside Moon: Singularity Center, Conformal Dual Optics & Inverted Bodies -->
                     <circle id="moon-singularity-core" class="singularity-moon-core" cx="0" cy="0" r="1.2" />
                     <g id="moon-internal-optics"></g>
-                    <circle id="sun-in-moon" class="internal-sun-disk" cx="0" cy="0" r="0.9" />
-                    <circle id="planet-in-moon" class="internal-planet-disk" cx="0" cy="0" r="0.7" />
+                    <path id="sun-in-moon" class="internal-sun-disk" d="" />
+                    <path id="planet-in-moon" class="internal-planet-disk" d="" />
                     <g id="moon-internal-lagrange"></g>
                 </g>
             </g>
@@ -1648,8 +1648,8 @@
             const sunSingularity = /** @type {SVGCircleElement} */ (/** @type {any} */ (document.getElementById('sun-singularity-core')));
             const sunSingularityLabel = /** @type {SVGTextElement} */ (/** @type {any} */ (document.getElementById('sun-singularity-label')));
             const sunFunnelGroup = /** @type {SVGGElement} */ (/** @type {any} */ (document.getElementById('sun-hyperbolic-funnel')));
-            const planetInSunElem = /** @type {SVGCircleElement} */ (/** @type {any} */ (document.getElementById('planet-in-sun')));
-            const moonInSunElem = /** @type {SVGCircleElement} */ (/** @type {any} */ (document.getElementById('moon-in-sun')));
+            const planetInSunElem = /** @type {SVGPathElement} */ (/** @type {any} */ (document.getElementById('planet-in-sun')));
+            const moonInSunElem = /** @type {SVGPathElement} */ (/** @type {any} */ (document.getElementById('moon-in-sun')));
             const sunInternalOpticsGroup = /** @type {SVGGElement} */ (/** @type {any} */ (document.getElementById('sun-internal-optics')));
             const sunInternalLagrangeGroup = /** @type {SVGGElement} */ (/** @type {any} */ (document.getElementById('sun-internal-lagrange')));
 
@@ -1694,13 +1694,12 @@
             const pInSun = recSys.sunUniverse.internalBodies[0];
             const mInSun = recSys.sunUniverse.internalBodies[1];
 
-            planetInSunElem.setAttribute('cx', String(pInSun.pos[0]));
-            planetInSunElem.setAttribute('cy', String(pInSun.pos[1]));
-            planetInSunElem.setAttribute('r', String(Math.max(2.5, pInSun.radius)));
-
-            moonInSunElem.setAttribute('cx', String(mInSun.pos[0]));
-            moonInSunElem.setAttribute('cy', String(mInSun.pos[1]));
-            moonInSunElem.setAttribute('r', String(Math.max(1.5, mInSun.radius)));
+            if (planetInSunElem && pInSun?.svgPath) {
+                planetInSunElem.setAttribute('d', pInSun.svgPath);
+            }
+            if (moonInSunElem && mInSun?.svgPath) {
+                moonInSunElem.setAttribute('d', mInSun.svgPath);
+            }
 
             sunInternalLagrangeGroup.innerHTML = '';
             recSys.sunUniverse.internalLagrangePoints?.forEach(pt => {
@@ -1722,8 +1721,8 @@
             const planetSingularity = /** @type {SVGCircleElement} */ (/** @type {any} */ (document.getElementById('planet-singularity-core')));
             const planetFunnelGroup = /** @type {SVGGElement} */ (/** @type {any} */ (document.getElementById('planet-hyperbolic-funnel')));
             const planetInternalOpticsGroup = /** @type {SVGGElement} */ (/** @type {any} */ (document.getElementById('planet-internal-optics')));
-            const sunInPlanetElem = /** @type {SVGCircleElement} */ (/** @type {any} */ (document.getElementById('sun-in-planet')));
-            const moonInPlanetElem = /** @type {SVGCircleElement} */ (/** @type {any} */ (document.getElementById('moon-in-planet')));
+            const sunInPlanetElem = /** @type {SVGPathElement} */ (/** @type {any} */ (document.getElementById('sun-in-planet')));
+            const moonInPlanetElem = /** @type {SVGPathElement} */ (/** @type {any} */ (document.getElementById('moon-in-planet')));
             const planetInternalLagrangeGroup = /** @type {SVGGElement} */ (/** @type {any} */ (document.getElementById('planet-internal-lagrange')));
 
             planetElem.setAttribute('cx', String(planetHost.pos[0]));
@@ -1769,13 +1768,12 @@
             const sInPlanet = recSys.planetUniverse.internalBodies[0];
             const mInPlanet = recSys.planetUniverse.internalBodies[1];
 
-            sunInPlanetElem.setAttribute('cx', String(sInPlanet.pos[0]));
-            sunInPlanetElem.setAttribute('cy', String(sInPlanet.pos[1]));
-            sunInPlanetElem.setAttribute('r', String(Math.max(0.6, Math.min(sInPlanet.radius, planetHost.radius * 0.25))));
-
-            moonInPlanetElem.setAttribute('cx', String(mInPlanet.pos[0]));
-            moonInPlanetElem.setAttribute('cy', String(mInPlanet.pos[1]));
-            moonInPlanetElem.setAttribute('r', String(Math.max(0.3, Math.min(mInPlanet.radius, planetHost.radius * 0.15))));
+            if (sunInPlanetElem && sInPlanet?.svgPath) {
+                sunInPlanetElem.setAttribute('d', sInPlanet.svgPath);
+            }
+            if (moonInPlanetElem && mInPlanet?.svgPath) {
+                moonInPlanetElem.setAttribute('d', mInPlanet.svgPath);
+            }
 
             planetInternalLagrangeGroup.innerHTML = '';
             recSys.planetUniverse.internalLagrangePoints?.forEach(pt => {
@@ -1797,8 +1795,8 @@
             const moonSingularity = /** @type {SVGCircleElement} */ (/** @type {any} */ (document.getElementById('moon-singularity-core')));
             const moonFunnelGroup = /** @type {SVGGElement} */ (/** @type {any} */ (document.getElementById('moon-hyperbolic-funnel')));
             const moonInternalOpticsGroup = /** @type {SVGGElement} */ (/** @type {any} */ (document.getElementById('moon-internal-optics')));
-            const sunInMoonElem = /** @type {SVGCircleElement} */ (/** @type {any} */ (document.getElementById('sun-in-moon')));
-            const planetInMoonElem = /** @type {SVGCircleElement} */ (/** @type {any} */ (document.getElementById('planet-in-moon')));
+            const sunInMoonElem = /** @type {SVGPathElement} */ (/** @type {any} */ (document.getElementById('sun-in-moon')));
+            const planetInMoonElem = /** @type {SVGPathElement} */ (/** @type {any} */ (document.getElementById('planet-in-moon')));
             const moonInternalLagrangeGroup = /** @type {SVGGElement} */ (/** @type {any} */ (document.getElementById('moon-internal-lagrange')));
 
             moonElem.setAttribute('cx', String(moonHost.pos[0]));
@@ -1843,13 +1841,12 @@
             const sInMoon = recSys.moonUniverse.internalBodies[0];
             const pInMoon = recSys.moonUniverse.internalBodies[1];
 
-            sunInMoonElem.setAttribute('cx', String(sInMoon.pos[0]));
-            sunInMoonElem.setAttribute('cy', String(sInMoon.pos[1]));
-            sunInMoonElem.setAttribute('r', String(Math.max(0.2, Math.min(sInMoon.radius, moonHost.radius * 0.25))));
-
-            planetInMoonElem.setAttribute('cx', String(pInMoon.pos[0]));
-            planetInMoonElem.setAttribute('cy', String(pInMoon.pos[1]));
-            planetInMoonElem.setAttribute('r', String(Math.max(0.15, Math.min(pInMoon.radius, moonHost.radius * 0.18))));
+            if (sunInMoonElem && sInMoon?.svgPath) {
+                sunInMoonElem.setAttribute('d', sInMoon.svgPath);
+            }
+            if (planetInMoonElem && pInMoon?.svgPath) {
+                planetInMoonElem.setAttribute('d', pInMoon.svgPath);
+            }
 
             // Inside Moon: Thin internal Lagrange dual points
             moonInternalLagrangeGroup.innerHTML = '';

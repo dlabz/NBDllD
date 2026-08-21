@@ -132,6 +132,8 @@ declare namespace CGA2D {
         radius: number;
         color: string;
         dualCircle?: Circle;
+        path?: Array<Point2D>;
+        svgPath?: string;
     }
 
     /** Flat Planetary System State */

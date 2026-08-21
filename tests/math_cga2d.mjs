@@ -590,6 +590,63 @@ export function invertCircleInHost(targetCircle, hostCircle, warpGamma = 1.0) {
 }
 
 /**
+ * Convert array of 2D points to SVG polygon/path string 'd="M x0 y0 L x1 y1 ... Z"'
+ * @param {Array<CGA2D.Point2D>} points
+ * @returns {string}
+ */
+export function pointsToSvgPath(points) {
+    if (!points || points.length === 0) return '';
+    return points.reduce((acc, [x, y], idx) => {
+        return idx === 0 ? `M ${x.toFixed(2)} ${y.toFixed(2)}` : `${acc} L ${x.toFixed(2)} ${y.toFixed(2)}`;
+    }, '') + ' Z';
+}
+
+/**
+ * Sample a circle under spherical inversion and optional hyperbolic depth warp,
+ * returning a closed polygon / path of 2D points.
+ * Under general non-affine or hyperbolic transforms, an inverted circle deforms from
+ * a Euclidean circle into an exact pear/egg/teardrop shaped contour.
+ * 
+ * @param {{ cx: number, cy: number, r: number }} targetCircle - Target body circle
+ * @param {{ cx: number, cy: number, r: number }} hostCircle - Host body horizon
+ * @param {number} [warpGamma=1.0] - Hyperbolic exponent gamma
+ * @param {number} [numSamples=64] - Number of boundary sample points
+ * @returns {Array<CGA2D.Point2D>}
+ */
+export function sampleInvertedCirclePath(targetCircle, hostCircle, warpGamma = 1.0, numSamples = 64) {
+    /** @type {Array<CGA2D.Point2D>} */
+    const path = [];
+    for (let i = 0; i < numSamples; i++) {
+        const theta = (i / numSamples) * 2 * Math.PI;
+        const px = targetCircle.cx + targetCircle.r * Math.cos(theta);
+        const py = targetCircle.cy + targetCircle.r * Math.sin(theta);
+
+        const dx = px - hostCircle.cx;
+        const dy = py - hostCircle.cy;
+        const distSq = dx * dx + dy * dy;
+        const dist = Math.sqrt(distSq);
+
+        if (dist < 1e-6) {
+            path.push([hostCircle.cx, hostCircle.cy]);
+            continue;
+        }
+
+        const rawInvDist = (hostCircle.r * hostCircle.r) / dist;
+        let finalDist = rawInvDist;
+
+        if (warpGamma > 0 && warpGamma < 0.999) {
+            const u = Math.min(1.0, rawInvDist / hostCircle.r);
+            finalDist = hostCircle.r * Math.pow(u, warpGamma);
+        }
+
+        const invX = hostCircle.cx + (dx / dist) * finalDist;
+        const invY = hostCircle.cy + (dy / dist) * finalDist;
+        path.push([invX, invY]);
+    }
+    return path;
+}
+
+/**
  * Evaluate the Recursive Holographic Multi-Horizon Planetary System:
  * Every body (Sun, Planet, Moon) contains an internal mirror universe with its center as infinity,
  * hosting the other 2 bodies orbiting within its interior disk.
@@ -639,14 +696,16 @@ export function evaluateRecursivePlanetarySystem2D(t, params = {}) {
     // Hosts: Planet*(sun), Moon*(sun)
     const planetInSun = invertCircleInHost(planetCircle, sunCircle, warpGamma);
     const moonInSun = invertCircleInHost(moonCircle, sunCircle, warpGamma);
+    const planetInSunPath = sampleInvertedCirclePath(planetCircle, sunCircle, warpGamma, 48);
+    const moonInSunPath = sampleInvertedCirclePath(moonCircle, sunCircle, warpGamma, 48);
 
     /** @type {CGA2D.HostBodyUniverse2D} */
     const sunUniverse = {
         host: { name: 'Sun', pos: sunPosTyped, radius: sunRadius, color: '#ffd700' },
         singularityCenter: sunPosTyped,
         internalBodies: [
-            { name: 'Planet* (in Sun)', pos: [planetInSun.cx, planetInSun.cy], radius: planetInSun.r, color: '#00f0ff' },
-            { name: 'Moon* (in Sun)', pos: [moonInSun.cx, moonInSun.cy], radius: moonInSun.r, color: '#ff007f' }
+            { name: 'Planet* (in Sun)', pos: [planetInSun.cx, planetInSun.cy], radius: planetInSun.r, color: '#00f0ff', path: planetInSunPath, svgPath: pointsToSvgPath(planetInSunPath) },
+            { name: 'Moon* (in Sun)', pos: [moonInSun.cx, moonInSun.cy], radius: moonInSun.r, color: '#ff007f', path: moonInSunPath, svgPath: pointsToSvgPath(moonInSunPath) }
         ]
     };
 
@@ -654,14 +713,16 @@ export function evaluateRecursivePlanetarySystem2D(t, params = {}) {
     // Hosts: Sun*(planet), Moon*(planet)
     const sunInPlanet = invertCircleInHost(sunCircle, planetCircle, warpGamma);
     const moonInPlanet = invertCircleInHost(moonCircle, planetCircle, warpGamma);
+    const sunInPlanetPath = sampleInvertedCirclePath(sunCircle, planetCircle, warpGamma, 64);
+    const moonInPlanetPath = sampleInvertedCirclePath(moonCircle, planetCircle, warpGamma, 48);
 
     /** @type {CGA2D.HostBodyUniverse2D} */
     const planetUniverse = {
         host: { name: 'Planet', pos: planetPosTyped, radius: planetRadius, color: '#00f0ff' },
         singularityCenter: planetPosTyped,
         internalBodies: [
-            { name: 'Sun* (in Planet)', pos: [sunInPlanet.cx, sunInPlanet.cy], radius: sunInPlanet.r, color: '#ffd700' },
-            { name: 'Moon* (in Planet)', pos: [moonInPlanet.cx, moonInPlanet.cy], radius: moonInPlanet.r, color: '#ff007f' }
+            { name: 'Sun* (in Planet)', pos: [sunInPlanet.cx, sunInPlanet.cy], radius: sunInPlanet.r, color: '#ffd700', path: sunInPlanetPath, svgPath: pointsToSvgPath(sunInPlanetPath) },
+            { name: 'Moon* (in Planet)', pos: [moonInPlanet.cx, moonInPlanet.cy], radius: moonInPlanet.r, color: '#ff007f', path: moonInPlanetPath, svgPath: pointsToSvgPath(moonInPlanetPath) }
         ]
     };
 
@@ -669,14 +730,16 @@ export function evaluateRecursivePlanetarySystem2D(t, params = {}) {
     // Hosts: Sun*(moon), Planet*(moon)
     const sunInMoon = invertCircleInHost(sunCircle, moonCircle, warpGamma);
     const planetInMoon = invertCircleInHost(planetCircle, moonCircle, warpGamma);
+    const sunInMoonPath = sampleInvertedCirclePath(sunCircle, moonCircle, warpGamma, 64);
+    const planetInMoonPath = sampleInvertedCirclePath(planetCircle, moonCircle, warpGamma, 48);
 
     /** @type {CGA2D.HostBodyUniverse2D} */
     const moonUniverse = {
         host: { name: 'Moon', pos: moonPosTyped, radius: moonRadius, color: '#ff007f' },
         singularityCenter: moonPosTyped,
         internalBodies: [
-            { name: 'Sun* (in Moon)', pos: [sunInMoon.cx, sunInMoon.cy], radius: sunInMoon.r, color: '#ffd700' },
-            { name: 'Planet* (in Moon)', pos: [planetInMoon.cx, planetInMoon.cy], radius: planetInMoon.r, color: '#00f0ff' }
+            { name: 'Sun* (in Moon)', pos: [sunInMoon.cx, sunInMoon.cy], radius: sunInMoon.r, color: '#ffd700', path: sunInMoonPath, svgPath: pointsToSvgPath(sunInMoonPath) },
+            { name: 'Planet* (in Moon)', pos: [planetInMoon.cx, planetInMoon.cy], radius: planetInMoon.r, color: '#00f0ff', path: planetInMoonPath, svgPath: pointsToSvgPath(planetInMoonPath) }
         ]
     };
 
@@ -697,20 +760,29 @@ export function evaluateRecursivePlanetarySystem2D(t, params = {}) {
     const sunPlanetRoche = evaluateRocheLobeContours2D(sunCircle, planetCircle, sunPlanetLagrange, 36);
     const planetMoonRoche = evaluateRocheLobeContours2D(planetCircle, moonCircle, planetMoonLagrange, 32);
 
-    // 5. Invert Lagrange points into each body's inner universe
+    // 5. Invert Lagrange points cleanly into each body's local universe
+    // Inside Sun: Sun-Planet L1..L5
     sunUniverse.internalLagrangePoints = evaluateLagrangeProjectionsInHost(
-        [...sunPlanetLagrange.allPoints, ...planetMoonLagrange.allPoints],
-        sunCircle
+        sunPlanetLagrange.allPoints,
+        sunCircle,
+        warpGamma
     );
 
+    // Inside Planet:
+    // 1. Sun-Planet collinear equilibrium points L1 (day side) and L2 (night side) on the day/night axis
+    // 2. Planet-Moon lunar system points L1..L5 (orbiting the planet with the Moon)
     planetUniverse.internalLagrangePoints = evaluateLagrangeProjectionsInHost(
-        [...sunPlanetLagrange.allPoints, ...planetMoonLagrange.allPoints],
-        planetCircle
+        [sunPlanetLagrange.L1, sunPlanetLagrange.L2, ...planetMoonLagrange.allPoints],
+        planetCircle,
+        warpGamma
     );
 
+    // Inside Moon:
+    // Collinear Planet-Moon equilibrium points L1 (sub-planet) and L2 (anti-planet) that define the Moon's Hill reach
     moonUniverse.internalLagrangePoints = evaluateLagrangeProjectionsInHost(
-        planetMoonLagrange.allPoints,
-        moonCircle
+        [planetMoonLagrange.L1, planetMoonLagrange.L2],
+        moonCircle,
+        warpGamma
     );
 
     // 6. Extended Source 4-Tangent Optics (Sun -> Planet, Sun -> Moon, Planet -> Moon)

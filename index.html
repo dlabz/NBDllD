@@ -1,232 +1,198 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3DGSIL — WebGPU Star Clusters & Conformal Inversion</title>
-    <meta name="description" content="WebGPU Star Clusters, 5D Conformal Geometric Algebra (CGA), Projective Inverted Occlusion, and Analytic Multiverse Demos.">
-    <style>
-        :root {
-            --bg-base: #030712;
-            --card-bg: rgba(15, 23, 42, 0.75);
-            --card-border: rgba(0, 240, 255, 0.2);
-            --accent-cyan: #00f0ff;
-            --accent-gold: #ffd700;
-            --accent-magenta: #ff007f;
-            --accent-green: #00ff66;
-            --text-main: #f8fafc;
-            --text-muted: #94a3b8;
-        }
-
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
-            background: var(--bg-base);
-            color: var(--text-main);
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding: 2rem 1.5rem;
-            background-image: 
-                radial-gradient(circle at 50% 0%, rgba(0, 240, 255, 0.12) 0%, transparent 60%),
-                radial-gradient(circle at 80% 80%, rgba(255, 0, 127, 0.08) 0%, transparent 50%);
-        }
-
-        header {
-            max-width: 900px;
-            width: 100%;
-            text-align: center;
-            margin-bottom: 2.5rem;
-        }
-
-        h1 {
-            font-size: 2.4rem;
-            font-weight: 800;
-            background: linear-gradient(135deg, #00f0ff 0%, #ffd700 50%, #ff007f 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            margin-bottom: 0.75rem;
-            letter-spacing: -0.02em;
-        }
-
-        p.subtitle {
-            font-size: 1.1rem;
-            color: var(--text-muted);
-            line-height: 1.6;
-        }
-
-        .featured-card {
-            max-width: 900px;
-            width: 100%;
-            background: linear-gradient(145deg, rgba(15, 23, 42, 0.9), rgba(30, 41, 59, 0.8));
-            border: 1.5px solid var(--accent-cyan);
-            border-radius: 16px;
-            padding: 2rem;
-            margin-bottom: 2.5rem;
-            box-shadow: 0 0 35px rgba(0, 240, 255, 0.15);
-            display: flex;
-            flex-direction: column;
-            gap: 1rem;
-            text-decoration: none;
-            color: inherit;
-            transition: transform 0.2s, box-shadow 0.2s;
-        }
-
-        .featured-card:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 0 45px rgba(0, 240, 255, 0.3);
-        }
-
-        .badge {
-            align-self: flex-start;
-            background: rgba(0, 240, 255, 0.15);
-            color: var(--accent-cyan);
-            padding: 0.35rem 0.85rem;
-            border-radius: 9999px;
-            font-size: 0.8rem;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            border: 1px solid rgba(0, 240, 255, 0.3);
-        }
-
-        .featured-title {
-            font-size: 1.6rem;
-            font-weight: 700;
-            color: #fff;
-        }
-
-        .featured-desc {
-            color: var(--text-muted);
-            font-size: 1rem;
-            line-height: 1.5;
-        }
-
-        .grid {
-            max-width: 900px;
-            width: 100%;
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
-            gap: 1.25rem;
-            margin-bottom: 3rem;
-        }
-
-        .demo-card {
-            background: var(--card-bg);
-            border: 1px solid var(--card-border);
-            border-radius: 12px;
-            padding: 1.5rem;
-            display: flex;
-            flex-direction: column;
-            gap: 0.75rem;
-            text-decoration: none;
-            color: inherit;
-            backdrop-filter: blur(12px);
-            transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
-        }
-
-        .demo-card:hover {
-            transform: translateY(-3px);
-            border-color: var(--accent-cyan);
-            box-shadow: 0 8px 25px rgba(0, 240, 255, 0.15);
-        }
-
-        .demo-card h3 {
-            font-size: 1.2rem;
-            font-weight: 700;
-            color: #fff;
-        }
-
-        .demo-card p {
-            font-size: 0.9rem;
-            color: var(--text-muted);
-            line-height: 1.4;
-            flex-grow: 1;
-        }
-
-        .demo-link {
-            font-size: 0.85rem;
-            font-weight: 600;
-            color: var(--accent-cyan);
-            display: flex;
-            align-items: center;
-            gap: 0.4rem;
-        }
-
-        footer {
-            margin-top: auto;
-            color: var(--text-muted);
-            font-size: 0.85rem;
-            text-align: center;
-        }
-
-        footer a {
-            color: var(--accent-cyan);
-            text-decoration: none;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NBDllD — WebGPU Star Clusters, CGA & SupraQuant</title>
+  <meta name="description" content="WebGPU star-cluster simulations, 2D conformal geometric algebra, dual universes, and high-continuity spline experiments.">
+  <style>
+    :root {
+      --bg: #030712;
+      --card: rgba(15, 23, 42, 0.78);
+      --border: rgba(0, 240, 255, 0.18);
+      --cyan: #00f0ff;
+      --gold: #ffd700;
+      --magenta: #ff007f;
+      --green: #34d399;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 2rem 1.25rem 3rem;
+      background-image:
+        radial-gradient(circle at 50% 0%, rgba(0, 240, 255, 0.11) 0%, transparent 55%),
+        radial-gradient(circle at 85% 85%, rgba(255, 0, 127, 0.07) 0%, transparent 45%);
+    }
+    .wrap { max-width: 960px; margin: 0 auto; }
+    header { text-align: center; margin-bottom: 2.25rem; }
+    h1 {
+      font-size: clamp(1.75rem, 4vw, 2.5rem);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      background: linear-gradient(135deg, #00f0ff 0%, #ffd700 50%, #ff007f 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 0.6rem;
+    }
+    .subtitle { color: var(--muted); font-size: 1.05rem; line-height: 1.55; max-width: 640px; margin: 0 auto; }
+    a.featured {
+      display: block; text-decoration: none; color: inherit;
+      background: linear-gradient(145deg, rgba(15, 23, 42, 0.95), rgba(30, 41, 59, 0.85));
+      border: 1.5px solid var(--cyan); border-radius: 16px;
+      padding: 1.75rem 1.75rem 1.5rem; margin-bottom: 2rem;
+      box-shadow: 0 0 32px rgba(0, 240, 255, 0.12);
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    a.featured:hover { transform: translateY(-3px); box-shadow: 0 0 44px rgba(0, 240, 255, 0.22); }
+    .badge {
+      display: inline-block; background: rgba(0, 240, 255, 0.12); color: var(--cyan);
+      border: 1px solid rgba(0, 240, 255, 0.28); padding: 0.3rem 0.75rem; border-radius: 999px;
+      font-size: 0.72rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 0.75rem;
+    }
+    .featured-title { font-size: 1.45rem; font-weight: 700; color: #fff; margin-bottom: 0.5rem; }
+    .featured-desc { color: var(--muted); font-size: 0.95rem; line-height: 1.5; margin-bottom: 0.85rem; }
+    .cta { color: var(--cyan); font-weight: 600; font-size: 0.9rem; }
+    .section-label {
+      font-size: 0.72rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
+      color: var(--muted); margin: 0 0 0.85rem 0.15rem;
+    }
+    .grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 1.1rem; margin-bottom: 2rem;
+    }
+    a.card {
+      display: flex; flex-direction: column; gap: 0.55rem; text-decoration: none; color: inherit;
+      background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+      padding: 1.25rem 1.35rem; backdrop-filter: blur(10px);
+      transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+    }
+    a.card:hover {
+      transform: translateY(-3px); border-color: rgba(0, 240, 255, 0.45);
+      box-shadow: 0 8px 24px rgba(0, 240, 255, 0.1);
+    }
+    a.card h3 { font-size: 1.05rem; font-weight: 700; color: #fff; }
+    a.card p { font-size: 0.88rem; color: var(--muted); line-height: 1.45; flex: 1; }
+    a.card .link { font-size: 0.82rem; font-weight: 600; color: var(--cyan); }
+    footer {
+      text-align: center; color: var(--muted); font-size: 0.82rem; margin-top: 1rem;
+      padding-top: 1.5rem; border-top: 1px solid rgba(148, 163, 184, 0.15);
+    }
+    footer a { color: var(--cyan); text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+  </style>
 </head>
 <body>
+  <div class="wrap">
     <header>
-        <h1>3DGSIL — WebGPU & Inversive Multiverse</h1>
-        <p class="subtitle">5D Conformal Geometric Algebra, Projective Inverted Occlusion, and High-Performance WebGPU Raytracing</p>
+      <h1>NBDllD — WebGPU & Inversive Multiverse</h1>
+      <p class="subtitle">
+        Star-cluster dynamics, conformal geometric algebra, and high-continuity spline experiments — pure vanilla JS + WebGPU.
+      </p>
     </header>
 
-    <a href="webgpu_star_clusters.html" class="featured-card">
-        <span class="badge">Featured Demo</span>
-        <div class="featured-title">✨ WebGPU Star Clusters & Projective Inversion</div>
-        <div class="featured-desc">
-            High-performance WebGPU compute and particle renderer simulating multi-body gravitational star clusters with real-time projective inversion, dynamic camera orbiting, and zero-allocation hot loops.
-        </div>
-        <div class="demo-link">Launch WebGPU Star Clusters →</div>
+    <a class="featured" href="artifacts/potempkin_v3/webgpu_star_clusters_v10.html">
+      <span class="badge">Featured · v10</span>
+      <div class="featured-title">✨ WebGPU Star Clusters (Potemkin v3)</div>
+      <div class="featured-desc">
+        Unified 16-float particle layout, sparse star octree, soft Hertz-like contacts, dual-quaternion camera.
+        Pleiades-scale N-body with SSO gravity and live Phong/spike rendering.
+      </div>
+      <div class="cta">Launch Star Clusters v10 →</div>
     </a>
 
+    <p class="section-label">WebGPU & dynamics</p>
     <div class="grid">
-        <a href="tests/test_runner.html" class="demo-card">
-            <h3>🧪 Math & Invariant Test Suite</h3>
-            <p>Interactive test runner verifying 14 3D CGA invariants, 26 2D CGA theorems, and live numerical stability benchmarks.</p>
-            <div class="demo-link">Run Tests →</div>
-        </a>
+      <a class="card" href="artifacts/potempkin_v3/webgpu_star_clusters_v10.html">
+        <h3>Star Clusters v10</h3>
+        <p>Current flagship — SSO + exhaustive, soft collisions, unified buffer layout.</p>
+        <span class="link">Open →</span>
+      </a>
+      <a class="card" href="artifacts/potempkin_v3/webgpu_star_clusters_v8.html">
+        <h3>Star Clusters v8</h3>
+        <p>Previous generation with soft contact and sister CPU integrator.</p>
+        <span class="link">Open →</span>
+      </a>
+      <a class="card" href="nbody_projective_v6.html">
+        <h3>N-Body Projective v6</h3>
+        <p>64-body WebGPU compute with CoM rebasing and analytic raytraced rendering.</p>
+        <span class="link">Open →</span>
+      </a>
+      <a class="card" href="webgpu_star_clusters.html">
+        <h3>Star Clusters (root)</h3>
+        <p>Earlier integrated WebGPU star-cluster entry point.</p>
+        <span class="link">Open →</span>
+      </a>
+    </div>
 
-        <a href="one_sphere_universe.html" class="demo-card">
-            <h3>🔮 One-Sphere Universe</h3>
-            <p>Interactive single-horizon spherical inversion showing coordinate reflection, metric warp, and boundary invariants.</p>
-            <div class="demo-link">Open Demo →</div>
-        </a>
+    <p class="section-label">2D CGA · inversive geometry</p>
+    <div class="grid">
+      <a class="card" href="2DCGA.html">
+        <h3>2D CGA Playground</h3>
+        <p>Inversive optics, Mirror World, elastic particle collisions, dual horizons.</p>
+        <span class="link">Open →</span>
+      </a>
+      <a class="card" href="5DCGA.html">
+        <h3>5D CGA</h3>
+        <p>Higher-dimensional conformal geometric algebra experiments.</p>
+        <span class="link">Open →</span>
+      </a>
+      <a class="card" href="inverted_duality_v5.html">
+        <h3>Inverted Duality v5</h3>
+        <p>Projective inversion and dual-chart exploration.</p>
+        <span class="link">Open →</span>
+      </a>
+      <a class="card" href="one_sphere_universe.html">
+        <h3>One-Sphere Universe</h3>
+        <p>Single-horizon spherical inversion, metric warp, boundary invariants.</p>
+        <span class="link">Open →</span>
+      </a>
+    </div>
 
-        <a href="nbody_projective_v6.html" class="demo-card">
-            <h3>🪐 N-Body Projective Inversion (v6)</h3>
-            <p>64-body WebGPU compute simulation with dynamic Center of Mass rebasing and analytic raytraced rendering.</p>
-            <div class="demo-link">Open Demo →</div>
-        </a>
+    <p class="section-label">Splines · SupraQuant</p>
+    <div class="grid">
+      <a class="card" href="artifacts/supraquant/supraquant_test-v5.html">
+        <h3>SupraQuant Live Demo (v5)</h3>
+        <p>Linear vs trigonometric basis — drag nodes, inspect higher-derivative spikes.</p>
+        <span class="link">Open →</span>
+      </a>
+      <a class="card" href="artifacts/supraquant/supraquant_handoff_freya.html">
+        <h3>Handoff → Freya Holmér</h3>
+        <p>Technical note: trigonometric B-spline style experiment and continuity diagnostics.</p>
+        <span class="link">Open →</span>
+      </a>
+    </div>
 
-        <a href="gravity_viewer.html" class="demo-card">
-            <h3>🌌 Gravity Viewer</h3>
-            <p>2D and 3D celestial orbital simulation with symplectic Verlet integration and real-time energy diagnostics.</p>
-            <div class="demo-link">Open Demo →</div>
-        </a>
-
-        <a href="tangent_viewer.html" class="demo-card">
-            <h3>📐 4-Tangent Geometric Solver</h3>
-            <p>Analytical solver for direct and transverse tangent lines, circle of antisimilitude, and umbra/penumbra geometry.</p>
-            <div class="demo-link">Open Demo →</div>
-        </a>
-
-        <a href="2DCGA.html" class="demo-card">
-            <h3>🪐 2DCGA Inversive Optics (Experimental)</h3>
-            <p>Interactive 2D conformal geometric algebra sandbox exploring 4-tangent optics, Lagrange dual points, and coordinate funnel collapse.</p>
-            <div class="demo-link">Open Sandbox →</div>
-        </a>
+    <p class="section-label">Other</p>
+    <div class="grid">
+      <a class="card" href="gravity_viewer.html">
+        <h3>Gravity Viewer</h3>
+        <p>Orbital simulation with symplectic Verlet and energy diagnostics.</p>
+        <span class="link">Open →</span>
+      </a>
+      <a class="card" href="tangent_viewer.html">
+        <h3>4-Tangent Solver</h3>
+        <p>Direct / transverse tangents, circle of antisimilitude, umbra geometry.</p>
+        <span class="link">Open →</span>
+      </a>
+      <a class="card" href="tests/test_runner.html">
+        <h3>Math Test Suite</h3>
+        <p>CGA invariants and numerical stability benchmarks.</p>
+        <span class="link">Run →</span>
+      </a>
     </div>
 
     <footer>
-        <p>Built with Zero-Build Vanilla ECMAScript & WebGPU | <a href="https://github.com/dlabz/NBDllD" target="_blank" rel="noopener">GitHub Repository</a></p>
+      <p>
+        Zero-build vanilla ECMAScript & WebGPU ·
+        <a href="https://github.com/dlabz/NBDllD" target="_blank" rel="noopener">GitHub</a>
+      </p>
     </footer>
+  </div>
 </body>
 </html>

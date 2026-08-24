@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SupraQuant → Freya Holmér — Technical Handoff</title>
+  <style>
+    :root {
+      --bg: #0b0d19;
+      --panel: #111326;
+      --border: #1e223b;
+      --text: #d1d5db;
+      --muted: #8c92ac;
+      --accent: #3b82f6;
+      --accent-soft: #60a5fa;
+      --pink: #e94560;
+      --green: #10b981;
+      --orange: #f59e0b;
+      --card: #171932;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+      line-height: 1.55;
+      min-height: 100vh;
+    }
+
+    a { color: var(--accent-soft); text-decoration: none; }
+    a:hover { text-decoration: underline; color: #93c5fd; }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      background: rgba(11, 13, 25, 0.92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .topbar-brand {
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      font-size: 14px;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .topbar-brand span.dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--pink);
+      box-shadow: 0 0 10px var(--pink);
+    }
+    .topbar-links {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 14px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      border: 1px solid var(--border);
+      background: var(--panel);
+      color: var(--text);
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s, color 0.15s;
+      text-decoration: none;
+    }
+    .btn:hover { background: #1a1e38; border-color: #3b4468; text-decoration: none; color: #fff; }
+    .btn.primary {
+      background: linear-gradient(135deg, #2563eb, #3b82f6);
+      border-color: transparent;
+      color: #fff;
+    }
+    .btn.primary:hover { background: linear-gradient(135deg, #1d4ed8, #2563eb); color: #fff; }
+    .btn.pink {
+      background: linear-gradient(135deg, #be123c, #e94560);
+      border-color: transparent;
+      color: #fff;
+    }
+    .btn.pink:hover { filter: brightness(1.08); color: #fff; }
+
+    .hero {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 56px 28px 40px;
+      text-align: center;
+    }
+    .hero-kicker {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.18em;
+      color: var(--pink);
+      margin-bottom: 14px;
+      font-weight: 600;
+    }
+    .hero h1 {
+      font-size: clamp(28px, 5vw, 42px);
+      font-weight: 800;
+      color: #fff;
+      letter-spacing: -0.02em;
+      line-height: 1.15;
+      margin-bottom: 12px;
+    }
+    .hero h1 em {
+      font-style: normal;
+      background: linear-gradient(90deg, #60a5fa, #e94560);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+    .hero-sub {
+      font-size: 16px;
+      color: var(--muted);
+      max-width: 620px;
+      margin: 0 auto 28px;
+    }
+    .hero-meta {
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+      flex-wrap: wrap;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .hero-meta strong { color: #cbd5e1; }
+
+    .container {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 0 28px 64px;
+    }
+
+    section {
+      margin-bottom: 48px;
+    }
+    section h2 {
+      font-size: 18px;
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: 0.04em;
+      margin-bottom: 16px;
+      padding-bottom: 10px;
+      border-bottom: 2px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    section h2 .num {
+      font-size: 11px;
+      font-weight: 700;
+      background: var(--card);
+      color: var(--accent-soft);
+      padding: 3px 8px;
+      border-radius: 4px;
+      letter-spacing: 0.06em;
+    }
+
+    p { margin-bottom: 12px; font-size: 14.5px; color: var(--text); }
+    .muted { color: var(--muted); font-size: 13.5px; }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 16px;
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 18px 20px;
+    }
+    .card h3 {
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--accent-soft);
+      margin-bottom: 10px;
+      font-weight: 700;
+    }
+    .card p { font-size: 13.5px; margin-bottom: 0; color: #c4c9d8; }
+
+    .table-wrap {
+      overflow-x: auto;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      min-width: 640px;
+    }
+    th, td {
+      padding: 11px 14px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+    th {
+      background: #0f1224;
+      color: #94a3b8;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      font-size: 11px;
+    }
+    th:last-child, td:last-child {
+      background: rgba(233, 69, 96, 0.08);
+    }
+    th:last-child { color: #fda4af; }
+    tr:last-child td { border-bottom: none; }
+    td { color: #d1d5db; }
+    td.yes { color: var(--green); font-weight: 600; }
+    td.no { color: #f87171; }
+    td.mid { color: var(--orange); }
+
+    pre {
+      background: #0a0c16;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px 18px;
+      overflow-x: auto;
+      font-size: 12.5px;
+      line-height: 1.5;
+      color: #a5b4c8;
+      margin: 12px 0 16px;
+    }
+    code {
+      font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    }
+    .inline-code {
+      background: #1a1e38;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 12.5px;
+      color: #93c5fd;
+    }
+
+    .callout {
+      background: var(--card);
+      border-left: 3px solid var(--accent);
+      border-radius: 0 8px 8px 0;
+      padding: 14px 18px;
+      margin: 16px 0;
+      font-size: 13.5px;
+      color: #c4c9d8;
+    }
+
+    .link-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .link-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 16px;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .link-item:hover {
+      border-color: #3b4468;
+      background: #151836;
+      text-decoration: none;
+    }
+    .link-item .icon {
+      width: 36px; height: 36px;
+      border-radius: 8px;
+      background: #1a1e38;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px;
+      flex-shrink: 0;
+    }
+    .link-item .meta { flex: 1; min-width: 0; }
+    .link-item .meta .title {
+      font-weight: 600;
+      color: #fff;
+      font-size: 14px;
+      margin-bottom: 2px;
+    }
+    .link-item .meta .desc {
+      font-size: 12.5px;
+      color: var(--muted);
+    }
+
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 28px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    footer a { color: var(--muted); }
+    footer a:hover { color: var(--accent-soft); }
+
+    blockquote {
+      margin: 16px 0;
+      padding: 14px 18px;
+      background: var(--card);
+      border-radius: 8px;
+      border-left: 3px solid var(--pink);
+      font-size: 14px;
+      color: #c4c9d8;
+      font-style: italic;
+    }
+    blockquote cite {
+      display: block;
+      margin-top: 8px;
+      font-style: normal;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    @media (max-width: 640px) {
+      .hero { padding: 36px 18px 28px; }
+      .container { padding: 0 18px 48px; }
+      .topbar { padding: 12px 16px; }
+    }
+  </style>
+</head>
+<body>
+
+  <header class="topbar">
+    <div class="topbar-brand">
+      <span class="dot"></span>
+      SUPRAQUANT · HANDOFF
+    </div>
+    <div class="topbar-links">
+      <a class="btn primary" href="https://dlabz.github.io/NBDllD/artifacts/supraquant/supraquant_test-v5.html" target="_blank" rel="noopener">
+        ▶ Live Demo (v5)
+      </a>
+      <a class="btn" href="https://github.com/dlabz/NBDllD" target="_blank" rel="noopener">
+        GitHub Repo
+      </a>
+      <a class="btn pink" href="https://www.youtube.com/watch?v=jvPPXbo87ds" target="_blank" rel="noopener">
+        Freya’s Talk
+      </a>
+    </div>
+  </header>
+
+  <div class="hero">
+    <div class="hero-kicker">Technical Handoff · August 2026</div>
+    <h1>SupraQuant <em>→</em> Freya Holmér</h1>
+    <p class="hero-sub">
+      A G⁴-targeted, interpolating, locally controllable closed spline —
+      offered as a working prototype in response to the open design space
+      described in <em>The Continuity of Splines</em>.
+    </p>
+    <div class="hero-meta">
+      <span><strong>To</strong> Freya Holmér</span>
+      <span><strong>From</strong> SupraQuant experimenters</span>
+      <span><strong>Status</strong> Prototype · open for critique</span>
+    </div>
+  </div>
+
+  <div class="container">
+
+    <section>
+      <h2><span class="num">01</span> Greeting</h2>
+      <p>Dear Freya,</p>
+      <p>
+        This page is a concise technical handoff of an experimental closed spline
+        construction we have been calling <strong>SupraQuant</strong>. It was developed
+        with your 2022 talk <em>The Continuity of Splines</em> (and your later public
+        experiments with higher-degree interpolating C² curves) as the primary design brief.
+      </p>
+      <p>
+        The goal was to explore whether a non-polynomial, sine-based basis with
+        pre-filtering can simultaneously deliver <strong>interpolation</strong>,
+        <strong>local control</strong>, and <strong>continuity beyond the classic cubic regime</strong>
+        while remaining practical for interactive use.
+      </p>
+      <div class="callout">
+        Nothing here claims to be finished or definitive. It is offered as a working
+        prototype and diagnostic sandbox in the hope that some of the design choices
+        (or the failure modes) are useful to you.
+      </div>
+    </section>
+
+    <section>
+      <h2><span class="num">02</span> The gap you described</h2>
+      <p>Your video and subsequent posts repeatedly surface a practical tension that is still not fully resolved in everyday tools:</p>
+      <div class="grid-2">
+        <div class="card">
+          <h3>Cubic B-spline</h3>
+          <p>Reliable C² + local control, but <em>approximating</em> — does not pass through the control points.</p>
+        </div>
+        <div class="card">
+          <h3>Catmull-Rom</h3>
+          <p>Interpolates and stays local, but stops at C¹. Acceleration / curvature usually discontinuous.</p>
+        </div>
+        <div class="card">
+          <h3>Natural cubic</h3>
+          <p>Interpolates and reaches C², at the cost of global coupling — move one point, the whole curve shifts.</p>
+        </div>
+        <div class="card">
+          <h3>Higher-degree polys</h3>
+          <p>Can force more continuity, yet “fairness” (smooth, low-energy, non-stiff shapes) becomes difficult.</p>
+        </div>
+      </div>
+      <p style="margin-top:16px">
+        SupraQuant is an attempt to sit in the remaining region: interpolating, locally supported,
+        closed, and intentionally aimed at G⁴ / continuous-jerk behaviour, using a sine-based
+        analogue of the Cox–de Boor recursion plus a collocation pre-filter.
+      </p>
+    </section>
+
+    <section>
+      <h2><span class="num">03</span> What SupraQuant is</h2>
+      <p>
+        At its core it is a <strong>periodic cubic-degree spline</strong> whose basis functions
+        replace the usual linear ratios with normalised sines of angular differences.
+        A scale factor keeps the arguments away from integer multiples of π.
+        Strict 2π-periodicity is enforced by normalising the evaluation angle at every level of the recursion.
+      </p>
+      <p>
+        Because the raw basis is approximating, a dense collocation matrix is built at the
+        knot-aligned sample locations and inverted so that virtual control points make the
+        curve pass exactly through a set of user-specified target points. Partition-of-unity
+        is restored by renormalising the active basis weights after evaluation.
+      </p>
+
+      <div class="grid-2" style="margin-top:16px">
+        <div class="card">
+          <h3>Basis</h3>
+          <p><code class="inline-code">evaluateSupraQuantBasis</code> — sine-corrected Cox–de Boor with θ forced into [0, 2π) on every recursive entry.</p>
+        </div>
+        <div class="card">
+          <h3>Weights</h3>
+          <p><code class="inline-code">getSupraQuantWeights</code> — four active bases, periodic index wrap, renormalise so ∑w = 1.</p>
+        </div>
+        <div class="card">
+          <h3>Pre-filter</h3>
+          <p><code class="inline-code">solvePreFilteringMatrix</code> — collocation B·C<sub>virtual</sub> = D<sub>target</sub> (Gaussian elim. + partial pivoting).</p>
+        </div>
+        <div class="card">
+          <h3>Diagnostics</h3>
+          <p>Live curvature combs, acceleration magnitude, and jerk / jolt plots over the full [0, 2π] domain.</p>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2><span class="num">04</span> Comparison at a glance</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Property</th>
+              <th>Cubic B-spline</th>
+              <th>Catmull-Rom</th>
+              <th>Natural cubic</th>
+              <th>SupraQuant G⁴</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Interpolation</td>
+              <td class="no">No</td>
+              <td class="yes">Yes</td>
+              <td class="yes">Yes</td>
+              <td class="yes">Yes (pre-filter)</td>
+            </tr>
+            <tr>
+              <td>Local control</td>
+              <td class="yes">Yes</td>
+              <td class="yes">Yes</td>
+              <td class="no">No</td>
+              <td class="yes">Yes</td>
+            </tr>
+            <tr>
+              <td>Parametric continuity</td>
+              <td>C²</td>
+              <td>C¹</td>
+              <td>C²</td>
+              <td class="yes">G⁴-targeted</td>
+            </tr>
+            <tr>
+              <td>Closed / periodic</td>
+              <td class="mid">Possible</td>
+              <td class="mid">Possible</td>
+              <td class="no">Awkward</td>
+              <td class="yes">Native (θ mod 2π)</td>
+            </tr>
+            <tr>
+              <td>Fairness / stiffness</td>
+              <td class="yes">Good</td>
+              <td class="yes">Good</td>
+              <td class="mid">Variable</td>
+              <td class="mid">Empirical (sine tension)</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section>
+      <h2><span class="num">05</span> Core basis (excerpt)</h2>
+      <p class="muted">Sine-based Cox–de Boor analogue with strict periodicity at every recursion level.</p>
+<pre><code>export function evaluateSupraQuantBasis(i, p, theta, knots, scaleFactor) {
+  const normTheta = ((theta % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+  if (p === 0) {
+    return (normTheta >= knots[i] && normTheta < knots[i + 1]) ? 1.0 : 0.0;
+  }
+  const sinDenom1 = Math.sin((knots[i + p] - knots[i]) * scaleFactor);
+  const sinDenom2 = Math.sin((knots[i + p + 1] - knots[i + 1]) * scaleFactor);
+  let term1 = 0.0, term2 = 0.0;
+  if (Math.abs(sinDenom1) > 1e-6) {
+    term1 = (Math.sin((normTheta - knots[i]) * scaleFactor) / sinDenom1)
+          * evaluateSupraQuantBasis(i, p - 1, normTheta, knots, scaleFactor);
+  }
+  if (Math.abs(sinDenom2) > 1e-6) {
+    term2 = (Math.sin((knots[i + p + 1] - normTheta) * scaleFactor) / sinDenom2)
+          * evaluateSupraQuantBasis(i + 1, p - 1, normTheta, knots, scaleFactor);
+  }
+  return term1 + term2;
+}</code></pre>
+      <p class="muted">
+        Full sources live in the repo under <code class="inline-code">artifacts/supraquant/</code>
+        (processor modules + interactive test harness).
+      </p>
+    </section>
+
+    <section>
+      <h2><span class="num">06</span> Known limitations</h2>
+      <div class="grid-2">
+        <div class="card">
+          <h3>Fairness is empirical</h3>
+          <p>Higher continuity ≠ automatic low-energy shapes. Aggressive edits can still reveal stiffness; the scale factor helps but is not a complete answer.</p>
+        </div>
+        <div class="card">
+          <h3>Numerical derivatives</h3>
+          <p>Finite differences are used for curvature / jerk plots. Analytic derivatives of the sine basis would improve accuracy and speed.</p>
+        </div>
+        <div class="card">
+          <h3>Degree / support</h3>
+          <p>A pure cubic construction has limited degrees of freedom once interpolation + high continuity are demanded. Higher-degree sine bases remain open.</p>
+        </div>
+        <div class="card">
+          <h3>Global pre-filter</h3>
+          <p>Collocation is O(n³). Fine for interactive dozens of points; hundreds will need incremental / sparse techniques.</p>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2><span class="num">07</span> Why it may interest you</h2>
+      <p>
+        You have publicly explored the same design space — most recently an interpolating
+        C² quintic that keeps local control. SupraQuant is a different route to a related
+        destination: a <strong>non-polynomial periodic basis + collocation</strong>, rather than
+        a higher-degree polynomial with carefully chosen constraints.
+      </p>
+      <p>
+        The live curvature-comb and jerk diagnostics are intentionally in the visual vocabulary
+        of your 2022 talk, so the continuity behaviour can be inspected in the same terms
+        you already use.
+      </p>
+      <blockquote>
+        If the construction is ultimately a dead end, the failure modes themselves may still
+        be informative. If it survives contact with a sharper eye, the sine-basis + pre-filter
+        pattern might be a useful additional tool alongside the polynomial family.
+        <cite>— from the original handoff note</cite>
+      </blockquote>
+    </section>
+
+    <section>
+      <h2><span class="num">08</span> Links & artefacts</h2>
+      <div class="link-list">
+        <a class="link-item" href="https://dlabz.github.io/NBDllD/artifacts/supraquant/supraquant_test-v5.html" target="_blank" rel="noopener">
+          <div class="icon">▶</div>
+          <div class="meta">
+            <div class="title">Live Interactive Demo (v5)</div>
+            <div class="desc">G² linear vs G⁴ trigonometric analyzer — drag nodes, zoom knot boundaries, inspect 4th-derivative spikes</div>
+          </div>
+        </a>
+        <a class="link-item" href="https://github.com/dlabz/NBDllD" target="_blank" rel="noopener">
+          <div class="icon">⟨/⟩</div>
+          <div class="meta">
+            <div class="title">GitHub — dlabz/NBDllD</div>
+            <div class="desc">Source tree: processor modules, test harnesses, and related experiments under artifacts/supraquant/</div>
+          </div>
+        </a>
+        <a class="link-item" href="https://www.youtube.com/watch?v=jvPPXbo87ds" target="_blank" rel="noopener">
+          <div class="icon">▶</div>
+          <div class="meta">
+            <div class="title">The Continuity of Splines — Freya Holmér</div>
+            <div class="desc">The 2022 talk that framed the design space this experiment responds to</div>
+          </div>
+        </a>
+        <a class="link-item" href="https://x.com/FreyaHolmer" target="_blank" rel="noopener">
+          <div class="icon">𝕏</div>
+          <div class="meta">
+            <div class="title">@FreyaHolmer on X</div>
+            <div class="desc">Recent interpolating C² quintic experiments and ongoing spline research</div>
+          </div>
+        </a>
+      </div>
+    </section>
+
+    <section>
+      <h2><span class="num">09</span> Closing</h2>
+      <p>
+        Thank you for the clarity and depth of <em>The Continuity of Splines</em>.
+        It remains one of the best public explanations of why continuity actually matters
+        and where the practical trade-offs still sit. This work is an attempt to push a
+        little further into the region you left open.
+      </p>
+      <p>
+        If any part of the construction is useful, or if you see an immediate flaw we have
+        missed, we would be grateful for the feedback. The code is offered freely for
+        inspection, experimentation, and critique.
+      </p>
+      <p style="margin-top:20px; color:#94a3b8;">
+        With respect and appreciation,<br>
+        <em style="color:#cbd5e1;">— the SupraQuant experimenters</em>
+      </p>
+    </section>
+
+  </div>
+
+  <footer>
+    SupraQuant technical handoff · August 2026<br>
+    <a href="https://dlabz.github.io/NBDllD/artifacts/supraquant/supraquant_test-v5.html">Live demo</a>
+    ·
+    <a href="https://github.com/dlabz/NBDllD">GitHub</a>
+    ·
+    <a href="https://www.youtube.com/watch?v=jvPPXbo87ds">Freya’s Continuity of Splines</a>
+  </footer>
+
+</body>
+</html>

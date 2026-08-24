@@ -1,0 +1,1482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inside-Out Unified Manifold: WebGPU GPGPU & Conformal Spline Simulator</title>
+    <style>
+        body {
+            margin: 0;
+            background-color: #030409;
+            color: #d1d5db;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            overflow: hidden;
+            display: flex;
+            height: 100vh;
+        }
+
+        /* Lateral Control Panel */
+        #panel-controls {
+            width: 340px;
+            background-color: #080914;
+            border-right: 1px solid #1e223b;
+            padding: 16px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            z-index: 10;
+            overflow-y: auto;
+            box-shadow: 4px 0 24px rgba(0, 0, 0, 0.6);
+        }
+
+        .header-title {
+            font-size: 13px;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            color: #ffffff;
+            border-bottom: 2px solid #252a4a;
+            padding-bottom: 6px;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .section-desc {
+            font-size: 10.5px;
+            line-height: 1.4;
+            color: #72789c;
+            margin: 0;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .control-label {
+            font-size: 9.5px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: #949ab1;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .control-value {
+            color: #3b82f6;
+            font-weight: bold;
+        }
+
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 4px;
+            border-radius: 2px;
+            background: #1e223b;
+            outline: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #3b82f6;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+
+        input[type="range"]::-webkit-slider-thumb:hover {
+            background: #60a5fa;
+        }
+
+        select {
+            background-color: #16172d;
+            border: 1px solid #252a4a;
+            color: #d1d5db;
+            padding: 6px 8px;
+            border-radius: 4px;
+            outline: none;
+            font-size: 10.5px;
+            cursor: pointer;
+        }
+
+        .toggle-btn {
+            background-color: #16172d;
+            border: 1px solid #252a4a;
+            color: #8c92ac;
+            padding: 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 10.5px;
+            font-weight: 600;
+            transition: all 0.2s;
+            text-align: center;
+            outline: none;
+        }
+
+        .toggle-btn.active {
+            background-color: #2563eb;
+            color: #ffffff;
+            border-color: #3b82f6;
+            box-shadow: 0 0 10px rgba(37, 99, 235, 0.3);
+        }
+
+        .btn-star {
+            background-color: #12142e;
+            border: 1px solid #202447;
+            color: #8990bf;
+            padding: 5px;
+            font-size: 9.5px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .btn-star:hover {
+            background-color: #2563eb;
+            color: #ffffff;
+            border-color: #3b82f6;
+        }
+
+        /* Workspace and Layout */
+        #workspace {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        #canvas-container {
+            flex-grow: 1;
+            position: relative;
+        }
+
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        #panel-hud {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background-color: rgba(9, 10, 20, 0.88);
+            backdrop-filter: blur(12px);
+            border: 1px solid #1e223b;
+            border-radius: 6px;
+            padding: 12px;
+            font-family: monospace;
+            font-size: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            pointer-events: none;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+            width: 320px;
+            transition: all 0.2s;
+        }
+
+        #panel-hud.collapsed {
+            height: 16px;
+            overflow: hidden;
+            width: 120px;
+        }
+
+        .hud-line {
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .hud-label {
+            color: #5c647e;
+        }
+
+        .hud-value {
+            color: #e2e8f0;
+        }
+
+        /* WebGPU Notification Overlay */
+        #webgpu-banner {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: linear-gradient(135deg, #1e1b4b 0%, #0f172a 100%);
+            border: 1px solid #312e81;
+            border-radius: 6px;
+            padding: 12px 16px;
+            font-size: 11px;
+            max-width: 320px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8);
+            z-index: 100;
+            transition: all 0.3s;
+        }
+
+        .banner-title {
+            color: #ffffff;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .banner-desc {
+            color: #94a3b8;
+            line-height: 1.4;
+        }
+
+        .banner-btn {
+            background-color: #2563eb;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 10px;
+            font-weight: bold;
+            text-align: center;
+            transition: background 0.15s;
+        }
+
+        .banner-btn:hover {
+            background-color: #3b82f6;
+        }
+
+        /* Footer stamp */
+        .footer-stamp {
+            margin-top: auto;
+            border-top: 1px solid #1e223b;
+            padding-top: 12px;
+            font-size: 9px;
+            color: #5c627c;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div id="panel-controls">
+        <h1 class="header-title">
+            <span>UNIFIED MANIFOLD V6</span>
+        </h1>
+        <p class="section-desc">
+            Evaluating true WebGPU GPGPU double-pass symplectic dispatches, trace-aligned cameras, and closed-loop G⁴ splines.
+        </p>
+
+        <div class="control-group">
+            <span class="control-label">Simulation Engine</span>
+            <span id="lbl-active-engine" class="control-value" style="color: #10b981; font-size: 11px;">Initializing...</span>
+        </div>
+
+        <div class="control-group">
+            <span class="control-label">Integration Pipeline</span>
+            <select id="sel-pipeline">
+                <option value="cooperative">COOPERATIVE REDUCE (O(N log M))</option>
+                <option value="sequential">SEQUENTIAL STACK (O(N log M))</option>
+                <option value="exhaustive">EXHAUSTIVE DIRECT (O(N * M))</option>
+            </select>
+        </div>
+
+        <div class="control-group">
+            <span class="control-label">Observer Target (Pleiades)</span>
+            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px; margin-top: 2px;">
+                <button class="btn-star" data-idx="0">Merope</button>
+                <button class="btn-star" data-idx="1">Alcyone</button>
+                <button class="btn-star" data-idx="2">Taygeta</button>
+                <button class="btn-star" data-idx="3">Celaeno</button>
+                <button class="btn-star" data-idx="4">Electra</button>
+                <button class="btn-star" data-idx="5">Sterope</button>
+                <button class="btn-star" data-idx="6">Maia</button>
+                <button class="btn-star" data-idx="7">Atlas</button>
+            </div>
+            <button id="btn-cluster-focus" class="toggle-btn" style="margin-top: 4px; width: 100%;">Focus Cluster Centroid</button>
+        </div>
+
+        <div class="control-group">
+            <span class="control-label">Active Camera Mode</span>
+            <button id="btn-cam-toggle" class="toggle-btn active">CAMERA B (Rotor G⁴)</button>
+            <button id="btn-cam-sync" class="toggle-btn" style="margin-top: 4px; padding: 4px; font-size: 9px; background-color: #0f1124;">Force Alignment Sync</button>
+        </div>
+
+        <div class="control-group">
+            <span class="control-label">Opening Angle Cutoff (θ) <span class="control-value" id="lbl-cutoff">0.15</span></span>
+            <input type="range" id="rng-cutoff" min="0.05" max="1.00" step="0.05" value="0.15">
+        </div>
+
+        <div class="control-group">
+            <span class="control-label">Brownian Damping (γ) <span class="control-value" id="lbl-damping">0.05</span></span>
+            <input type="range" id="rng-damping" min="0.00" max="0.50" step="0.01" value="0.05">
+        </div>
+
+        <div class="control-group">
+            <span class="control-label">Particle Density</span>
+            <select id="sel-density">
+                <option value="1024">1,024 Bodies</option>
+                <option value="4096">4,096 Bodies</option>
+                <option value="16384" selected>16,384 Bodies</option>
+                <option value="65536">65,536 Bodies</option>
+            </select>
+        </div>
+
+        <div class="control-group">
+            <span class="control-label">Visualize Boundaries</span>
+            <button id="btn-bounds" class="toggle-btn active">SHOW SPATIAL BOUNDS</button>
+        </div>
+
+        <div class="footer-stamp">
+            БИРО "ЧИП" СТАРИ ГРАД &copy; 2026
+        </div>
+    </div>
+
+    <div id="workspace">
+        <div id="canvas-container">
+            <canvas id="canvas-main"></canvas>
+        </div>
+
+        <div id="panel-hud">
+            <div class="hud-line">
+                <span class="hud-label">Transformation Horizon</span>
+                <span class="hud-value" id="hud-camera-state" style="color: #60a5fa; font-weight: bold;">Camera B Active</span>
+            </div>
+            <div class="hud-line">
+                <span class="hud-label">GPULatency (Compute)</span>
+                <span class="hud-value" id="hud-compute-time" style="color: #10b981;">0.00 ms</span>
+            </div>
+            <div class="hud-line">
+                <span class="hud-label">RenderLatency (Present)</span>
+                <span class="hud-value" id="hud-render-time" style="color: #10b981;">0.00 ms</span>
+            </div>
+            <div class="hud-line">
+                <span class="hud-label">SSO Node Count</span>
+                <span class="hud-value" id="hud-nodes">0</span>
+            </div>
+            <div class="hud-line">
+                <span class="hud-label">Parity Drift (Field Exact)</span>
+                <span class="hud-value" id="hud-drift">0.0000%</span>
+            </div>
+            <div class="hud-line">
+                <span class="hud-label">Press H to collapse HUD</span>
+                <span class="hud-value" style="color: #5c647e;">(H)</span>
+            </div>
+        </div>
+
+        <div id="webgpu-banner">
+            <div class="banner-title">
+                <span>⚠️ WebGPU INITIALIZING</span>
+            </div>
+            <div class="banner-desc" id="banner-text">
+                Querying system hardware adapter...
+            </div>
+            <button class="banner-btn" id="btn-banner-action" style="display: none;">Dismiss</button>
+        </div>
+    </div>
+
+    <script type="module">
+        // @ts-check
+
+        import { 
+            updateCameraA, 
+            updateCameraB, 
+            synchronizeAtoB, 
+            synchronizeBtoA, 
+            quaternionFromAxisAngle, 
+            multiplyQuaternions 
+        } from './potemkin_camera-v3.js';
+        
+        import { 
+            SparseStarOctreeBuilder, 
+            getWGSLOctreeShaderCode 
+        } from './sparse_star_octree-v6.js';
+
+        import { 
+            generateBoundaryLoop 
+        } from './supraquant_processor-v6.js';
+
+        /**
+         * Local WebGPU Bitflag Constants fallback for strict TypeScript / JSDoc checking.
+         */
+        const GPUBufferUsageFlags = {
+            MAP_READ: 0x01, MAP_WRITE: 0x02, COPY_SRC: 0x04, COPY_DST: 0x08,
+            INDEX: 0x10, VERTEX: 0x20, UNIFORM: 0x40, STORAGE: 0x80,
+            INDIRECT: 0x100, QUERY_RESOLVE: 0x200
+        };
+        const GPUShaderStageFlags = { VERTEX: 0x1, FRAGMENT: 0x2, COMPUTE: 0x4 };
+
+        // --- Core Application Context ---
+        const canvasMain = /** @type {HTMLCanvasElement} */ (document.getElementById('canvas-main'));
+        const ctxMain = /** @type {CanvasRenderingContext2D} */ (canvasMain.getContext('2d'));
+        let width = canvasMain.clientWidth;
+        let height = canvasMain.clientHeight;
+        canvasMain.width = width; 
+        canvasMain.height = height;
+
+        window.addEventListener('resize', () => {
+            width = canvasMain.clientWidth; 
+            height = canvasMain.clientHeight;
+            canvasMain.width = width; 
+            canvasMain.height = height;
+        });
+
+        // Parameters
+        let numParticles = 16384;
+        let thetaCutoff = 0.15;
+        let maxLeafCapacity = 1;
+        let gammaDamping = 0.05;
+        /** @type {'cooperative' | 'sequential' | 'exhaustive'} */
+        let activePipeline = 'cooperative';
+        /** @type {'SSO' | 'Direct'} */
+        let activeEngine = 'SSO';
+        let showBounds = true;
+        let isPaused = false;
+        let timeScale = 1.0;
+        let simTime = 0.0;
+        let frameCount = 0;
+        let lastFpsTime = performance.now();
+        let currentFps = 60.0;
+
+        /**
+         * @typedef {Object} StarEntity
+         * @property {string} name
+         * @property {number} x
+         * @property {number} y
+         * @property {number} z
+         * @property {number} radius
+         * @property {number} mass
+         * @property {number} r
+         * @property {number} g
+         * @property {number} b
+         */
+
+        /** @type {StarEntity[]} */
+        const stars = [
+            { name: "Merope", x: -25.0, y: 5.0, z: -15.0, radius: 1.8, mass: 125.0, r: 0.5, g: 0.6, b: 1.0 },
+            { name: "Alcyone", x: 0.0, y: 0.0, z: 0.0, radius: 2.5, mass: 350.0, r: 0.9, g: 0.9, b: 1.0 },
+            { name: "Taygeta", x: 15.0, y: -8.0, z: -25.0, radius: 1.5, mass: 95.0, r: 0.4, g: 0.5, b: 0.9 },
+            { name: "Celaeno", x: -10.0, y: -5.0, z: 30.0, radius: 1.2, mass: 75.0, r: 0.5, g: 0.5, b: 0.8 },
+            { name: "Electra", x: 35.0, y: 12.0, z: 15.0, radius: 2.1, mass: 220.0, r: 0.8, g: 0.8, b: 1.0 },
+            { name: "Sterope", x: -5.0, y: 15.0, z: -35.0, radius: 1.1, mass: 65.0, r: 0.6, g: 0.7, b: 1.0 },
+            { name: "Maia", x: -30.0, y: -10.0, z: 20.0, radius: 1.7, mass: 110.0, r: 0.4, g: 0.6, b: 1.0 },
+            { name: "Atlas", x: 25.0, y: -2.0, z: -5.0, radius: 2.0, mass: 180.0, r: 0.7, g: 0.8, b: 1.0 }
+        ];
+
+        /**
+         * @typedef {Object} ParticleEntity
+         * @property {number} x
+         * @property {number} y
+         * @property {number} z
+         * @property {number} vx
+         * @property {number} vy
+         * @property {number} vz
+         * @property {number} ax
+         * @property {number} ay
+         * @property {number} az
+         * @property {number} r
+         * @property {number} g
+         * @property {number} b
+         */
+
+        /** @type {ParticleEntity[]} */
+        let particles = [];
+        let ssoCalcsCount = 0;
+
+        /** @type {import('./potemkin_camera-v3.js').CameraState} */
+        const cameraState = {
+            target: new Float32Array([0, 0, 0]),
+            distance: 65.0,
+            azimuth: 0.4,
+            elevation: 0.6,
+            rotation: new Float32Array([0, 0, 0, 1]), // xyzw
+            quaternionLayout: 'xyzw',
+            activeCamera: 'B'
+        };
+
+        synchronizeAtoB(cameraState);
+
+        /**
+         * Initializes particle distribution with Keplerian orbital angular momentum around cluster centroid.
+         */
+        function generateParticles() {
+            particles = [];
+            for (let i = 0; i < numParticles; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const rad = 15 + Math.random() * 55;
+                const heightOffset = (Math.random() - 0.5) * 8.0;
+                // Circular orbital velocity v = sqrt(G*M_eff / r)
+                const speed = Math.sqrt(800.0 / Math.max(10.0, rad)) * (0.85 + Math.random() * 0.3);
+                particles.push({
+                    x: Math.cos(angle) * rad,
+                    y: heightOffset,
+                    z: Math.sin(angle) * rad,
+                    vx: -Math.sin(angle) * speed,
+                    vy: (Math.random() - 0.5) * 0.4,
+                    vz: Math.cos(angle) * speed,
+                    ax: 0, ay: 0, az: 0,
+                    r: 0.35, g: 0.5, b: 0.95
+                });
+            }
+        }
+        generateParticles();
+
+        /**
+         * Precomputes a canonical G4 SupraQuant star boundary spline for zero-allocation rendering.
+         */
+        const canonicalSplineCp = new Float32Array([
+            0, -1,
+            0.707, -0.707,
+            1, 0,
+            0.707, 0.707,
+            0, 1,
+            -0.707, 0.707,
+            -1, 0,
+            -0.707, -0.707
+        ]);
+        const canonicalStarSpline = generateBoundaryLoop(48, canonicalSplineCp, true);
+
+        /**
+         * Projects 3D world coordinate to 2D canvas screen coordinates using Camera basis vectors.
+         * @param {number} x
+         * @param {number} y
+         * @param {number} z
+         * @param {import('./potemkin_camera-v3.js').CameraOutput} cam
+         * @returns {{ x: number, y: number, depth: number }}
+         */
+        function project(x, y, z, cam) {
+            const dx = x - cam.eye[0];
+            const dy = y - cam.eye[1];
+            const dz = z - cam.eye[2];
+
+            const rx = dx * cam.right[0] + dy * cam.right[1] + dz * cam.right[2];
+            const ry = dx * cam.up[0] + dy * cam.up[1] + dz * cam.up[2];
+            // Depth along camera forward view direction (-forward in right-handed camera space)
+            const depth = -(dx * cam.forward[0] + dy * cam.forward[1] + dz * cam.forward[2]);
+
+            const safeDepth = Math.max(0.1, depth);
+            const projX = width * 0.5 + (rx * 420.0) / safeDepth;
+            const projY = height * 0.5 - (ry * 420.0) / safeDepth;
+
+            return { x: projX, y: projY, depth };
+        }
+
+        /**
+         * CPU Traversal of SSO Octree (Fallback and numerical parity reference engine).
+         * @param {ParticleEntity | { x: number, y: number, z: number, ax: number, ay: number, az: number }} p
+         * @param {import('./sparse_star_octree-v6.js').OctreeNode} node
+         * @param {import('./sparse_star_octree-v6.js').OctreeNode[]} flatNodes
+         */
+        function fnAccumulateSSO(p, node, flatNodes) {
+            ssoCalcsCount++;
+            const dx = node.cx - p.x;
+            const dy = node.cy - p.y;
+            const dz = node.cz - p.z;
+            const distSq = dx*dx + dy*dy + dz*dz;
+            const dist = Math.sqrt(distSq);
+
+            const ratio = node.radius / (dist > 1e-4 ? dist : 1.0);
+
+            if (node.isLeaf || ratio < thetaCutoff) {
+                const soft_eps = 4.0;
+                const denom = distSq + soft_eps;
+                if (dist > 1e-4 && node.mass > 0) {
+                    const force = node.mass / denom;
+                    p.ax += (dx / dist) * force;
+                    p.ay += (dy / dist) * force;
+                    p.az += (dz / dist) * force;
+                }
+            } else {
+                if (node.childrenPtr > 0) {
+                    for (let i = 0; i < 8; i++) {
+                        const child = flatNodes[node.childrenPtr + i];
+                        if (child && (child.mass > 0 || child.r > 0)) {
+                            fnAccumulateSSO(p, child, flatNodes);
+                        }
+                    }
+                }
+            }
+        }
+
+        // =========================================================================
+        // WebGPU GPGPU SIMULATION ENGINE
+        // =========================================================================
+        /** @type {any} */
+        let gpuDevice = null;
+        let gpuActive = false;
+        /** @type {any} */
+        let particleBuffer = null;
+        /** @type {any} */
+        let stagingBuffer = null;
+        /** @type {any} */
+        let octreeBuffer = null;
+        /** @type {any} */
+        let paramsBuffer = null;
+        /** @type {any} */
+        let positionPipeline = null;
+        /** @type {any} */
+        let dynamicsPipelineSeq = null;
+        /** @type {any} */
+        let dynamicsPipelineCoop = null;
+        /** @type {any} */
+        let dynamicsPipelineDirect = null;
+        let gpuFrameInFlight = false;
+        /** @type {import('./sparse_star_octree-v6.js').OctreeNode[]} */
+        let currentFlatNodes = [];
+
+        function styleFatalBanner() {
+            const banner = document.getElementById('webgpu-banner');
+            if (banner) {
+                banner.style.border = "1px solid #ef4444";
+                banner.style.background = "linear-gradient(135deg, #7f1d1d 0%, #0f172a 100%)";
+                const title = banner.querySelector('.banner-title');
+                if (title) title.innerHTML = "<span>❌ CPU FALLBACK ACTIVE</span>";
+            }
+            const lblEngine = document.getElementById('lbl-active-engine');
+            if (lblEngine) {
+                lblEngine.textContent = "CPU FALLBACK (SSO)";
+                lblEngine.style.color = "#f59e0b";
+            }
+        }
+
+        async function tryInitWebGPU() {
+            const bannerText = document.getElementById('banner-text');
+            const actionBtn = document.getElementById('btn-banner-action');
+            const navGpu = /** @type {any} */ (navigator).gpu;
+            
+            if (!navGpu) {
+                if (bannerText) bannerText.textContent = "WebGPU API is unsupported in this browser context. Running high-precision CPU fallback.";
+                if (actionBtn) actionBtn.style.display = "block";
+                styleFatalBanner();
+                startFallbackLoop();
+                return;
+            }
+
+            try {
+                const adapter = await navGpu.requestAdapter();
+                if (!adapter) {
+                    if (bannerText) bannerText.textContent = "No compatible physical WebGPU hardware adapters found.";
+                    if (actionBtn) actionBtn.style.display = "block";
+                    styleFatalBanner();
+                    startFallbackLoop();
+                    return;
+                }
+
+                gpuDevice = await adapter.requestDevice();
+                gpuActive = true;
+                
+                const bannerEl = document.getElementById('webgpu-banner');
+                if (bannerEl) bannerEl.style.display = "none";
+                
+                const lblEngine = document.getElementById('lbl-active-engine');
+                if (lblEngine) {
+                    lblEngine.textContent = "WEBGPU GPGPU ACTIVE";
+                    lblEngine.style.color = "#10b981";
+                }
+
+                await setupWebGPUPipelines();
+                requestAnimationFrame(tickGPU);
+            } catch (err) {
+                console.error("WebGPU initialization failed:", err);
+                if (bannerText) bannerText.textContent = "Hardware WebGPU compilation failed: " + (err instanceof Error ? err.message : String(err));
+                if (actionBtn) actionBtn.style.display = "block";
+                styleFatalBanner();
+                startFallbackLoop();
+            }
+        }
+
+        async function setupWebGPGPUBuffers() {
+            // Pack particles to float32 representation with 16-byte alignment (vec4f x 4 = 16 floats = 64 bytes)
+            const pArray = new Float32Array(numParticles * 16);
+            for (let i = 0; i < numParticles; i++) {
+                const off = i * 16;
+                const p = particles[i];
+                // Float 0-3: Position (vec3f + f32 pad0)
+                pArray[off + 0] = p.x; 
+                pArray[off + 1] = p.y; 
+                pArray[off + 2] = p.z;
+                pArray[off + 3] = 0.0;
+                
+                // Float 4-7: Velocity (vec3f + f32 pad1)
+                pArray[off + 4] = p.vx; 
+                pArray[off + 5] = p.vy; 
+                pArray[off + 6] = p.vz;
+                pArray[off + 7] = 0.0;
+                
+                // Float 8-11: Acceleration + Mass (vec3f + f32 mass)
+                pArray[off + 8] = p.ax || 0.0; 
+                pArray[off + 9] = p.ay || 0.0; 
+                pArray[off + 10] = p.az || 0.0;
+                pArray[off + 11] = 1.0;
+                
+                // Float 12-15: Color (vec3f + f32 pad2)
+                pArray[off + 12] = p.r || 0.35;
+                pArray[off + 13] = p.g || 0.5;
+                pArray[off + 14] = p.b || 0.95;
+                pArray[off + 15] = 0.0;
+            }
+
+            if (particleBuffer) particleBuffer.destroy();
+            particleBuffer = gpuDevice.createBuffer({
+                size: pArray.byteLength,
+                usage: GPUBufferUsageFlags.STORAGE | GPUBufferUsageFlags.COPY_SRC | GPUBufferUsageFlags.COPY_DST,
+                mappedAtCreation: true
+            });
+            new Float32Array(particleBuffer.getMappedRange()).set(pArray);
+            particleBuffer.unmap();
+
+            // Pre-allocate persistent staging buffer for zero-allocation frame readback
+            if (stagingBuffer) stagingBuffer.destroy();
+            stagingBuffer = gpuDevice.createBuffer({
+                size: numParticles * 64,
+                usage: GPUBufferUsageFlags.COPY_DST | GPUBufferUsageFlags.MAP_READ
+            });
+
+            if (!paramsBuffer) {
+                paramsBuffer = gpuDevice.createBuffer({
+                    size: 256,
+                    usage: GPUBufferUsageFlags.UNIFORM | GPUBufferUsageFlags.COPY_DST
+                });
+            }
+        }
+
+        async function setupWebGPUPipelines() {
+            await setupWebGPGPUBuffers();
+
+            const shaderModule = gpuDevice.createShaderModule({
+                code: getWGSLOctreeShaderCode()
+            });
+
+            const bindGroupLayout = gpuDevice.createBindGroupLayout({
+                entries: [
+                    { binding: 0, visibility: GPUShaderStageFlags.COMPUTE, buffer: { type: "storage" } },
+                    { binding: 1, visibility: GPUShaderStageFlags.COMPUTE, buffer: { type: "read-only-storage" } },
+                    { binding: 2, visibility: GPUShaderStageFlags.COMPUTE, buffer: { type: "uniform" } }
+                ]
+            });
+
+            const pipelineLayout = gpuDevice.createPipelineLayout({
+                bindGroupLayouts: [bindGroupLayout]
+            });
+
+            positionPipeline = gpuDevice.createComputePipeline({
+                layout: pipelineLayout,
+                compute: { module: shaderModule, entryPoint: "position_update_pass" }
+            });
+
+            dynamicsPipelineSeq = gpuDevice.createComputePipeline({
+                layout: pipelineLayout,
+                compute: { module: shaderModule, entryPoint: "sequential_dynamics_pass" }
+            });
+
+            dynamicsPipelineCoop = gpuDevice.createComputePipeline({
+                layout: pipelineLayout,
+                compute: { module: shaderModule, entryPoint: "cooperative_dynamics_pass" }
+            });
+
+            dynamicsPipelineDirect = gpuDevice.createComputePipeline({
+                layout: pipelineLayout,
+                compute: { module: shaderModule, entryPoint: "direct_dynamics_pass" }
+            });
+        }
+
+        function tickGPU() {
+            if (gpuFrameInFlight) {
+                requestAnimationFrame(tickGPU);
+                return;
+            }
+
+            const dt = 0.05 * timeScale;
+            if (!isPaused) {
+                simTime += dt;
+            }
+            frameCount++;
+
+            const now = performance.now();
+            if (now - lastFpsTime >= 500) {
+                currentFps = (frameCount * 1000) / (now - lastFpsTime);
+                frameCount = 0;
+                lastFpsTime = now;
+            }
+
+            const activeCam = cameraState.activeCamera === 'A' ? updateCameraA(cameraState) : updateCameraB(cameraState);
+
+            // Rebuild octree and map to GPU storage
+            const builder = new SparseStarOctreeBuilder(stars, maxLeafCapacity, 8);
+            const octreeData = builder.build();
+            currentFlatNodes = builder.flatNodes;
+            const hudNodes = document.getElementById('hud-nodes');
+            if (hudNodes) hudNodes.textContent = String(currentFlatNodes.length);
+
+            if (!octreeBuffer || octreeBuffer.size < octreeData.byteLength) {
+                if (octreeBuffer) octreeBuffer.destroy();
+                octreeBuffer = gpuDevice.createBuffer({
+                    size: Math.max(octreeData.byteLength, 48 * 8),
+                    usage: GPUBufferUsageFlags.STORAGE | GPUBufferUsageFlags.COPY_DST
+                });
+            }
+            if (octreeData.byteLength > 0) {
+                gpuDevice.queue.writeBuffer(octreeBuffer, 0, octreeData);
+            }
+
+            // Write parameters uniform buffer with exact WGSL f32 and u32 layout alignment
+            const paramBuffer = new ArrayBuffer(32);
+            const paramF32 = new Float32Array(paramBuffer);
+            const paramU32 = new Uint32Array(paramBuffer);
+
+            paramF32[0] = isPaused ? 0.0 : dt;
+            paramF32[1] = gammaDamping;
+            paramF32[2] = thetaCutoff;
+            paramU32[3] = numParticles;
+            paramU32[4] = currentFlatNodes.length;
+            paramF32[5] = simTime;
+            paramU32[6] = cameraState.activeCamera === 'A' ? 0 : 1;
+            paramU32[7] = 0;
+
+            gpuDevice.queue.writeBuffer(paramsBuffer, 0, paramBuffer);
+
+            const bindGroup = gpuDevice.createBindGroup({
+                layout: positionPipeline.getBindGroupLayout(0),
+                entries: [
+                    { binding: 0, resource: { buffer: particleBuffer } },
+                    { binding: 1, resource: { buffer: octreeBuffer } },
+                    { binding: 2, resource: { buffer: paramsBuffer } }
+                ]
+            });
+
+            const tComputeStart = performance.now();
+            gpuFrameInFlight = true;
+
+            const commandEncoder = gpuDevice.createCommandEncoder();
+            
+            if (!isPaused) {
+                // Pass 1: Symplectic Kinematics step
+                const pass1 = commandEncoder.beginComputePass();
+                pass1.setPipeline(positionPipeline);
+                pass1.setBindGroup(0, bindGroup);
+                pass1.dispatchWorkgroups(Math.ceil(numParticles / 64));
+                pass1.end();
+
+                // Pass 2: Symplectic Dynamics step (SSO forces + Analytic Damping)
+                const pass2 = commandEncoder.beginComputePass();
+                pass2.setBindGroup(0, bindGroup);
+                if (activeEngine === 'Direct' || activePipeline === 'exhaustive') {
+                    pass2.setPipeline(dynamicsPipelineDirect);
+                    pass2.dispatchWorkgroups(Math.ceil(numParticles / 64));
+                } else if (activePipeline === 'cooperative') {
+                    pass2.setPipeline(dynamicsPipelineCoop);
+                    pass2.dispatchWorkgroups(numParticles);
+                } else {
+                    pass2.setPipeline(dynamicsPipelineSeq);
+                    pass2.dispatchWorkgroups(Math.ceil(numParticles / 64));
+                }
+                pass2.end();
+            }
+
+            // Copy results to persistent staging buffer
+            commandEncoder.copyBufferToBuffer(particleBuffer, 0, stagingBuffer, 0, numParticles * 64);
+            gpuDevice.queue.submit([commandEncoder.finish()]);
+
+            stagingBuffer.mapAsync(0x0001 /* MAP_READ */).then(() => {
+                const results = new Float32Array(stagingBuffer.getMappedRange());
+                for (let i = 0; i < numParticles; i++) {
+                    const off = i * 16;
+                    particles[i].x = results[off + 0];
+                    particles[i].y = results[off + 1];
+                    particles[i].z = results[off + 2];
+                    particles[i].vx = results[off + 4];
+                    particles[i].vy = results[off + 5];
+                    particles[i].vz = results[off + 6];
+                    particles[i].ax = results[off + 8];
+                    particles[i].ay = results[off + 9];
+                    particles[i].az = results[off + 10];
+                    particles[i].r = results[off + 12];
+                    particles[i].g = results[off + 13];
+                    particles[i].b = results[off + 14];
+                }
+                stagingBuffer.unmap();
+                gpuFrameInFlight = false;
+
+                const tComputeEnd = performance.now();
+                const hudCompute = document.getElementById('hud-compute-time');
+                if (hudCompute) hudCompute.textContent = `${(tComputeEnd - tComputeStart).toFixed(2)} ms`;
+
+                // Render the scene on Canvas
+                const tRenderStart = performance.now();
+                render(activeCam, currentFlatNodes);
+                const tRenderEnd = performance.now();
+                const hudRender = document.getElementById('hud-render-time');
+                if (hudRender) hudRender.textContent = `${(tRenderEnd - tRenderStart).toFixed(2)} ms`;
+            }).catch((err) => {
+                gpuFrameInFlight = false;
+                console.error("Staging readback error:", err);
+            });
+
+            // Parity drift HUD estimation
+            updateDriftHUD(currentFlatNodes);
+
+            requestAnimationFrame(tickGPU);
+        }
+
+        function startFallbackLoop() {
+            function tickCPU() {
+                const dt = 0.05 * timeScale;
+                if (!isPaused) {
+                    simTime += dt;
+                }
+                frameCount++;
+
+                const builder = new SparseStarOctreeBuilder(stars, maxLeafCapacity, 8);
+                builder.build();
+                currentFlatNodes = builder.flatNodes;
+                const hudNodes = document.getElementById('hud-nodes');
+                if (hudNodes) hudNodes.textContent = String(currentFlatNodes.length);
+
+                const activeCam = cameraState.activeCamera === 'A' ? updateCameraA(cameraState) : updateCameraB(cameraState);
+                const dampingFactor = 1.0 / (1.0 + 0.5 * gammaDamping * dt);
+
+                if (!isPaused) {
+                    for (let i = 0; i < numParticles; i++) {
+                        const p = particles[i];
+                        // Step 1: Position update
+                        p.x += p.vx * dt + 0.5 * p.ax * dt * dt;
+                        p.y += p.vy * dt + 0.5 * p.ay * dt * dt;
+                        p.z += p.vz * dt + 0.5 * p.az * dt * dt;
+
+                        // Step 2: Force evaluation
+                        const oldAx = p.ax, oldAy = p.ay, oldAz = p.az;
+                        p.ax = 0; p.ay = 0; p.az = 0;
+
+                        if (activeEngine === 'Direct' || activePipeline === 'exhaustive') {
+                            for (const s of stars) {
+                                const dx = s.x - p.x; const dy = s.y - p.y; const dz = s.z - p.z;
+                                const distSq = dx*dx + dy*dy + dz*dz;
+                                const dist = Math.sqrt(distSq);
+                                if (dist > 1e-4) {
+                                    const force = s.mass / (distSq + 4.0);
+                                    p.ax += (dx / dist) * force;
+                                    p.ay += (dy / dist) * force;
+                                    p.az += (dz / dist) * force;
+                                }
+                            }
+                        } else if (currentFlatNodes.length > 0) {
+                            fnAccumulateSSO(p, currentFlatNodes[0], currentFlatNodes);
+                        }
+
+                        // Step 3: Velocity Verlet with implicit damping
+                        p.vx = (p.vx + 0.5 * (oldAx + p.ax) * dt) * dampingFactor;
+                        p.vy = (p.vy + 0.5 * (oldAy + p.ay) * dt) * dampingFactor;
+                        p.vz = (p.vz + 0.5 * (oldAz + p.az) * dt) * dampingFactor;
+                    }
+                }
+
+                render(activeCam, currentFlatNodes);
+                updateDriftHUD(currentFlatNodes);
+                requestAnimationFrame(tickCPU);
+            }
+            requestAnimationFrame(tickCPU);
+        }
+
+        // --- Shared Helpers ---
+        /**
+         * Evaluates numerical parity drift between SSO and Direct summation.
+         * @param {import('./sparse_star_octree-v6.js').OctreeNode[]} flatNodes
+         */
+        function updateDriftHUD(flatNodes) {
+            if (flatNodes.length > 0 && particles.length > 0) {
+                // Sample 8 representative particles across the swarm
+                let totalDrift = 0;
+                let sampleCount = Math.min(8, particles.length);
+                const step = Math.floor(particles.length / sampleCount);
+
+                for (let k = 0; k < sampleCount; k++) {
+                    const sampleP = particles[k * step];
+                    const tempP = { x: sampleP.x, y: sampleP.y, z: sampleP.z, ax: 0, ay: 0, az: 0 };
+                    fnAccumulateSSO(tempP, flatNodes[0], flatNodes);
+
+                    let trueAx = 0, trueAy = 0, trueAz = 0;
+                    for (const s of stars) {
+                        const dx = s.x - sampleP.x; const dy = s.y - sampleP.y; const dz = s.z - sampleP.z;
+                        const distSq = dx*dx + dy*dy + dz*dz;
+                        const dist = Math.sqrt(distSq);
+                        if (dist > 1e-4) {
+                            const force = s.mass / (distSq + 4.0);
+                            trueAx += (dx / dist) * force; 
+                            trueAy += (dy / dist) * force; 
+                            trueAz += (dz / dist) * force;
+                        }
+                    }
+
+                    const diff = Math.hypot(tempP.ax - trueAx, tempP.ay - trueAy, tempP.az - trueAz);
+                    const denom = Math.hypot(trueAx, trueAy, trueAz) + 1e-4;
+                    totalDrift += diff / denom;
+                }
+
+                const avgDrift = totalDrift / sampleCount;
+                const hudDrift = document.getElementById('hud-drift');
+                if (hudDrift) hudDrift.textContent = `${(avgDrift * 100).toFixed(4)}%`;
+            }
+        }
+
+        /**
+         * Renders the complete scene: Background coordinate grid, octree hierarchy boxes,
+         * G4 SupraQuant star boundaries with incandescent cores, and GPGPU particle swarm.
+         * @param {import('./potemkin_camera-v3.js').CameraOutput} cam
+         * @param {import('./sparse_star_octree-v6.js').OctreeNode[]} flatNodes
+         */
+        function render(cam, flatNodes) {
+            ctxMain.clearRect(0, 0, width, height);
+
+            // 1. Draw Horizon Background Coordinate Grid
+            ctxMain.strokeStyle = 'rgba(30, 34, 59, 0.45)';
+            ctxMain.lineWidth = 1;
+            ctxMain.beginPath();
+            for (let i = -100; i <= 100; i += 20) {
+                const p1 = project(i, 0, -100, cam);
+                const p2 = project(i, 0, 100, cam);
+                if (p1.depth > 0.5 && p2.depth > 0.5) {
+                    ctxMain.moveTo(p1.x, p1.y); 
+                    ctxMain.lineTo(p2.x, p2.y);
+                }
+
+                const p3 = project(-100, 0, i, cam);
+                const p4 = project(100, 0, i, cam);
+                if (p3.depth > 0.5 && p4.depth > 0.5) {
+                    ctxMain.moveTo(p3.x, p3.y); 
+                    ctxMain.lineTo(p4.x, p4.y);
+                }
+            }
+            ctxMain.stroke();
+
+            // 2. Draw Octree Boundary Boxes (Spatial Partitioning Hierarchy)
+            if (showBounds && flatNodes.length > 0) {
+                ctxMain.strokeStyle = 'rgba(59, 130, 246, 0.12)';
+                ctxMain.lineWidth = 1;
+                for (const node of flatNodes) {
+                    if (node.mass > 0) {
+                        const r = node.radius * 0.58;
+                        const corners = [
+                            project(node.cx - r, node.cy - r, node.cz - r, cam),
+                            project(node.cx + r, node.cy - r, node.cz - r, cam),
+                            project(node.cx + r, node.cy + r, node.cz - r, cam),
+                            project(node.cx - r, node.cy + r, node.cz - r, cam),
+                            project(node.cx - r, node.cy - r, node.cz + r, cam),
+                            project(node.cx + r, node.cy - r, node.cz + r, cam),
+                            project(node.cx + r, node.cy + r, node.cz + r, cam),
+                            project(node.cx - r, node.cy + r, node.cz + r, cam),
+                        ];
+
+                        if (corners.every(c => c.depth > 0.5)) {
+                            ctxMain.beginPath();
+                            // Back face
+                            ctxMain.moveTo(corners[0].x, corners[0].y); ctxMain.lineTo(corners[1].x, corners[1].y);
+                            ctxMain.lineTo(corners[2].x, corners[2].y); ctxMain.lineTo(corners[3].x, corners[3].y);
+                            ctxMain.closePath();
+
+                            // Front face
+                            ctxMain.moveTo(corners[4].x, corners[4].y); ctxMain.lineTo(corners[5].x, corners[5].y);
+                            ctxMain.lineTo(corners[6].x, corners[6].y); ctxMain.lineTo(corners[7].x, corners[7].y);
+                            ctxMain.closePath();
+
+                            // Connecting edges
+                            ctxMain.moveTo(corners[0].x, corners[0].y); ctxMain.lineTo(corners[4].x, corners[4].y);
+                            ctxMain.moveTo(corners[1].x, corners[1].y); ctxMain.lineTo(corners[5].x, corners[5].y);
+                            ctxMain.moveTo(corners[2].x, corners[2].y); ctxMain.lineTo(corners[6].x, corners[6].y);
+                            ctxMain.moveTo(corners[3].x, corners[3].y); ctxMain.lineTo(corners[7].x, corners[7].y);
+                            ctxMain.stroke();
+                        }
+                    }
+                }
+            }
+
+            // 3. Draw Stars as radiant G4 SupraQuant splines with incandescent glow cores
+            for (const s of stars) {
+                const proj = project(s.x, s.y, s.z, cam);
+                if (proj.depth > 0.5) {
+                    const size = Math.max(3, (s.radius * 280) / proj.depth);
+                    
+                    // Closed G4 boundary loop
+                    ctxMain.fillStyle = `rgba(${Math.floor(s.r*255)}, ${Math.floor(s.g*255)}, ${Math.floor(s.b*255)}, 0.08)`;
+                    ctxMain.strokeStyle = `rgba(${Math.floor(s.r*255)}, ${Math.floor(s.g*255)}, ${Math.floor(s.b*255)}, 0.85)`;
+                    ctxMain.lineWidth = 1.8;
+                    ctxMain.beginPath();
+
+                    for (let k = 0; k < canonicalStarSpline.length; k++) {
+                        const pt = canonicalStarSpline[k];
+                        const screenX = pt.x * size + proj.x;
+                        const screenY = pt.y * size + proj.y;
+                        if (k === 0) ctxMain.moveTo(screenX, screenY);
+                        else ctxMain.lineTo(screenX, screenY);
+                    }
+                    ctxMain.closePath();
+                    ctxMain.fill();
+                    ctxMain.stroke();
+
+                    // Incandescent Core Glow
+                    const glowRadius = size * 0.6;
+                    const coreGrad = ctxMain.createRadialGradient(proj.x, proj.y, 0, proj.x, proj.y, glowRadius);
+                    coreGrad.addColorStop(0, '#ffffff');
+                    coreGrad.addColorStop(0.35, `rgba(${Math.floor(s.r*255)}, ${Math.floor(s.g*255)}, ${Math.floor(s.b*255)}, 0.9)`);
+                    coreGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+                    ctxMain.fillStyle = coreGrad;
+                    ctxMain.beginPath();
+                    ctxMain.arc(proj.x, proj.y, glowRadius, 0, Math.PI * 2);
+                    ctxMain.fill();
+
+                    // Star Name Typography Label
+                    ctxMain.fillStyle = '#e2e8f0';
+                    ctxMain.font = 'bold 10px monospace';
+                    ctxMain.textAlign = 'center';
+                    ctxMain.fillText(s.name, proj.x, proj.y + size + 13);
+                }
+            }
+
+            // 4. Draw GPGPU Particle Swarm with depth attenuation & dynamic chromatic light field
+            // Group particles into 6 chromatic luminescence buckets for high-performance batched drawing
+            /** @type {{ x: number, y: number, size: number }[][]} */
+            const buckets = [[], [], [], [], [], []];
+            const bucketStyles = [
+                'rgba(147, 197, 253, 0.75)', // 0: Ambient Blue (default interstellar void)
+                'rgba(96, 165, 250, 0.85)',  // 1: Azure (medium stellar flux)
+                'rgba(167, 139, 250, 0.85)', // 2: Violet (deep UV ionization)
+                'rgba(251, 191, 36, 0.90)',  // 3: Warm Amber (near star corridor)
+                'rgba(244, 114, 182, 0.90)', // 4: Magenta (superheated shock)
+                'rgba(255, 255, 255, 0.95)'  // 5: Incandescent White (high flux periastron)
+            ];
+
+            for (let i = 0; i < numParticles; i++) {
+                const p = particles[i];
+                const proj = project(p.x, p.y, p.z, cam);
+                if (proj.depth > 0.5 && proj.x >= -10 && proj.x <= width + 10 && proj.y >= -10 && proj.y <= height + 10) {
+                    const size = Math.max(1, 13.0 / proj.depth);
+                    const lum = (p.r || 0.3) * 0.3 + (p.g || 0.5) * 0.59 + (p.b || 0.95) * 0.11;
+                    let bucketIdx = 0;
+                    if (lum > 0.85) bucketIdx = 5;
+                    else if ((p.r || 0) > 0.7) bucketIdx = 3;
+                    else if ((p.r || 0) > 0.5 && (p.b || 0) > 0.7) bucketIdx = 4;
+                    else if ((p.b || 0) > 0.8) bucketIdx = 2;
+                    else if (lum > 0.5) bucketIdx = 1;
+
+                    buckets[bucketIdx].push({ x: proj.x - size * 0.5, y: proj.y - size * 0.5, size });
+                }
+            }
+
+            for (let b = 0; b < 6; b++) {
+                const list = buckets[b];
+                if (list.length > 0) {
+                    ctxMain.fillStyle = bucketStyles[b];
+                    ctxMain.beginPath();
+                    for (let j = 0; j < list.length; j++) {
+                        const item = list[j];
+                        ctxMain.rect(item.x, item.y, item.size, item.size);
+                    }
+                    ctxMain.fill();
+                }
+            }
+        }
+
+        // --- GUI and Event Hookups ---
+        const btnCamToggle = /** @type {HTMLButtonElement} */ (document.getElementById('btn-cam-toggle'));
+        const hudCamState = document.getElementById('hud-camera-state');
+        const rngCutoff = /** @type {HTMLInputElement} */ (document.getElementById('rng-cutoff'));
+        const lblCutoff = document.getElementById('lbl-cutoff');
+        const rngDamping = /** @type {HTMLInputElement} */ (document.getElementById('rng-damping'));
+        const lblDamping = document.getElementById('lbl-damping');
+        const selPipeline = /** @type {HTMLSelectElement} */ (document.getElementById('sel-pipeline'));
+        const selDensity = /** @type {HTMLSelectElement} */ (document.getElementById('sel-density'));
+        const btnBounds = /** @type {HTMLButtonElement} */ (document.getElementById('btn-bounds'));
+
+        btnCamToggle.addEventListener('click', () => {
+            if (cameraState.activeCamera === 'A') {
+                synchronizeAtoB(cameraState);
+                cameraState.activeCamera = 'B';
+                btnCamToggle.textContent = 'CAMERA B (Rotor G⁴)';
+                if (hudCamState) {
+                    hudCamState.textContent = 'Camera B Active';
+                    hudCamState.style.color = '#60a5fa';
+                }
+            } else {
+                synchronizeBtoA(cameraState);
+                cameraState.activeCamera = 'A';
+                btnCamToggle.textContent = 'CAMERA A (Euler G²)';
+                if (hudCamState) {
+                    hudCamState.textContent = 'Camera A Active';
+                    hudCamState.style.color = '#ef4444';
+                }
+            }
+        });
+
+        const btnCamSync = document.getElementById('btn-cam-sync');
+        if (btnCamSync) {
+            btnCamSync.addEventListener('click', () => {
+                if (cameraState.activeCamera === 'A') {
+                    synchronizeAtoB(cameraState);
+                } else {
+                    synchronizeBtoA(cameraState);
+                }
+            });
+        }
+
+        rngCutoff.addEventListener('input', (e) => {
+            thetaCutoff = parseFloat(/** @type {HTMLInputElement} */ (e.target).value);
+            if (lblCutoff) lblCutoff.textContent = thetaCutoff.toFixed(2);
+        });
+
+        rngDamping.addEventListener('input', (e) => {
+            gammaDamping = parseFloat(/** @type {HTMLInputElement} */ (e.target).value);
+            if (lblDamping) lblDamping.textContent = gammaDamping.toFixed(2);
+        });
+
+        selPipeline.addEventListener('change', (e) => {
+            const val = /** @type {HTMLSelectElement} */ (e.target).value;
+            if (val === 'exhaustive') {
+                activeEngine = 'Direct';
+                activePipeline = 'exhaustive';
+            } else {
+                activeEngine = 'SSO';
+                activePipeline = /** @type {'cooperative' | 'sequential'} */ (val);
+            }
+        });
+
+        selDensity.addEventListener('change', async (e) => {
+            while (gpuFrameInFlight) {
+                await new Promise(r => requestAnimationFrame(r));
+            }
+            numParticles = parseInt(/** @type {HTMLSelectElement} */ (e.target).value);
+            generateParticles();
+            if (gpuActive) {
+                await setupWebGPGPUBuffers();
+            }
+        });
+
+        btnBounds.addEventListener('click', () => {
+            showBounds = !showBounds;
+            btnBounds.classList.toggle('active', showBounds);
+        });
+
+        document.querySelectorAll('.btn-star').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const idxStr = /** @type {HTMLElement} */ (e.target).getAttribute('data-idx');
+                if (idxStr !== null) {
+                    const idx = parseInt(idxStr);
+                    const s = stars[idx];
+                    cameraState.target.set([s.x, s.y, s.z]);
+                    cameraState.distance = 25.0;
+                }
+            });
+        });
+
+        const btnClusterFocus = document.getElementById('btn-cluster-focus');
+        if (btnClusterFocus) {
+            btnClusterFocus.addEventListener('click', () => {
+                let cx = 0, cy = 0, cz = 0;
+                for (const s of stars) { cx += s.x; cy += s.y; cz += s.z; }
+                cameraState.target.set([cx / stars.length, cy / stars.length, cz / stars.length]);
+                cameraState.distance = 65.0;
+            });
+        }
+
+        // --- Navigation Controller ---
+        let isDragging = false;
+        let lastMouseX = 0;
+        let lastMouseY = 0;
+
+        canvasMain.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            lastMouseX = e.clientX; 
+            lastMouseY = e.clientY;
+        });
+
+        window.addEventListener('mouseup', () => { isDragging = false; });
+
+        canvasMain.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            const dx = e.clientX - lastMouseX; 
+            const dy = e.clientY - lastMouseY;
+            lastMouseX = e.clientX; 
+            lastMouseY = e.clientY;
+
+            const sensitivity = 0.005;
+            if (cameraState.activeCamera === 'A') {
+                cameraState.azimuth -= dx * sensitivity;
+                cameraState.elevation += dy * sensitivity;
+                cameraState.elevation = Math.max(0.02, Math.min(Math.PI / 2 - 0.02, cameraState.elevation));
+            } else {
+                const yawQ = quaternionFromAxisAngle(new Float32Array([0, 1, 0]), -dx * sensitivity, cameraState.quaternionLayout);
+                const currentB = updateCameraB(cameraState);
+                const pitchQ = quaternionFromAxisAngle(currentB.right, -dy * sensitivity, cameraState.quaternionLayout);
+
+                let step1 = multiplyQuaternions(yawQ, cameraState.rotation, cameraState.quaternionLayout);
+                cameraState.rotation = multiplyQuaternions(step1, pitchQ, cameraState.quaternionLayout);
+            }
+        });
+
+        canvasMain.addEventListener('wheel', (e) => {
+            const factor = e.deltaY > 0 ? 1.1 : 0.9;
+            cameraState.distance = Math.max(10.0, Math.min(250.0, cameraState.distance * factor));
+            e.preventDefault();
+        });
+
+        // --- Keyboard Controls & Telemetry Shortcuts ---
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'h' || e.key === 'H') {
+                const hud = document.getElementById('panel-hud');
+                if (hud) hud.classList.toggle('collapsed');
+            } else if (e.key === ' ') {
+                isPaused = !isPaused;
+                e.preventDefault();
+            } else if (e.key === '.') {
+                if (isPaused) {
+                    simTime += 0.05 * timeScale;
+                }
+            } else if (e.key === '[') {
+                timeScale = Math.max(0.1, timeScale * 0.8);
+            } else if (e.key === ']') {
+                timeScale = Math.min(5.0, timeScale * 1.25);
+            } else if (e.key === '1') {
+                cameraState.target.set([0, 0, 0]);
+                cameraState.distance = 65.0;
+            } else if (e.key === '2') {
+                const s = stars[0];
+                cameraState.target.set([s.x, s.y, s.z]);
+                cameraState.distance = 25.0;
+            } else if (e.key === '3') {
+                const s = stars[1];
+                cameraState.target.set([s.x, s.y, s.z]);
+                cameraState.distance = 25.0;
+            } else if (e.key === '4') {
+                const s = stars[7];
+                cameraState.target.set([s.x, s.y, s.z]);
+                cameraState.distance = 25.0;
+            } else if (e.key === 'd' || e.key === 'D') {
+                runDiagnostics();
+            }
+        });
+
+        const btnBannerAction = document.getElementById('btn-banner-action');
+        if (btnBannerAction) {
+            btnBannerAction.addEventListener('click', () => {
+                const banner = document.getElementById('webgpu-banner');
+                if (banner) banner.style.display = "none";
+            });
+        }
+
+        // =========================================================================
+        // WebMCP DEVELOPER BRIDGE & TELEMETRY PROTOCOL
+        // =========================================================================
+        function runDiagnostics() {
+            let finiteCount = 0;
+            let totalKineticEnergy = 0.0;
+            for (let i = 0; i < numParticles; i++) {
+                const p = particles[i];
+                if (isFinite(p.x) && isFinite(p.y) && isFinite(p.z) &&
+                    isFinite(p.vx) && isFinite(p.vy) && isFinite(p.vz)) {
+                    finiteCount++;
+                }
+                const vSq = p.vx*p.vx + p.vy*p.vy + p.vz*p.vz;
+                totalKineticEnergy += 0.5 * vSq;
+            }
+
+            const diag = {
+                simTime: parseFloat(simTime.toFixed(4)),
+                fps: parseFloat(currentFps.toFixed(1)),
+                particlesTotal: numParticles,
+                particlesFinite: finiteCount,
+                kineticEnergy: parseFloat(totalKineticEnergy.toFixed(2)),
+                gpuActive,
+                activeEngine,
+                activePipeline,
+                octreeNodes: currentFlatNodes.length,
+                thetaCutoff,
+                gammaDamping,
+                camera: {
+                    activeCamera: cameraState.activeCamera,
+                    distance: parseFloat(cameraState.distance.toFixed(2)),
+                    target: Array.from(cameraState.target)
+                },
+                sampleParticles: particles.slice(0, 3)
+            };
+            console.table(diag);
+            return diag;
+        }
+
+        const WebMCPBridge = {
+            getState() {
+                return {
+                    simTime,
+                    fps: currentFps,
+                    frameCount,
+                    gpuActive,
+                    activeEngine,
+                    activePipeline,
+                    activeCamera: cameraState.activeCamera,
+                    numParticles,
+                    numStars: stars.length,
+                    thetaCutoff,
+                    gammaDamping,
+                    isPaused,
+                    timeScale,
+                    camera: {
+                        target: Array.from(cameraState.target),
+                        distance: cameraState.distance,
+                        azimuth: cameraState.azimuth,
+                        elevation: cameraState.elevation,
+                        rotation: Array.from(cameraState.rotation),
+                        activeCamera: cameraState.activeCamera
+                    },
+                    diagnostics: runDiagnostics()
+                };
+            },
+            pause() { isPaused = true; },
+            resume() { isPaused = false; },
+            togglePause() { isPaused = !isPaused; },
+            step(dt = 0.05) { simTime += dt; },
+            setTimeScale(scale) { timeScale = Math.max(0.01, Math.min(10.0, scale)); },
+            setCameraPreset(mode) {
+                if (mode === 'system' || mode === 'cluster') {
+                    let cx = 0, cy = 0, cz = 0;
+                    for (const s of stars) { cx += s.x; cy += s.y; cz += s.z; }
+                    cameraState.target.set([cx / stars.length, cy / stars.length, cz / stars.length]);
+                    cameraState.distance = 65.0;
+                } else if (typeof mode === 'number' && mode >= 0 && mode < stars.length) {
+                    const s = stars[mode];
+                    cameraState.target.set([s.x, s.y, s.z]);
+                    cameraState.distance = 25.0;
+                } else if (typeof mode === 'string') {
+                    const found = stars.find(s => s.name.toLowerCase() === mode.toLowerCase());
+                    if (found) {
+                        cameraState.target.set([found.x, found.y, found.z]);
+                        cameraState.distance = 25.0;
+                    }
+                }
+            },
+            setCameraOrbit(azimuth, elevation, distance) {
+                cameraState.azimuth = azimuth;
+                cameraState.elevation = Math.max(0.02, Math.min(Math.PI / 2 - 0.02, elevation));
+                cameraState.distance = distance;
+                if (cameraState.activeCamera === 'B') {
+                    synchronizeAtoB(cameraState);
+                }
+            },
+            runDiagnostics,
+            exec(cmd, ...args) {
+                if (typeof /** @type {any} */ (this)[cmd] === 'function') {
+                    return /** @type {any} */ (this)[cmd](...args);
+                }
+                throw new Error(`Unknown command: ${cmd}`);
+            }
+        };
+
+        // Expose standard interfaces on window
+        /** @type {any} */ (window).__WEBMCP__ = WebMCPBridge;
+        /** @type {any} */ (window).__3DGSIL__ = WebMCPBridge;
+
+        // Start initialization sequence
+        tryInitWebGPU();
+    </script>
+</body>
+</html>

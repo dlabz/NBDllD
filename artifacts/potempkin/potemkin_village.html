@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Camera Potemkin Village (A/B Testbed)</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #0d0e12;
+            color: #e3e4e8;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            overflow: hidden;
+        }
+
+        #container {
+            display: flex;
+            width: 100vw;
+            height: 100vw;
+            max-height: 100vh;
+        }
+
+        #viewport-container {
+            position: relative;
+            flex-grow: 1;
+            height: 100%;
+        }
+
+        canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        #hud {
+            width: 320px;
+            background: rgba(18, 20, 26, 0.95);
+            border-left: 2px solid #2a2d3d;
+            padding: 20px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            font-size: 13px;
+            line-height: 1.5;
+            overflow-y: auto;
+        }
+
+        h1, h2 {
+            margin: 0;
+            color: #ffffff;
+        }
+
+        h1 { font-size: 18px; border-bottom: 1px solid #2a2d3d; padding-bottom: 8px; }
+        h2 { font-size: 14px; margin-top: 10px; color: #a582ff; }
+
+        .metric {
+            display: flex;
+            justify-content: space-between;
+            background: rgba(255, 255, 255, 0.03);
+            padding: 6px 10px;
+            border-radius: 4px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .metric span.label {
+            color: #8c92ac;
+        }
+
+        .metric span.value {
+            font-family: monospace;
+            font-weight: bold;
+        }
+
+        #camera-toggle {
+            display: flex;
+            background: #20222e;
+            border-radius: 6px;
+            padding: 4px;
+            border: 1px solid #3c405a;
+        }
+
+        .toggle-btn {
+            flex-grow: 1;
+            background: none;
+            border: none;
+            color: #8c92ac;
+            padding: 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.2s ease;
+        }
+
+        .toggle-btn.active {
+            background: #523cf8;
+            color: #ffffff;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        .toggle-btn:hover:not(.active) {
+            color: #ffffff;
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .info-card {
+            background: rgba(82, 60, 248, 0.08);
+            border: 1px solid rgba(82, 60, 248, 0.25);
+            border-radius: 6px;
+            padding: 12px;
+            color: #b2aaff;
+        }
+
+        .legend {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .legend-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 2px;
+        }
+
+        kbd {
+            background: #2a2d3d;
+            border: 1px solid #3c405a;
+            border-radius: 3px;
+            padding: 2px 5px;
+            font-size: 11px;
+            font-family: monospace;
+            color: #ffffff;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <div id="viewport-container">
+            <canvas id="webgpu-canvas"></canvas>
+        </div>
+        <div id="hud">
+            <h1>Potemkin Camera Test</h1>
+            
+            <div id="camera-toggle">
+                <button id="btn-cam-a" class="toggle-btn active">Camera A (Legacy)</button>
+                <button id="btn-cam-b" class="toggle-btn">Camera B (Rotor)</button>
+            </div>
+
+            <div class="info-card">
+                <strong>Hotkey:</strong> Press <kbd>Space</kbd> or <kbd>C</kbd> to hot-swap cameras instantly during motion to verify zero-offset visual parity.
+            </div>
+
+            <h2>Camera Properties</h2>
+            <div class="legend">
+                <div class="metric">
+                    <span class="label">Orbit Target</span>
+                    <span id="val-target" class="value">0, 0, 0</span>
+                </div>
+                <div class="metric">
+                    <span class="label">Distance (D)</span>
+                    <span id="val-dist" class="value">48.0</span>
+                </div>
+                <div class="metric">
+                    <span class="label">Eye Position</span>
+                    <span id="val-eye" class="value">0, 0, 0</span>
+                </div>
+            </div>
+
+            <h2>Active Camera State</h2>
+            <div id="panel-state" class="legend">
+                <!-- Populated dynamically based on active camera -->
+            </div>
+
+            <h2>Potemkin Scenery</h2>
+            <div class="legend">
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #e6e6e6; border: 1px solid #999;"></div>
+                    <span>Tiled Checkered Floor (Y = 0)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #d46a6a;"></div>
+                    <span>Stara Zagora Facade Wall</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #39a6ff;"></div>
+                    <span>Billboard Cutout: Ana (Radius: 2.0)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #39ff73;"></div>
+                    <span>Billboard Cutout: Bogdan (Radius: 1.5)</span>
+                </div>
+            </div>
+
+            <div style="margin-top: auto; border-top: 1px solid #2a2d3d; padding-top: 10px; font-size: 11px; color: #5c627c; text-align: center;">
+                БИРО "ЧИП" СТАРИ ГРАД &copy; 2026
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { updateCameraA, updateCameraB, multiplyQuaternions, quaternionFromAxisAngle } from './potemkin_camera.js';
+
+        // --- Potemkin Scene Data ---
+        const TARGET = new Float32Array([0, 0, 0]);
+        const INITIAL_DISTANCE = 48.0;
+
+        const cameraState = {
+            target: TARGET,
+            distance: INITIAL_DISTANCE,
+            azimuth: 0.0,
+            elevation: Math.PI / 4,
+            rotation: new Float32Array([0, 0, 0, 1]), // xyzw unit quaternion
+            quaternionLayout: 'xyzw',
+            activeCamera: 'A'
+        };
+
+        // Environment vertex structure (3D pos, 3D color)
+        const environmentVertices = new Float32Array([
+            // Floor quad (Y = 0)
+            -50, 0, -50,   0.5, 0.5, 0.5,
+             50, 0, -50,   0.5, 0.5, 0.5,
+            -50, 0,  50,   0.5, 0.5, 0.5,
+            -50, 0,  50,   0.5, 0.5, 0.5,
+             50, 0, -50,   0.5, 0.5, 0.5,
+             50, 0,  50,   0.5, 0.5, 0.5,
+
+            // Facade wall (Red, perpendicular to Z-axis, behind the target)
+            -15,  0, -10,   0.8, 0.3, 0.3,
+             15,  0, -10,   0.8, 0.3, 0.3,
+             15, 12, -10,   0.8, 0.3, 0.3,
+            -15,  0, -10,   0.8, 0.3, 0.3,
+             15, 12, -10,   0.8, 0.3, 0.3,
+            -15, 12, -10,   0.8, 0.3, 0.3,
+
+            // Facade side wall (Yellow, perpendicular to X-axis)
+            -15,  0, -10,   0.8, 0.7, 0.2,
+            -15,  0,  10,   0.8, 0.7, 0.2,
+            -15, 12,  10,   0.8, 0.7, 0.2,
+            -15,  0, -10,   0.8, 0.7, 0.2,
+            -15, 12,  10,   0.8, 0.7, 0.2,
+            -15, 12, -10,   0.8, 0.7, 0.2,
+        ]);
+
+        // Billboards: [centerPos.x, y, z, color.r, g, b, radius]
+        const billboardInstances = new Float32Array([
+             5.0, 2.0,  0.0,   0.2, 0.6, 1.0,   2.0, // Ana
+            -5.0, 1.5,  5.0,   0.2, 1.0, 0.4,   1.5, // Bogdan
+             0.0, 3.0, -5.0,   1.0, 0.4, 1.0,   3.0, // Celestial Anchor
+        ]);
+
+        // --- WebGPU Implementation ---
+        async function initWebGPU() {
+            const canvas = document.getElementById('webgpu-canvas');
+            if (!navigator.gpu) {
+                alert('WebGPU is not supported on this browser. Use Chrome/Edge/Safari Technology Preview.');
+                return;
+            }
+
+            const adapter = await navigator.gpu.requestAdapter();
+            if (!adapter) { return; }
+            const device = await adapter.requestDevice();
+
+            const format = navigator.gpu.getPreferredCanvasFormat();
+            const context = canvas.getContext('webgpu');
+            context.configure({ device, format, alphaMode: 'opaque' });
+
+            // Create WebGPU buffers
+            const envVertexBuffer = device.createBuffer({
+                size: environmentVertices.byteLength,
+                usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+                mappedAtCreation: true
+            });
+            new Float32Array(envVertexBuffer.getMappedRange()).set(environmentVertices);
+            envVertexBuffer.unmap();
+
+            const billVertexBuffer = device.createBuffer({
+                size: billboardInstances.byteLength,
+                usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+                mappedAtCreation: true
+            });
+            new Float32Array(billVertexBuffer.getMappedRange()).set(billboardInstances);
+            billVertexBuffer.unmap();
+
+            // Camera Uniform buffer (256 bytes total capacity to accommodate padding)
+            const uniformBufferSize = 256;
+            const uniformBuffer = device.createBuffer({
+                size: uniformBufferSize,
+                usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+            });
+
+            // Shader Code
+            const shaderCode = `
+                struct CameraUniforms {
+                    viewMatrix: mat4x4f,
+                    projMatrix: mat4x4f,
+                    camRight: vec3f,
+                    _pad1: f32,
+                    camUp: vec3f,
+                    _pad2: f32,
+                    eye: vec3f,
+                    _pad3: f32,
+                };
+
+                @group(0) @binding(0) var<uniform> renderUni: CameraUniforms;
+
+                // --- Environment Shaders ---
+                struct EnvVertexInput {
+                    @location(0) pos: vec3f,
+                    @location(1) color: vec3f,
+                };
+
+                struct EnvVertexOutput {
+                    @builtin(position) position: vec4f,
+                    @location(0) worldPos: vec3f,
+                    @location(1) color: vec3f,
+                };
+
+                @vertex
+                fn env_vertex(in: EnvVertexInput) -> EnvVertexOutput {
+                    var out: EnvVertexOutput;
+                    out.worldPos = in.pos;
+                    out.color = in.color;
+                    out.position = renderUni.projMatrix * renderUni.viewMatrix * vec4f(in.pos, 1.0);
+                    return out;
+                }
+
+                @fragment
+                fn env_fragment(in: EnvVertexOutput) -> @location(0) vec4f {
+                    var baseCol = in.color;
+                    
+                    // Procedural checkerboard pattern at the ground plane
+                    if (abs(in.worldPos.y) < 0.01) {
+                        let coord = floor(in.worldPos.xz / 2.0);
+                        let chess = (i32(coord.x) + i32(coord.y)) % 2;
+                        baseCol = select(vec3f(0.85, 0.85, 0.85), vec3f(0.15, 0.15, 0.15), chess == 0);
+                    }
+                    
+                    // Directional lighting
+                    let normal = select(vec3f(0.0, 1.0, 0.0), vec3f(0.0, 0.0, 1.0), in.worldPos.y > 0.01);
+                    let lightDir = normalize(vec3f(3.0, 8.0, 4.0));
+                    let diffuse = max(0.0, dot(normal, lightDir)) * 0.6 + 0.4;
+                    
+                    return vec4f(baseCol * diffuse, 1.0);
+                }
+
+                // --- Billboard Shaders (Scale-Invariant Quad Expansion) ---
+                struct BillboardInput {
+                    @location(0) centerPos: vec3f,
+                    @location(1) color: vec3f,
+                    @location(2) radius: f32,
+                };
+
+                struct BillboardVertexOutput {
+                    @builtin(position) position: vec4f,
+                    @location(0) uv: vec2f,
+                    @location(1) color: vec3f,
+                };
+
+                @vertex
+                fn billboard_vertex(
+                    in: BillboardInput,
+                    @builtin(vertex_index) vi: u32
+                ) -> BillboardVertexOutput {
+                    var corners = array<vec2f, 6>(
+                        vec2f(-1.0, -1.0),
+                        vec2f( 1.0, -1.0),
+                        vec2f(-1.0,  1.0),
+                        vec2f(-1.0,  1.0),
+                        vec2f( 1.0, -1.0),
+                        vec2f( 1.0,  1.0)
+                    );
+                    let corner = corners[vi];
+                    
+                    // Exact scale-invariant camera view-space billboard projection
+                    let viewPos = (renderUni.viewMatrix * vec4f(in.centerPos, 1.0)).xyz;
+                    let cornerView = vec4f(viewPos.x + corner.x * in.radius, viewPos.y + corner.y * in.radius, viewPos.z, 1.0);
+                    
+                    var out: BillboardVertexOutput;
+                    out.position = renderUni.projMatrix * cornerView;
+                    out.uv = corner;
+                    out.color = in.color;
+                    return out;
+                }
+
+                @fragment
+                fn billboard_fragment(in: BillboardVertexOutput) -> @location(0) vec4f {
+                    let rSq = dot(in.uv, in.uv);
+                    if (rSq > 1.0) {
+                        discard;
+                    }
+                    
+                    // Cutout silhouette rendering (Head and shoulders)
+                    let headCenter = vec2f(0.0, 0.35);
+                    let headRad = 0.28;
+                    let inHead = dot(in.uv - headCenter, in.uv - headCenter) < (headRad * headRad);
+                    
+                    let bodyCenter = vec2f(0.0, -0.6);
+                    let bodyRad = 0.68;
+                    let inBody = dot(in.uv - bodyCenter, in.uv - bodyCenter) < (bodyRad * bodyRad) && (in.uv.y < 0.15);
+                    
+                    var col = in.color;
+                    if (inHead || inBody) {
+                        col = col * 0.25; // Dark center body
+                    } else {
+                        col = col * 1.35; // Bright border highlight
+                    }
+                    
+                    let edgeFade = smoothstep(1.0, 0.94, rSq);
+                    return vec4f(col, edgeFade);
+                }
+            `;
+
+            const shaderModule = device.createShaderModule({ code: shaderCode });
+
+            // Bind group layout
+            const bindGroupLayout = device.createBindGroupLayout({
+                entries: [{
+                    binding: 0,
+                    visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
+                    buffer: { type: 'uniform' }
+                }]
+            });
+
+            const bindGroup = device.createBindGroup({
+                layout: bindGroupLayout,
+                entries: [{
+                    binding: 0,
+                    resource: { buffer: uniformBuffer }
+                }]
+            });
+
+            // Environment rendering pipeline
+            const envPipelineLayout = device.createPipelineLayout({ bindGroupLayouts: [bindGroupLayout] });
+            const envPipeline = device.createRenderPipeline({
+                layout: envPipelineLayout,
+                vertex: {
+                    module: shaderModule,
+                    entryPoint: 'env_vertex',
+                    buffers: [{
+                        arrayStride: 24,
+                        attributes: [
+                            { shaderLocation: 0, offset: 0, format: 'float32x3' }, // pos
+                            { shaderLocation: 1, offset: 12, format: 'float32x3' } // color
+                        ]
+                    }]
+                },
+                fragment: {
+                    module: shaderModule,
+                    entryPoint: 'env_fragment',
+                    targets: [{ format }]
+                },
+                primitive: { topology: 'triangle-list' },
+                depthStencil: {
+                    depthWriteEnabled: true,
+                    depthCompare: 'less',
+                    format: 'depth24plus'
+                }
+            });
+
+            // Billboard rendering pipeline
+            const billPipeline = device.createRenderPipeline({
+                layout: envPipelineLayout,
+                vertex: {
+                    module: shaderModule,
+                    entryPoint: 'billboard_vertex',
+                    buffers: [{
+                        arrayStride: 28,
+                        stepMode: 'instance',
+                        attributes: [
+                            { shaderLocation: 0, offset: 0, format: 'float32x3' },  // centerPos
+                            { shaderLocation: 1, offset: 12, format: 'float32x3' }, // color
+                            { shaderLocation: 2, offset: 24, format: 'float32' }    // radius
+                        ]
+                    }]
+                },
+                fragment: {
+                    module: shaderModule,
+                    entryPoint: 'billboard_fragment',
+                    targets: [{
+                        format,
+                        blend: {
+                            color: { srcFactor: 'src-alpha', dstFactor: 'one-minus-src-alpha', operation: 'add' },
+                            alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' }
+                        }
+                    }]
+                },
+                primitive: { topology: 'triangle-list' },
+                depthStencil: {
+                    depthWriteEnabled: true,
+                    depthCompare: 'less',
+                    format: 'depth24plus'
+                }
+            });
+
+            // Projection Matrix Generation (Standard perspective projection)
+            const projMatrix = new Float32Array(16);
+            function updateProjectionMatrix() {
+                const aspect = canvas.width / canvas.height;
+                const fov = 45 * Math.PI / 180;
+                const near = 0.1;
+                const far = 1000.0;
+                const f = 1.0 / Math.tan(fov / 2);
+                
+                projMatrix.fill(0);
+                projMatrix[0] = f / aspect;
+                projMatrix[5] = f;
+                projMatrix[10] = far / (near - far);
+                projMatrix[11] = -1.0;
+                projMatrix[14] = (near * far) / (near - far);
+            }
+
+            // Create depth texture
+            let depthTexture = null;
+            function resizeDepthTexture() {
+                if (depthTexture) { depthTexture.destroy(); }
+                depthTexture = device.createTexture({
+                    size: [canvas.width, canvas.height, 1],
+                    format: 'depth24plus',
+                    usage: GPUTextureUsage.RENDER_ATTACHMENT
+                });
+            }
+
+            // Mapped buffer array for staging writes
+            const hostUniformBuffer = new Float32Array(64); // 256 bytes = 64 floats
+
+            // Canvas resize handling
+            function resizeCanvas() {
+                const displayWidth = canvas.clientWidth;
+                const displayHeight = canvas.clientHeight;
+                if (canvas.width !== displayWidth || canvas.height !== displayHeight) {
+                    canvas.width = displayWidth;
+                    canvas.height = displayHeight;
+                    updateProjectionMatrix();
+                    resizeDepthTexture();
+                }
+            }
+
+            // --- Mouse Orbital Input Coordinates ---
+            let isDragging = false;
+            let lastMouseX = 0;
+            let lastMouseY = 0;
+
+            canvas.addEventListener('mousedown', (e) => {
+                isDragging = true;
+                lastMouseX = e.clientX;
+                lastMouseY = e.clientY;
+            });
+
+            window.addEventListener('mouseup', () => isDragging = false);
+
+            canvas.addEventListener('mousemove', (e) => {
+                if (!isDragging) { return; }
+                const dx = e.clientX - lastMouseX;
+                const dy = e.clientY - lastMouseY;
+                lastMouseX = e.clientX;
+                lastMouseY = e.clientY;
+
+                const sensitivity = 0.005;
+
+                // Update Camera A (Euler)
+                cameraState.azimuth -= dx * sensitivity;
+                cameraState.elevation += dy * sensitivity;
+                cameraState.elevation = Math.max(0.02, Math.min(Math.PI / 2 - 0.02, cameraState.elevation));
+
+                // Update Camera B (Rotor / Quaternion)
+                // We rotate about global Y (yaw) and camera horizontal local axis (pitch)
+                const yawQ = quaternionFromAxisAngle(new Float32Array([0, 1, 0]), -dx * sensitivity, cameraState.quaternionLayout);
+                
+                // Get local camRight axis to rotate around for Pitch
+                const currentB = updateCameraB(cameraState);
+                const pitchQ = quaternionFromAxisAngle(currentB.right, -dy * sensitivity, cameraState.quaternionLayout);
+
+                // Combine: rotation = yawQ * rotation * pitchQ (standard stable trackball orbital)
+                let step1 = multiplyQuaternions(yawQ, cameraState.rotation, cameraState.quaternionLayout);
+                cameraState.rotation = multiplyQuaternions(step1, pitchQ, cameraState.quaternionLayout);
+            });
+
+            canvas.addEventListener('wheel', (e) => {
+                const factor = e.deltaY > 0 ? 1.1 : 0.9;
+                cameraState.distance = Math.max(12.0, Math.min(200.0, cameraState.distance * factor));
+            });
+
+            // Toggle logic
+            function toggleCamera() {
+                if (cameraState.activeCamera === 'A') {
+                    // Hot-swap A -> B: Align B's rotation directly to mimic current A's azimuth/elevation
+                    cameraState.activeCamera = 'B';
+                    document.getElementById('btn-cam-a').classList.remove('active');
+                    document.getElementById('btn-cam-b').classList.add('active');
+
+                    // Convert legacy spherical coordinates to unit quaternion
+                    const cosA = Math.cos(cameraState.azimuth * 0.5);
+                    const sinA = Math.sin(cameraState.azimuth * 0.5);
+                    const cosE = Math.cos((Math.PI/2 - cameraState.elevation) * 0.5);
+                    const sinE = Math.sin((Math.PI/2 - cameraState.elevation) * 0.5);
+
+                    // Representing Yaw * Pitch directly as a quaternion
+                    const qx = sinE * sinA;
+                    const qy = cosE * sinA;
+                    const qz = sinE * cosA;
+                    const qw = cosE * cosA;
+
+                    if (cameraState.quaternionLayout === 'xyzw') {
+                        cameraState.rotation.set([qx, qy, qz, qw]);
+                    } else {
+                        cameraState.rotation.set([qw, qx, qy, qz]);
+                    }
+                } else {
+                    // Hot-swap B -> A
+                    cameraState.activeCamera = 'A';
+                    document.getElementById('btn-cam-b').classList.remove('active');
+                    document.getElementById('btn-cam-a').classList.add('active');
+                }
+            }
+
+            document.getElementById('btn-cam-a').addEventListener('click', () => {
+                if (cameraState.activeCamera !== 'A') { toggleCamera(); }
+            });
+            document.getElementById('btn-cam-b').addEventListener('click', () => {
+                if (cameraState.activeCamera !== 'B') { toggleCamera(); }
+            });
+
+            window.addEventListener('keydown', (e) => {
+                if (e.code === 'Space' || e.code === 'KeyC') {
+                    toggleCamera();
+                    e.preventDefault();
+                }
+            });
+
+            // Dynamic state displays
+            const statePanel = document.getElementById('panel-state');
+            function updateHUD(camOutput) {
+                document.getElementById('val-target').textContent = `${cameraState.target[0].toFixed(1)}, ${cameraState.target[1].toFixed(1)}, ${cameraState.target[2].toFixed(1)}`;
+                document.getElementById('val-dist').textContent = cameraState.distance.toFixed(1);
+                document.getElementById('val-eye').textContent = `${camOutput.eye[0].toFixed(1)}, ${camOutput.eye[1].toFixed(1)}, ${camOutput.eye[2].toFixed(1)}`;
+
+                if (cameraState.activeCamera === 'A') {
+                    statePanel.innerHTML = `
+                        <div class="metric">
+                            <span class="label">Azimuth</span>
+                            <span class="value">${cameraState.azimuth.toFixed(3)} rad</span>
+                        </div>
+                        <div class="metric">
+                            <span class="label">Elevation</span>
+                            <span class="value">${cameraState.elevation.toFixed(3)} rad</span>
+                        </div>
+                        <div class="metric" style="background: rgba(220, 53, 69, 0.15); border: 1px solid rgba(220, 53, 69, 0.3)">
+                            <span class="label" style="color: #ff9999;">Polar Limit</span>
+                            <span class="value" style="color: #ff9999;">Clamped at &pm;88&deg;</span>
+                        </div>
+                    `;
+                } else {
+                    const q = cameraState.rotation;
+                    statePanel.innerHTML = `
+                        <div class="metric">
+                            <span class="label">Rotor X</span>
+                            <span class="value">${q[0].toFixed(4)}</span>
+                        </div>
+                        <div class="metric">
+                            <span class="label">Rotor Y</span>
+                            <span class="value">${q[1].toFixed(4)}</span>
+                        </div>
+                        <div class="metric">
+                            <span class="label">Rotor Z</span>
+                            <span class="value">${q[2].toFixed(4)}</span>
+                        </div>
+                        <div class="metric">
+                            <span class="label">Rotor W (Scalar)</span>
+                            <span class="value">${q[3].toFixed(4)}</span>
+                        </div>
+                        <div class="metric" style="background: rgba(40, 167, 69, 0.15); border: 1px solid rgba(40, 167, 69, 0.3)">
+                            <span class="label" style="color: #99ff99;">Zenith Loop</span>
+                            <span class="value" style="color: #99ff99;">Infinite G4 Traversable</span>
+                        </div>
+                    `;
+                }
+            }
+
+            // --- Main Hot Render Loop ---
+            function render() {
+                resizeCanvas();
+
+                // Compute active camera state
+                const activeOutput = cameraState.activeCamera === 'A' 
+                    ? updateCameraA(cameraState) 
+                    : updateCameraB(cameraState);
+
+                updateHUD(activeOutput);
+
+                // Stage into mapped buffer array using precise 16-element offsets (multiples of 4 bytes)
+                hostUniformBuffer.set(activeOutput.viewMatrix, 0);   // floats 0-15 (64B)
+                hostUniformBuffer.set(projMatrix, 16);               // floats 16-31 (64B)
+                hostUniformBuffer.set(activeOutput.right, 32);       // floats 32-34 (12B)
+                hostUniformBuffer[35] = 0.0;                         // 4B pad
+                hostUniformBuffer.set(activeOutput.up, 36);          // floats 36-38 (12B)
+                hostUniformBuffer[39] = 0.0;                         // 4B pad
+                hostUniformBuffer.set(activeOutput.eye, 40);         // floats 40-42 (12B)
+                hostUniformBuffer[43] = 0.0;                         // 4B pad
+
+                device.queue.writeBuffer(uniformBuffer, 0, hostUniformBuffer);
+
+                // Begin render pass
+                const commandEncoder = device.createCommandEncoder();
+                const renderPassDescriptor = {
+                    colorAttachments: [{
+                        view: context.getCurrentTexture().createView(),
+                        clearValue: { r: 13 / 255, g: 14 / 255, b: 18 / 255, a: 1.0 },
+                        loadOp: 'clear',
+                        storeOp: 'store'
+                    }],
+                    depthStencilAttachment: {
+                        view: depthTexture.createView(),
+                        depthClearValue: 1.0,
+                        depthLoadOp: 'clear',
+                        depthStoreOp: 'store'
+                    }
+                };
+
+                const passEncoder = commandEncoder.beginRenderPass(renderPassDescriptor);
+                passEncoder.setBindGroup(0, bindGroup);
+
+                // Draw Environment
+                passEncoder.setPipeline(envPipeline);
+                passEncoder.setVertexBuffer(0, envVertexBuffer);
+                passEncoder.draw(18); // 3 quads (18 vertices total)
+
+                // Draw Scale-Invariant Billboards
+                passEncoder.setPipeline(billPipeline);
+                passEncoder.setVertexBuffer(0, billVertexBuffer);
+                passEncoder.draw(6, 3); // 6 vertices per instance, 3 instances
+
+                passEncoder.end();
+                device.queue.submit([commandEncoder.finish()]);
+
+                requestAnimationFrame(render);
+            }
+
+            requestAnimationFrame(render);
+        }
+
+        window.addEventListener('DOMContentLoaded', initWebGPU);
+    </script>
+</body>
+</html>

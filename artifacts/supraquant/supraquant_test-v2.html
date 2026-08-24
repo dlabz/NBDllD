@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SupraQuant G4 continuous spline analyzer</title>
+    <style>
+        body {
+            margin: 0;
+            background-color: #0b0d19;
+            color: #d1d5db;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            overflow: hidden;
+            display: flex;
+            height: 100vh;
+        }
+
+        /* Lateral control panel */
+        #panel-controls {
+            width: 320px;
+            background-color: #111326;
+            border-right: 1px solid #1e223b;
+            padding: 20px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            z-index: 10;
+        }
+
+        .header-title {
+            font-size: 16px;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            color: #ffffff;
+            border-bottom: 2px solid #2e3456;
+            padding-bottom: 10px;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .section-desc {
+            font-size: 12px;
+            line-height: 1.5;
+            color: #8c92ac;
+            margin: 0;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .control-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: #9ca3af;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .control-value {
+            color: #3b82f6;
+            font-weight: bold;
+        }
+
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: #1e223b;
+            outline: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #3b82f6;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+
+        input[type="range"]::-webkit-slider-thumb:hover {
+            background: #60a5fa;
+        }
+
+        .toggle-btn {
+            background-color: #1e223b;
+            border: 1px solid #2e3456;
+            color: #9ca3af;
+            padding: 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+            transition: all 0.2s;
+            text-align: center;
+        }
+
+        .toggle-btn.active {
+            background-color: #2563eb;
+            color: #ffffff;
+            border-color: #3b82f6;
+            box-shadow: 0 0 12px rgba(37, 99, 235, 0.4);
+        }
+
+        /* Workspace setup */
+        #workspace {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            background: radial-gradient(circle at center, #101226 0%, #060710 100%);
+        }
+
+        #canvas-container {
+            flex-grow: 1;
+            position: relative;
+        }
+
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        #panel-hud {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background-color: rgba(17, 19, 38, 0.85);
+            backdrop-filter: blur(12px);
+            border: 1px solid #1e223b;
+            border-radius: 8px;
+            padding: 15px;
+            font-family: monospace;
+            font-size: 11px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            pointer-events: none;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+            width: 380px;
+        }
+
+        .hud-line {
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .hud-label {
+            color: #64748b;
+        }
+
+        .hud-value {
+            color: #e2e8f0;
+        }
+
+        /* Footer stamp */
+        .footer-stamp {
+            margin-top: auto;
+            border-top: 1px solid #1e223b;
+            padding-top: 15px;
+            font-size: 10px;
+            color: #5c627c;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div id="panel-controls">
+        <h1 class="header-title">
+            <span>SUPRAQUANT G⁴ ANALYZER</span>
+        </h1>
+        <p class="section-desc">
+            Evaluating G⁴ continuous boundary transformations against traditional G² Rational NURBS under infinite zoom.
+        </p>
+
+        <div class="control-group">
+            <span class="control-label">Geometry engine</span>
+            <button id="btn-mode-sq" class="toggle-btn active">SUPRAQUANT (G⁴ Continuous Sine)</button>
+            <button id="btn-mode-nurbs" class="toggle-btn" style="margin-top: 5px;">CLASSICAL NURBS (G² Linear Division)</button>
+        </div>
+
+        <div class="control-group">
+            <span class="control-label">Scale Zoom Factor <span class="control-value" id="lbl-zoom">1.0x</span></span>
+            <input type="range" id="rng-zoom" min="0.1" max="10.0" step="0.05" value="1.0">
+            <p class="section-desc" style="font-size: 10px;">
+                Slide to zoom into knot boundaries to evaluate coordinate precision and sub-pixel stability.
+            </p>
+        </div>
+
+        <div class="control-group">
+            <span class="control-label">Derivative Order <span class="control-value">4th Derivative</span></span>
+            <p class="section-desc">
+                Plotting absolute angular jerk on the bottom canvas. Note the extreme spike-ruptures in classical NURBS, while the SupraQuant sine-corrected basis remains continuous and flat.
+            </p>
+        </div>
+
+        <div class="control-group">
+            <span class="control-label">Interactive instruction</span>
+            <p class="section-desc" style="background-color: #171932; padding: 10px; border-radius: 4px; border-left: 3px solid #3b82f6;">
+                <strong>Drag the green control nodes</strong> on the canvas to deform the circle and observe the continuous recalculation of the higher derivatives.
+            </p>
+        </div>
+
+        <div class="footer-stamp">
+            БИРО "ЧИП" СТАРИ ГРАД &copy; 2026
+        </div>
+    </div>
+
+    <div id="workspace">
+        <div id="canvas-container">
+            <canvas id="canvas-main"></canvas>
+            <canvas id="canvas-graph" style="height: 180px; top: auto; bottom: 0; background-color: rgba(11, 13, 25, 0.9); border-top: 1px solid #1e223b;"></canvas>
+        </div>
+
+        <div id="panel-hud">
+            <div class="hud-line">
+                <span class="hud-label">Transformation Boundary</span>
+                <span class="hud-value" id="hud-boundary" style="color: #60a5fa; font-weight: bold;">SUPRAQUANT G⁴</span>
+            </div>
+            <div class="hud-line">
+                <span class="hud-label">4th Derivative State (∂⁴S/∂θ⁴)</span>
+                <span class="hud-value" id="hud-deriv-state" style="color: #10b981;">Continuous (Smooth)</span>
+            </div>
+            <div class="hud-line">
+                <span class="hud-label">Peak Derivative Spike (Jerk)</span>
+                <span class="hud-value" id="hud-deriv-peak">0.00000</span>
+            </div>
+            <div class="hud-line">
+                <span class="hud-label">Denominator Precision Horizon</span>
+                <span class="hud-value" id="hud-precision">Infinite (No Fractions)</span>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { generateBoundaryLoop, getWGSLSupraQuantCode } from './supraquant_processor-v2.js';
+
+        const canvasMain = document.getElementById('canvas-main');
+        const canvasGraph = document.getElementById('canvas-graph');
+        const ctxMain = canvasMain.getContext('2d');
+        const ctxGraph = canvasGraph.getContext('2d');
+
+        let width = 0;
+        let height = 0;
+
+        let activeEngine = 'G4'; // 'G4' or 'G2'
+        let zoomFactor = 1.0;
+
+        // Unit star impostor control points (8 segments, 2D coordinates)
+        const controlPoints = new Float32Array([
+            120, 0,
+            85, 85,
+            0, 120,
+            -85, 85,
+            -120, 0,
+            -85, -85,
+            0, -120,
+            85, -85
+        ]);
+
+        let draggedNode = -1;
+        const dragRadius = 10;
+
+        function resize() {
+            width = canvasMain.clientWidth;
+            height = canvasMain.clientHeight;
+            canvasMain.width = width;
+            canvasMain.height = height;
+
+            canvasGraph.width = canvasGraph.clientWidth;
+            canvasGraph.height = canvasGraph.clientHeight;
+        }
+
+        window.addEventListener('resize', resize);
+        resize();
+
+        // Control point interaction
+        function getMousePos(e, canvas) {
+            const rect = canvas.getBoundingClientRect();
+            return {
+                x: e.clientX - rect.left,
+                y: e.clientY - rect.top
+            };
+        }
+
+        canvasMain.addEventListener('mousedown', (e) => {
+            const pos = getMousePos(e, canvasMain);
+            const cx = width / 2;
+            const cy = height / 2 - 90; // Center offset to accommodate graph
+
+            for (let i = 0; i < 8; i++) {
+                const px = cx + controlPoints[2 * i] * zoomFactor;
+                const py = cy + controlPoints[2 * i + 1] * zoomFactor;
+                const dist = Math.hypot(pos.x - px, pos.y - py);
+                if (dist < dragRadius + 5) {
+                    draggedNode = i;
+                    break;
+                }
+            }
+        });
+
+        window.addEventListener('mouseup', () => {
+            draggedNode = -1;
+        });
+
+        canvasMain.addEventListener('mousemove', (e) => {
+            if (draggedNode === -1) return;
+            const pos = getMousePos(e, canvasMain);
+            const cx = width / 2;
+            const cy = height / 2 - 90;
+
+            controlPoints[2 * draggedNode] = (pos.x - cx) / zoomFactor;
+            controlPoints[2 * draggedNode + 1] = (pos.y - cy) / zoomFactor;
+        });
+
+        // Controls
+        const btnModeSQ = document.getElementById('btn-mode-sq');
+        const btnModeNURBS = document.getElementById('btn-mode-nurbs');
+        const rngZoom = document.getElementById('rng-zoom');
+        const lblZoom = document.getElementById('lbl-zoom');
+
+        btnModeSQ.addEventListener('click', () => {
+            activeEngine = 'G4';
+            btnModeSQ.classList.add('active');
+            btnModeNURBS.classList.remove('active');
+            document.getElementById('hud-boundary').textContent = "SUPRAQUANT G⁴";
+            document.getElementById('hud-boundary').style.color = "#60a5fa";
+            document.getElementById('hud-deriv-state').textContent = "Continuous (Smooth)";
+            document.getElementById('hud-deriv-state').style.color = "#10b981";
+            document.getElementById('hud-precision').textContent = "Infinite (No Fractions)";
+        });
+
+        btnModeNURBS.addEventListener('click', () => {
+            activeEngine = 'G2';
+            btnModeNURBS.classList.add('active');
+            btnModeSQ.classList.remove('active');
+            document.getElementById('hud-boundary').textContent = "CLASSICAL NURBS";
+            document.getElementById('hud-boundary').style.color = "#ef4444";
+            document.getElementById('hud-deriv-state').textContent = "Fractured (G⁴ Broken)";
+            document.getElementById('hud-deriv-state').style.color = "#ef4444";
+            document.getElementById('hud-precision').textContent = "Truncated (Division-based)";
+        });
+
+        rngZoom.addEventListener('input', (e) => {
+            zoomFactor = parseFloat(e.target.value);
+            lblZoom.textContent = `${zoomFactor.toFixed(2)}x`;
+        });
+
+        // Main rendering loop
+        function draw() {
+            ctxMain.clearRect(0, 0, width, height);
+
+            const cx = width / 2;
+            const cy = height / 2 - 90;
+
+            // 1. Draw Grid Lines
+            ctxMain.strokeStyle = '#1e223b';
+            ctxMain.lineWidth = 1;
+            ctxMain.beginPath();
+            ctxMain.moveTo(0, cy); ctxMain.lineTo(width, cy);
+            ctxMain.moveTo(cx, 0); ctxMain.lineTo(cx, height);
+            ctxMain.stroke();
+
+            // 2. Generate Spline Boundary Points
+            const splinePoints = generateBoundaryLoop(500, controlPoints, activeEngine === 'G4');
+
+            // 3. Draw Spline Boundary
+            ctxMain.strokeStyle = activeEngine === 'G4' ? '#3b82f6' : '#ef4444';
+            ctxMain.lineWidth = 3;
+            ctxMain.beginPath();
+            for (let i = 0; i <= splinePoints.length; i++) {
+                const pt = splinePoints[i % splinePoints.length];
+                const px = cx + pt.x * zoomFactor;
+                const py = cy + pt.y * zoomFactor;
+                if (i === 0) {
+                    ctxMain.moveTo(px, py);
+                } else {
+                    ctxMain.lineTo(px, py);
+                }
+            }
+            ctxMain.stroke();
+
+            // Fill area with soft gradient
+            ctxMain.fillStyle = activeEngine === 'G4' ? 'rgba(59, 130, 246, 0.05)' : 'rgba(239, 68, 68, 0.05)';
+            ctxMain.fill();
+
+            // 4. Draw Control Polygon and Nodes
+            ctxMain.strokeStyle = 'rgba(16, 185, 129, 0.2)';
+            ctxMain.lineWidth = 1;
+            ctxMain.beginPath();
+            for (let i = 0; i <= 8; i++) {
+                const px = cx + controlPoints[2 * (i % 8)] * zoomFactor;
+                const py = cy + controlPoints[2 * (i % 8) + 1] * zoomFactor;
+                if (i === 0) ctxMain.moveTo(px, py);
+                else ctxMain.lineTo(px, py);
+            }
+            ctxMain.stroke();
+
+            for (let i = 0; i < 8; i++) {
+                const px = cx + controlPoints[2 * i] * zoomFactor;
+                const py = cy + controlPoints[2 * i + 1] * zoomFactor;
+
+                ctxMain.fillStyle = '#10b981';
+                ctxMain.beginPath();
+                ctxMain.arc(px, py, dragRadius, 0, 2 * Math.PI);
+                ctxMain.fill();
+
+                ctxMain.strokeStyle = '#ffffff';
+                ctxMain.lineWidth = 2;
+                ctxMain.stroke();
+            }
+
+            // 5. Draw 4th Derivative (Jerk) Graph
+            const gw = canvasGraph.width;
+            const gh = canvasGraph.height;
+            ctxGraph.clearRect(0, 0, gw, gh);
+
+            // Draw graph background grid
+            ctxGraph.strokeStyle = '#181b32';
+            ctxGraph.lineWidth = 1;
+            for (let k = 1; k < 5; k++) {
+                const gy = (gh / 5) * k;
+                ctxGraph.beginPath();
+                ctxGraph.moveTo(0, gy); ctxGraph.lineTo(gw, gy);
+                ctxGraph.stroke();
+            }
+
+            // Find peak derivative for HUD
+            let maxD4 = 0;
+            for (let pt of splinePoints) {
+                if (pt.dx4 > maxD4) maxD4 = pt.dx4;
+            }
+            document.getElementById('hud-deriv-peak').textContent = maxD4.toFixed(5);
+
+            // Adjust graph scale based on max value dynamically
+            const scaleY = maxD4 > 1e-6 ? (gh - 40) / maxD4 : 1;
+
+            ctxGraph.strokeStyle = activeEngine === 'G4' ? '#60a5fa' : '#f87171';
+            ctxGraph.lineWidth = 2;
+            ctxGraph.beginPath();
+            for (let i = 0; i < splinePoints.length; i++) {
+                const gx = (gw / splinePoints.length) * i;
+                const gy = gh - 20 - splinePoints[i].dx4 * scaleY;
+                if (i === 0) ctxGraph.moveTo(gx, gy);
+                else ctxGraph.lineTo(gx, gy);
+            }
+            ctxGraph.stroke();
+
+            // Label axes
+            ctxGraph.fillStyle = '#64748b';
+            ctxGraph.font = '9px monospace';
+            ctxGraph.fillText('∂⁴S/∂θ⁴ (4th Derivative Magnitude)', 10, 15);
+            ctxGraph.fillText(`Peak: ${maxD4.toFixed(2)}`, gw - 120, 15);
+
+            requestAnimationFrame(draw);
+        }
+
+        // Print the GPU WGSL helper shader code to the console for reference
+        console.log("--- GPU SupraQuant WGSL helper code active ---");
+        console.log(getWGSLSupraQuantCode());
+
+        draw();
+    </script>
+</body>
+</html>

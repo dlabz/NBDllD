@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Conformal Sparse Star Octree (SSO) Scalability Analyzer</title>
+    <style>
+        body {
+            margin: 0;
+            background-color: #0b0d19;
+            color: #d1d5db;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            overflow: hidden;
+            display: flex;
+            height: 100vh;
+        }
+
+        /* Lateral control panel */
+        #panel-controls {
+            width: 340px;
+            background-color: #111326;
+            border-right: 1px solid #1e223b;
+            padding: 20px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            z-index: 10;
+            overflow-y: auto;
+        }
+
+        .header-title {
+            font-size: 15px;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            color: #ffffff;
+            border-bottom: 2px solid #2e3456;
+            padding-bottom: 8px;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .section-desc {
+            font-size: 11px;
+            line-height: 1.4;
+            color: #8c92ac;
+            margin: 0;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .control-label {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: #9ca3af;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .control-value {
+            color: #3b82f6;
+            font-weight: bold;
+        }
+
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 5px;
+            border-radius: 3px;
+            background: #1e223b;
+            outline: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: #3b82f6;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+
+        input[type="range"]::-webkit-slider-thumb:hover {
+            background: #60a5fa;
+        }
+
+        .toggle-btn {
+            background-color: #1e223b;
+            border: 1px solid #2e3456;
+            color: #9ca3af;
+            padding: 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: 600;
+            transition: all 0.2s;
+            text-align: center;
+        }
+
+        .toggle-btn.active {
+            background-color: #2563eb;
+            color: #ffffff;
+            border-color: #3b82f6;
+            box-shadow: 0 0 10px rgba(37, 99, 235, 0.3);
+        }
+
+        /* Workspace setup */
+        #workspace {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            background: radial-gradient(circle at center, #101226 0%, #060710 100%);
+        }
+
+        #canvas-container {
+            flex-grow: 1;
+            position: relative;
+        }
+
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        #canvas-graph {
+            height: 180px;
+            top: auto;
+            bottom: 0;
+            background-color: rgba(11, 13, 25, 0.9);
+            border-top: 1px solid #1e223b;
+        }
+
+        #panel-hud {
+            position: absolute;
+            bottom: 200px;
+            left: 20px;
+            background-color: rgba(17, 19, 38, 0.85);
+            backdrop-filter: blur(12px);
+            border: 1px solid #1e223b;
+            border-radius: 6px;
+            padding: 12px;
+            font-family: monospace;
+            font-size: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            pointer-events: none;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+            width: 320px;
+        }
+
+        .hud-line {
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .hud-label {
+            color: #64748b;
+        }
+
+        .hud-value {
+            color: #e2e8f0;
+        }
+
+        /* Footer stamp */
+        .footer-stamp {
+            margin-top: auto;
+            border-top: 1px solid #1e223b;
+            padding-top: 12px;
+            font-size: 9px;
+            color: #5c627c;
+            text-align: center;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="panel-controls">
+        <h1 class="header-title">
+            <span>CONFORMAL SSO ANALYZER</span>
+        </h1>
+        <p class="section-desc">
+            Testing real-time gravitational and light fields using a Sparse Star Octree (SSO) mapped cooperatively.
+        </p>
+
+        <div class="control-group">
+            <span class="control-label">Integration Engine</span>
+            <button id="btn-engine-sso" class="toggle-btn active">SPARSE STAR OCTREE (O(N log M))</button>
+            <button id="btn-engine-direct" class="toggle-btn" style="margin-top: 4px;">EXHAUSTIVE DIRECT (O(N *
+                M))</button>
+        </div>
+
+        <div class="control-group">
+            <span class="control-label">Total Stars <span class="control-value" id="lbl-stars">256</span></span>
+            <input type="range" id="rng-stars" min="8" max="2048" step="8" value="256">
+            <p class="section-desc">
+                Emitters clustered into hierarchical groupings, automatically merged as conformal macro-spheres.
+            </p>
+        </div>
+
+        <div class="control-group">
+            <span class="control-label">Active Particles <span class="control-value"
+                    id="lbl-particles">1000</span></span>
+            <input type="range" id="rng-particles" min="100" max="10000" step="100" value="1000">
+        </div>
+
+        <div class="control-group">
+            <span class="control-label">Opening Angle Cutoff (θ) <span class="control-value"
+                    id="lbl-cutoff">0.15</span></span>
+            <input type="range" id="rng-cutoff" min="0.05" max="1.00" step="0.05" value="0.15">
+            <p class="section-desc">
+                Defines approximation limits. Smaller values increase accuracy by descending further into children.
+            </p>
+        </div>
+
+        <div class="control-group">
+            <span class="control-label">Max Leaf Capacity <span class="control-value" id="lbl-capacity">4</span></span>
+            <input type="range" id="rng-capacity" min="1" max="16" step="1" value="4">
+        </div>
+
+        <div class="control-group">
+            <span class="control-label">Visualize Boundaries</span>
+            <button id="btn-toggle-bounds" class="toggle-btn active">SHOW OCTREE BOUNDS</button>
+        </div>
+
+        <div class="footer-stamp">
+            БИРО "ЧИП" СТАРИ ГРАД &copy; 2026
+        </div>
+    </div>
+
+    <div id="workspace">
+        <div id="canvas-container">
+            <canvas id="canvas-main"></canvas>
+            <canvas id="canvas-graph"></canvas>
+        </div>
+
+        <div id="panel-hud">
+            <div class="hud-line">
+                <span class="hud-label">Calculation Mode</span>
+                <span class="hud-value" id="hud-mode" style="color: #60a5fa; font-weight: bold;">SSO ACTIVE</span>
+            </div>
+            <div class="hud-line">
+                <span class="hud-label">Interactive Frame Time</span>
+                <span class="hud-value" id="hud-frame-time" style="color: #10b981;">0.00 ms</span>
+            </div>
+            <div class="hud-line">
+                <span class="hud-label">Octree Node Count</span>
+                <span class="hud-value" id="hud-node-count">0</span>
+            </div>
+            <div class="hud-line">
+                <span class="hud-label">Total Gravity Calculations</span>
+                <span class="hud-value" id="hud-gravity-calcs">0</span>
+            </div>
+            <div class="hud-line">
+                <span class="hud-label">Unified Field Parity Drift</span>
+                <span class="hud-value" id="hud-field-drift">0.0000%</span>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { SparseStarOctreeBuilder } from './sparse_star_octree-v2.js';
+
+        const canvasMain = document.getElementById('canvas-main');
+        const canvasGraph = document.getElementById('canvas-graph');
+        const ctxMain = canvasMain.getContext('2d');
+        const ctxGraph = canvasGraph.getContext('2d');
+
+        let width = 0;
+        let height = 0;
+
+        // User parameters
+        let numStars = 256;
+        let numParticles = 1000;
+        let thetaCutoff = 0.15;
+        let maxLeafCapacity = 4;
+        let activeEngine = 'SSO'; // 'SSO' or 'Direct'
+        let showBounds = true;
+
+        // Interactive simulation states
+        /** @type {any[]} */
+        let stars = [];
+        /** @type {any[]} */
+        let particles = [];
+        let octreeData = null;
+
+        // Performance history for plotting
+        /** @type {number[]} */
+        const ssoPerfHistory = [];
+        /** @type {number[]} */
+        const directPerfHistory = [];
+        const maxHistory = 150;
+
+        // Camera perspective parameters
+        let cameraAngle = 0.0;
+        let zoom = 1.0;
+
+        function resize() {
+            width = canvasMain.clientWidth;
+            height = canvasMain.clientHeight;
+            canvasMain.width = width;
+            canvasMain.height = height;
+
+            canvasGraph.width = canvasGraph.clientWidth;
+            canvasGraph.height = canvasGraph.clientHeight;
+        }
+
+        window.addEventListener('resize', resize);
+        resize();
+
+        // Control binds
+        const btnEngineSSO = document.getElementById('btn-engine-sso');
+        const btnEngineDirect = document.getElementById('btn-engine-direct');
+        const btnToggleBounds = document.getElementById('btn-toggle-bounds');
+        const rngStars = document.getElementById('rng-stars');
+        const lblStars = document.getElementById('lbl-stars');
+        const rngParticles = document.getElementById('rng-particles');
+        const lblParticles = document.getElementById('lbl-particles');
+        const rngCutoff = document.getElementById('rng-cutoff');
+        const lblCutoff = document.getElementById('lbl-cutoff');
+        const rngCapacity = document.getElementById('rng-capacity');
+        const lblCapacity = document.getElementById('lbl-capacity');
+
+        btnEngineSSO.addEventListener('click', () => {
+            activeEngine = 'SSO';
+            btnEngineSSO.classList.add('active');
+            btnEngineDirect.classList.remove('active');
+            document.getElementById('hud-mode').textContent = "SSO ACTIVE";
+            document.getElementById('hud-mode').style.color = "#60a5fa";
+        });
+
+        btnEngineDirect.addEventListener('click', () => {
+            activeEngine = 'Direct';
+            btnEngineDirect.classList.add('active');
+            btnEngineSSO.classList.remove('active');
+            document.getElementById('hud-mode').textContent = "DIRECT EXHAUSTIVE";
+            document.getElementById('hud-mode').style.color = "#ef4444";
+        });
+
+        btnToggleBounds.addEventListener('click', () => {
+            showBounds = !showBounds;
+            btnToggleBounds.classList.toggle('active', showBounds);
+        });
+
+        rngStars.addEventListener('input', (e) => {
+            numStars = parseInt(e.target.value);
+            lblStars.textContent = numStars;
+            generateStars();
+        });
+
+        rngParticles.addEventListener('input', (e) => {
+            numParticles = parseInt(e.target.value);
+            lblParticles.textContent = numParticles;
+            generateParticles();
+        });
+
+        rngCutoff.addEventListener('input', (e) => {
+            thetaCutoff = parseFloat(e.target.value);
+            lblCutoff.textContent = thetaCutoff.toFixed(2);
+        });
+
+        rngCapacity.addEventListener('input', (e) => {
+            maxLeafCapacity = parseInt(e.target.value);
+            lblCapacity.textContent = maxLeafCapacity;
+        });
+
+        // Generate clustered structures representing galaxies
+        function generateStars() {
+            stars = [];
+            const clusters = 5;
+            const clusterCenters = [];
+
+            for (let c = 0; c < clusters; c++) {
+                clusterCenters.push({
+                    x: (Math.random() - 0.5) * 80,
+                    y: (Math.random() - 0.5) * 30,
+                    z: (Math.random() - 0.5) * 80
+                });
+            }
+
+            for (let i = 0; i < numStars; i++) {
+                const cIdx = i % clusters;
+                const center = clusterCenters[cIdx];
+                const spread = 12.0;
+
+                stars.push({
+                    x: center.x + (Math.random() - 0.5) * spread,
+                    y: center.y + (Math.random() - 0.5) * spread * 0.4,
+                    z: center.z + (Math.random() - 0.5) * spread,
+                    radius: 0.5 + Math.random() * 1.5,
+                    mass: 5.0 + Math.random() * 25.0,
+                    r: Math.random() * 0.5 + 0.5,
+                    g: Math.random() * 0.5 + 0.3,
+                    b: Math.random() * 0.8 + 0.2
+                });
+            }
+        }
+
+        function generateParticles() {
+            particles = [];
+            for (let i = 0; i < numParticles; i++) {
+                // Initialize particles in a wide disk orbit
+                const angle = Math.random() * Math.PI * 2;
+                const rad = 30 + Math.random() * 60;
+                particles.push({
+                    x: Math.cos(angle) * rad,
+                    y: (Math.random() - 0.5) * 4.0,
+                    z: Math.sin(angle) * rad,
+                    vx: -Math.sin(angle) * 3.5,
+                    vy: 0.0,
+                    vz: Math.cos(angle) * 3.5,
+                    ax: 0, ay: 0, az: 0,
+                    r: 0.5, g: 0.7, b: 1.0
+                });
+            }
+        }
+
+        // Initialize setup
+        generateStars();
+        generateParticles();
+
+        // Project 3D vector to 2D canvas coordinates using a simple lookAt matrix
+        function project(x, y, z) {
+            // Camera position orbit
+            const cosCam = Math.cos(cameraAngle);
+            const sinCam = Math.sin(cameraAngle);
+
+            const rx = x * cosCam - z * sinCam;
+            const rz = x * sinCam + z * cosCam;
+
+            const projX = width * 0.5 + (rx * 4.5 * zoom) / (1.0 + rz * 0.0035);
+            const projY = (height * 0.5 - 40) + (y * 4.5 * zoom) / (1.0 + rz * 0.0035);
+
+            return { x: projX, y: projY, depth: rz };
+        }
+
+        // Traversal force accumulator
+        let ssoCalcsCount = 0;
+
+        /**
+         * @param {any} p
+         * @param {any} node
+         * @param {any[]} flatNodes
+         */
+        function fnAccumulateSSO(p, node, flatNodes) {
+            if (!node) return;
+            ssoCalcsCount++;
+            const dx = node.cx - p.x;
+            const dy = node.cy - p.y;
+            const dz = node.cz - p.z;
+            const distSq = dx * dx + dy * dy + dz * dz;
+            const dist = Math.sqrt(distSq);
+
+            const ratio = node.radius / (dist > 1e-4 ? dist : 1.0);
+
+            if (node.isLeaf || ratio < thetaCutoff) {
+                // Evaluate Macro-sphere
+                const soft_eps = 4.0;
+                const denom = distSq + soft_eps;
+                if (dist > 1e-4) {
+                    const force = node.mass / denom;
+                    p.ax += (dx / dist) * force;
+                    p.ay += (dy / dist) * force;
+                    p.az += (dz / dist) * force;
+                }
+            } else {
+                // Descend to children
+                for (let i = 0; i < 8; i++) {
+                    const child = flatNodes[node.childrenPtr + i];
+                    if (child && (child.mass > 0 || child.r > 0)) {
+                        fnAccumulateSSO(p, child, flatNodes);
+                    }
+                }
+            }
+        }
+
+        // Standard simulation tick
+        function tick() {
+            const dt = 0.05;
+
+            // 1. Build the Sparse Star Octree on CPU
+            const builder = new SparseStarOctreeBuilder(stars, maxLeafCapacity, 8);
+            builder.build();
+            const flatNodes = builder.flatNodes;
+            document.getElementById('hud-node-count').textContent = flatNodes.length;
+
+            const tStart = performance.now();
+            ssoCalcsCount = 0;
+
+            if (activeEngine === 'SSO') {
+                for (let i = 0; i < numParticles; i++) {
+                    const p = particles[i];
+                    p.ax = 0; p.ay = 0; p.az = 0;
+
+                    // Traversal starts from Root node (index 0)
+                    if (flatNodes.length > 0 && flatNodes[0]) {
+                        fnAccumulateSSO(p, flatNodes[0], flatNodes);
+                    }
+
+                    // Euler update
+                    p.vx += p.ax * dt;
+                    p.vy += p.ay * dt;
+                    p.vz += p.az * dt;
+                    p.x += p.vx * dt;
+                    p.y += p.vy * dt;
+                    p.z += p.vz * dt;
+                }
+                document.getElementById('hud-gravity-calcs').textContent = ssoCalcsCount;
+            } else {
+                // Direct exhaustive calculation
+                for (let i = 0; i < numParticles; i++) {
+                    const p = particles[i];
+                    p.ax = 0; p.ay = 0; p.az = 0;
+
+                    for (let j = 0; j < numStars; j++) {
+                        const s = stars[j];
+                        const dx = s.x - p.x;
+                        const dy = s.y - p.y;
+                        const dz = s.z - p.z;
+                        const distSq = dx * dx + dy * dy + dz * dz;
+                        const dist = Math.sqrt(distSq);
+
+                        const soft_eps = 4.0;
+                        if (dist > 1e-4) {
+                            const force = s.mass / (distSq + soft_eps);
+                            p.ax += (dx / dist) * force;
+                            p.ay += (dy / dist) * force;
+                            p.az += (dz / dist) * force;
+                        }
+                    }
+
+                    p.vx += p.ax * dt;
+                    p.vy += p.ay * dt;
+                    p.vz += p.az * dt;
+                    p.x += p.vx * dt;
+                    p.y += p.vy * dt;
+                    p.z += p.vz * dt;
+                }
+                document.getElementById('hud-gravity-calcs').textContent = numParticles * numStars;
+            }
+
+            const tEnd = performance.now();
+            const perfTime = tEnd - tStart;
+            document.getElementById('hud-frame-time').textContent = `${perfTime.toFixed(2)} ms`;
+
+            // Append performance metrics
+            if (activeEngine === 'SSO') {
+                ssoPerfHistory.push(perfTime);
+                if (ssoPerfHistory.length > maxHistory) ssoPerfHistory.shift();
+            } else {
+                directPerfHistory.push(perfTime);
+                if (directPerfHistory.length > maxHistory) directPerfHistory.shift();
+            }
+
+            // Estimate field drift / force parity
+            if (flatNodes.length > 0 && particles.length > 0) {
+                const sampleP = particles[0];
+                // Compute true force (direct exhaustive calculation)
+                let trueAx = 0, trueAy = 0, trueAz = 0;
+                for (const s of stars) {
+                    const dx = s.x - sampleP.x;
+                    const dy = s.y - sampleP.y;
+                    const dz = s.z - sampleP.z;
+                    const distSq = dx * dx + dy * dy + dz * dz;
+                    const dist = Math.sqrt(distSq);
+                    if (dist > 1e-4) {
+                        const force = s.mass / (distSq + 4.0);
+                        trueAx += (dx / dist) * force;
+                        trueAy += (dy / dist) * force;
+                        trueAz += (dz / dist) * force;
+                    }
+                }
+
+                // Explicitly compute the SSO force for the same particle to get true parity, regardless of activeEngine
+                const tempP = { x: sampleP.x, y: sampleP.y, z: sampleP.z, ax: 0, ay: 0, az: 0 };
+                if (flatNodes[0]) {
+                    fnAccumulateSSO(tempP, flatNodes[0], flatNodes);
+                }
+
+                const drift = Math.hypot(tempP.ax - trueAx, tempP.ay - trueAy, tempP.az - trueAz) / (Math.hypot(trueAx, trueAy, trueAz) + 1e-4);
+                document.getElementById('hud-field-drift').textContent = `${(drift * 100).toFixed(4)}%`;
+            }
+
+            // 2. Draw scene
+            cameraAngle += 0.002;
+            render(flatNodes);
+            drawPerformanceGraph();
+
+            requestAnimationFrame(tick);
+        }
+
+        // Render 3D environment onto the 2D projection plane
+        function render(flatNodes) {
+            ctxMain.clearRect(0, 0, width, height);
+
+            // Draw Background grid
+            ctxMain.strokeStyle = 'rgba(30, 34, 59, 0.4)';
+            ctxMain.lineWidth = 1;
+            ctxMain.beginPath();
+            for (let i = -100; i <= 100; i += 20) {
+                const p1 = project(i, 0, -100);
+                const p2 = project(i, 0, 100);
+                ctxMain.moveTo(p1.x, p1.y);
+                ctxMain.lineTo(p2.x, p2.y);
+
+                const p3 = project(-100, 0, i);
+                const p4 = project(100, 0, i);
+                ctxMain.moveTo(p3.x, p3.y);
+                ctxMain.lineTo(p4.x, p4.y);
+            }
+            ctxMain.stroke();
+
+            // Draw Octree Boundary Boxes (if enabled)
+            if (showBounds) {
+                ctxMain.strokeStyle = 'rgba(59, 130, 246, 0.08)';
+                ctxMain.lineWidth = 1;
+
+                // Use built flat nodes from active tick data
+                for (const node of flatNodes) {
+                    if (node && node.mass > 0) {
+                        // Render bounding boxes using isometric projections
+                        const r = node.radius * 0.58; // scale down slightly to represent bounds
+                        const corners = [
+                            project(node.cx - r, node.cy - r, node.cz - r),
+                            project(node.cx + r, node.cy - r, node.cz - r),
+                            project(node.cx + r, node.cy + r, node.cz - r),
+                            project(node.cx - r, node.cy + r, node.cz - r),
+                            project(node.cx - r, node.cy - r, node.cz + r),
+                            project(node.cx + r, node.cy - r, node.cz + r),
+                            project(node.cx + r, node.cy + r, node.cz + r),
+                            project(node.cx - r, node.cy + r, node.cz + r),
+                        ];
+
+                        ctxMain.beginPath();
+                        // Bottom face
+                        ctxMain.moveTo(corners[0].x, corners[0].y);
+                        ctxMain.lineTo(corners[1].x, corners[1].y);
+                        ctxMain.lineTo(corners[5].x, corners[5].y);
+                        ctxMain.lineTo(corners[4].x, corners[4].y);
+                        ctxMain.closePath();
+
+                        // Top face
+                        ctxMain.moveTo(corners[2].x, corners[2].y);
+                        ctxMain.lineTo(corners[3].x, corners[3].y);
+                        ctxMain.lineTo(corners[7].x, corners[7].y);
+                        ctxMain.lineTo(corners[6].x, corners[6].y);
+                        ctxMain.closePath();
+
+                        // Side pillars
+                        ctxMain.moveTo(corners[0].x, corners[0].y); ctxMain.lineTo(corners[3].x, corners[3].y);
+                        ctxMain.moveTo(corners[1].x, corners[1].y); ctxMain.lineTo(corners[2].x, corners[2].y);
+                        ctxMain.moveTo(corners[5].x, corners[5].y); ctxMain.lineTo(corners[6].x, corners[6].y);
+                        ctxMain.moveTo(corners[4].x, corners[4].y); ctxMain.lineTo(corners[7].x, corners[7].y);
+
+                        ctxMain.stroke();
+                    }
+                }
+            }
+
+            // Draw Stars as radiant spheres
+            for (const s of stars) {
+                const proj = project(s.x, s.y, s.z);
+                if (proj.depth > -10.0) {
+                    const alpha = Math.max(0.2, 1.0 - proj.depth * 0.005);
+                    const size = Math.max(2, (s.radius * 15 * zoom) / (1.0 + proj.depth * 0.0035));
+
+                    const grad = ctxMain.createRadialGradient(proj.x, proj.y, 0, proj.x, proj.y, size);
+                    grad.addColorStop(0, '#ffffff');
+                    grad.addColorStop(0.2, `rgba(${s.r * 255}, ${s.g * 255}, ${s.b * 255}, ${alpha})`);
+                    grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+
+                    ctxMain.fillStyle = grad;
+                    ctxMain.beginPath();
+                    ctxMain.arc(proj.x, proj.y, size, 0, Math.PI * 2);
+                    ctxMain.fill();
+                }
+            }
+
+            // Draw Particles
+            ctxMain.fillStyle = '#60a5fa';
+            for (const p of particles) {
+                const proj = project(p.x, p.y, p.z);
+                if (proj.depth > -10.0) {
+                    const size = Math.max(1, 2.5 / (1.0 + proj.depth * 0.0035));
+                    ctxMain.fillRect(proj.x - size * 0.5, proj.y - size * 0.5, size, size);
+                }
+            }
+        }
+
+        // Draw Live execution comparison plot
+        function drawPerformanceGraph() {
+            const gw = canvasGraph.width;
+            const gh = canvasGraph.height;
+            ctxGraph.clearRect(0, 0, gw, gh);
+
+            // Draw grid
+            ctxGraph.strokeStyle = '#181b32';
+            ctxGraph.lineWidth = 1;
+            for (let k = 1; k < 4; k++) {
+                const gy = (gh / 4) * k;
+                ctxGraph.beginPath();
+                ctxGraph.moveTo(0, gy); ctxGraph.lineTo(gw, gy);
+                ctxGraph.stroke();
+            }
+
+            // Draw labels
+            ctxGraph.fillStyle = '#64748b';
+            ctxGraph.font = '9px monospace';
+            ctxGraph.fillText('EXECUTION LATENCY OVER TIME (ms)', 10, 15);
+
+            // Compute peak time for scale setting
+            let maxTime = 1e-4;
+            for (const t of ssoPerfHistory) maxTime = Math.max(maxTime, t);
+            for (const t of directPerfHistory) maxTime = Math.max(maxTime, t);
+
+            const scaleY = (gh - 30) / maxTime;
+
+            // Draw SSO Line (Blue)
+            if (ssoPerfHistory.length > 1) {
+                ctxGraph.strokeStyle = '#3b82f6';
+                ctxGraph.lineWidth = 2;
+                ctxGraph.beginPath();
+                for (let i = 0; i < ssoPerfHistory.length; i++) {
+                    const gx = (gw / maxHistory) * i;
+                    const gy = gh - 15 - ssoPerfHistory[i] * scaleY;
+                    if (i === 0) ctxGraph.moveTo(gx, gy);
+                    else ctxGraph.lineTo(gx, gy);
+                }
+                ctxGraph.stroke();
+            }
+
+            // Draw Direct Line (Red)
+            if (directPerfHistory.length > 1) {
+                ctxGraph.strokeStyle = '#ef4444';
+                ctxGraph.lineWidth = 2;
+                ctxGraph.beginPath();
+                for (let i = 0; i < directPerfHistory.length; i++) {
+                    const gx = (gw / maxHistory) * i;
+                    const gy = gh - 15 - directPerfHistory[i] * scaleY;
+                    if (i === 0) ctxGraph.moveTo(gx, gy);
+                    else ctxGraph.lineTo(gx, gy);
+                }
+                ctxGraph.stroke();
+            }
+
+            ctxGraph.fillStyle = '#3b82f6';
+            ctxGraph.fillText('SSO (O(N log M))', 10, gh - 10);
+            ctxGraph.fillStyle = '#ef4444';
+            ctxGraph.fillText('DIRECT (O(N * M))', 120, gh - 10);
+        }
+
+        // Start the loop
+        tick();
+    </script>
+</body>
+
+</html>

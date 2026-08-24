@@ -1,0 +1,852 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>&#x1FA90; 3DGSIL &mdash; Pleiades: Pure WebGPU + SSO Barnes-Hut Unified Engine V8</title>
+<meta name="description" content="Unified astrophysical simulation: true 3D sphere rendering with Phong shading, diffraction spikes, SSO Barnes-Hut N-body, dual quaternion camera, glassmorphic HUD.">
+<style>
+:root{--bg:#02040a;--panel:rgba(7,11,24,0.93);--border:rgba(56,189,248,0.28);--sky:#38bdf8;--em:#34d399;--am:#fbbf24;--pur:#c084fc;--pk:#f472b6;--txt:#f1f5f9;--muted:#94a3b8}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;overflow:hidden;width:100vw;height:100vh;user-select:none}
+#gpuCanvas{display:block;width:100vw;height:100vh;position:absolute;top:0;left:0;z-index:1}
+.glass-panel{position:absolute;top:1rem;left:1rem;z-index:10;width:25rem;max-width:calc(100vw - 2rem);max-height:calc(100vh - 2rem);overflow-y:auto;background:var(--panel);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid var(--border);border-radius:.875rem;padding:1.15rem;box-shadow:0 25px 50px -12px rgba(0,0,0,.9),0 0 40px rgba(56,189,248,.08);display:flex;flex-direction:column;gap:.75rem;transition:all .25s ease}
+.glass-panel.collapsed{max-height:3.8rem;overflow:hidden;gap:0;padding:.65rem 1rem}
+.glass-panel.collapsed .panel-collapsible{display:none!important}
+.glass-panel::-webkit-scrollbar{width:4px}.glass-panel::-webkit-scrollbar-thumb{background:rgba(148,163,184,.25);border-radius:2px}
+.mono{font-family:'SF Mono',ui-monospace,Menlo,monospace}
+.badge{display:inline-flex;align-items:center;padding:.15rem .5rem;border-radius:9999px;font-size:.6rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase}
+.badge-webgpu{background:rgba(56,189,248,.15);color:var(--sky);border:1px solid rgba(56,189,248,.35)}
+.badge-sso{background:rgba(52,211,153,.15);color:var(--em);border:1px solid rgba(52,211,153,.35)}
+.badge-wgsl{background:rgba(192,132,252,.15);color:var(--pur);border:1px solid rgba(192,132,252,.35)}
+.title-grad{background:linear-gradient(135deg,#38bdf8 0%,#34d399 40%,#c084fc 80%,#f472b6 100%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;font-size:1.05rem;font-weight:800}
+.fold-btn{background:rgba(255,255,255,.06);border:1px solid rgba(148,163,184,.25);color:var(--muted);padding:.2rem .55rem;font-size:.7rem;border-radius:.375rem;cursor:pointer;transition:all .15s}
+.fold-btn:hover{background:rgba(56,189,248,.2);color:#fff;border-color:var(--sky)}
+.sister-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:.3rem}
+button{background:#0f172a;color:#cbd5e1;border:1px solid rgba(148,163,184,.2);border-radius:.375rem;padding:.3rem .45rem;font-size:.72rem;font-weight:600;cursor:pointer;transition:all .15s;text-align:center}
+button:hover{background:#1e293b;border-color:rgba(56,189,248,.4);color:#f8fafc}
+button.active{background:#0284c7;border-color:#38bdf8;color:#fff;font-weight:700;box-shadow:0 0 14px rgba(56,189,248,.45)}
+.tel-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:.45rem;background:rgba(2,6,23,.75);border:1px solid rgba(148,163,184,.15);border-radius:.5rem;padding:.6rem;font-size:.72rem}
+.tel-lbl{font-size:.58rem;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:.1rem}
+.ctrl{display:flex;flex-direction:column;gap:.2rem}
+.sl-hdr{display:flex;justify-content:space-between;font-size:.72rem;color:#cbd5e1}
+input[type=range]{width:100%;accent-color:var(--sky);cursor:pointer;height:4px;border-radius:2px}
+select{background:#0f172a;border:1px solid rgba(148,163,184,.2);color:#cbd5e1;padding:.3rem .5rem;border-radius:.375rem;font-size:.72rem;outline:none;cursor:pointer;width:100%}
+.tog-row{display:flex;justify-content:space-between;align-items:center;font-size:.72rem;color:#cbd5e1}
+.tog-sm{padding:.2rem .5rem;font-size:.62rem;border-radius:.25rem}
+#hud-strip{position:absolute;bottom:1.2rem;left:1.2rem;z-index:10;background:rgba(9,10,20,.88);backdrop-filter:blur(12px);border:1px solid #1e223b;border-radius:.4rem;padding:.65rem .85rem;font-family:'SF Mono',ui-monospace,monospace;font-size:.62rem;display:flex;flex-direction:column;gap:.25rem;pointer-events:none;box-shadow:0 8px 24px rgba(0,0,0,.6);min-width:280px}
+#hud-strip.collapsed{height:1rem;overflow:hidden;min-width:100px}
+.hud-line{display:flex;justify-content:space-between}
+.hud-lbl{color:#5c647e}
+.hud-val{color:#e2e8f0}
+#webgpu-banner{position:absolute;top:1.2rem;right:1.2rem;z-index:20;background:linear-gradient(135deg,#1e1b4b,#0f172a);border:1px solid #312e81;border-radius:.4rem;padding:.75rem 1rem;font-size:.68rem;max-width:300px;display:flex;flex-direction:column;gap:.5rem;box-shadow:0 10px 30px rgba(0,0,0,.8)}
+.banner-title{color:#fff;font-weight:bold;display:flex;align-items:center;gap:6px}
+.banner-desc{color:#94a3b8;line-height:1.4}
+.banner-btn{background:#2563eb;color:#fff;border:none;padding:5px 10px;border-radius:4px;cursor:pointer;font-size:.65rem;font-weight:bold;pointer-events:all}
+.banner-btn:hover{background:#3b82f6}
+</style>
+</head>
+<body>
+
+<canvas id="gpuCanvas"></canvas>
+
+<div class="glass-panel" id="hudPanel">
+  <div style="display:flex;justify-content:space-between;align-items:center">
+    <div>
+      <div style="display:flex;gap:.3rem;margin-bottom:.2rem;flex-wrap:wrap">
+        <span class="badge badge-webgpu">Pure WebGPU</span>
+        <span class="badge badge-sso">SSO Barnes-Hut</span>
+        <span class="badge badge-wgsl">Velocity Verlet</span>
+      </div>
+      <h1 class="title-grad">Pleiades: Seven Sisters</h1>
+    </div>
+    <div style="display:flex;align-items:center;gap:.6rem">
+      <div style="text-align:right" class="mono">
+        <span id="fpsDisplay" style="color:var(--em);font-weight:bold;font-size:.82rem;display:block">60 FPS</span>
+        <span id="computeRate" style="color:var(--muted);font-size:.58rem">~0.0 GFLOPS</span>
+      </div>
+      <button class="fold-btn" onclick="toggleUICollapse()" id="btnFoldUI" title="H to collapse"><span id="foldIcon">&#x25B2;</span></button>
+    </div>
+  </div>
+
+  <div class="panel-collapsible" id="panelCollapsible" style="display:flex;flex-direction:column;gap:.72rem">
+
+    <div>
+      <span style="font-size:.6rem;text-transform:uppercase;font-weight:700;color:var(--muted);letter-spacing:.05em;display:block;margin-bottom:.3rem">Follow Primary Sister Star</span>
+      <div class="sister-grid" id="sisterButtonGrid"></div>
+      <div style="display:flex;gap:.3rem;margin-top:.3rem">
+        <button id="btnAllSisters" class="active" style="flex:1" onclick="focusSister(-1)">Full Pleiades Cluster</button>
+        <button id="btnGalacticView" style="flex:1" onclick="focusSister(-2)">Galactic Orbit View</button>
+      </div>
+    </div>
+
+    <div class="tel-grid mono">
+      <div><span class="tel-lbl">Active Focus</span><span id="activeSisterName" style="color:var(--sky);font-weight:bold">Pleiades (All 9 Sisters)</span></div>
+      <div><span class="tel-lbl">Spectral Class</span><span id="sisterSpecLabel" style="color:var(--am);font-weight:bold">B7IIIe Open Cluster</span></div>
+      <div><span class="tel-lbl">Swarm Bodies</span><span id="bodyCountLabel" style="color:var(--pur);font-weight:bold">4,096 Bodies</span></div>
+      <div><span class="tel-lbl">SSO Pipeline</span><span id="pipelineLabel" style="color:var(--em);font-weight:bold">Cooperative</span></div>
+    </div>
+
+    <div class="ctrl">
+      <div class="sl-hdr"><span>Integration Pipeline</span></div>
+      <select id="sel-pipeline">
+        <option value="cooperative">COOPERATIVE REDUCE  O(N log M)</option>
+        <option value="sequential">SEQUENTIAL STACK  O(N log M)</option>
+        <option value="exhaustive">EXHAUSTIVE DIRECT  O(N x M)</option>
+      </select>
+    </div>
+
+    <div class="ctrl">
+      <div class="sl-hdr"><span>Camera Mode</span></div>
+      <div style="display:flex;gap:.3rem">
+        <button id="btnCamA" onclick="setCameraMode('A')" style="flex:1">Camera A (Euler)</button>
+        <button id="btnCamB" onclick="setCameraMode('B')" class="active" style="flex:1">Camera B (Rotor G&#x2074;)</button>
+      </div>
+    </div>
+
+    <div>
+      <span style="font-size:.6rem;text-transform:uppercase;font-weight:700;color:var(--muted);letter-spacing:.05em;display:block;margin-bottom:.3rem">Particle Density</span>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.3rem">
+        <button onclick="setBodyCount(1024)" id="btn-1k">1,024</button>
+        <button onclick="setBodyCount(4096)" id="btn-4k" class="active">4,096</button>
+        <button onclick="setBodyCount(16384)" id="btn-16k">16,384</button>
+        <button onclick="setBodyCount(65536)" id="btn-64k">65,536</button>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:.4rem">
+      <div class="ctrl"><div class="sl-hdr"><span>Simulation Speed</span><span id="valSpeed" class="mono" style="color:var(--sky)">1.0x</span></div><input type="range" id="sliderSpeed" min="0.1" max="3.0" step="0.1" value="1.0"></div>
+      <div class="ctrl"><div class="sl-hdr"><span>Diffraction Spike Intensity</span><span id="valSpikes" class="mono" style="color:var(--pk)">1.0x</span></div><input type="range" id="sliderSpikes" min="0.0" max="2.0" step="0.1" value="1.0"></div>
+      <div class="ctrl"><div class="sl-hdr"><span>SSO Opening Angle (&#x3B8;)</span><span id="valTheta" class="mono" style="color:var(--em)">0.15</span></div><input type="range" id="sliderTheta" min="0.05" max="1.00" step="0.05" value="0.15"></div>
+      <div class="ctrl"><div class="sl-hdr"><span>Stellar Wind Radiation Pressure</span><span id="valWind" class="mono" style="color:var(--em)">0.035</span></div><input type="range" id="sliderWind" min="0.0" max="0.15" step="0.005" value="0.035"></div>
+      <div class="ctrl"><div class="sl-hdr"><span>Interstellar Brownian Drag</span><span id="valBrownian" class="mono" style="color:var(--pur)">0.020</span></div><input type="range" id="sliderBrownian" min="0.0" max="0.10" step="0.005" value="0.020"></div>
+      <div class="ctrl"><div class="sl-hdr"><span>Galactic Core Mass (Sgr A*)</span><span id="valCoreMass" class="mono" style="color:var(--am)">55,000 M&#x2609;</span></div><input type="range" id="sliderCoreMass" min="10000" max="120000" step="5000" value="55000"></div>
+      <div class="tog-row"><span>Constellation Asterism Lines</span><button id="toggleLines" class="tog-sm" onclick="toggleConstellationLines()">OFF</button></div>
+      <div class="tog-row"><span>Galactic Orbit Trajectory</span><button id="toggleOrbit" class="tog-sm" onclick="toggleOrbitPath()">OFF</button></div>
+      <div class="tog-row"><span>SSO Octree Spatial Bounds</span><button id="toggleBounds" class="tog-sm active" onclick="toggleSpatialBounds()">ON</button></div>
+    </div>
+
+    <div style="display:flex;gap:.3rem;padding-top:.3rem;border-top:1px solid rgba(148,163,184,.15)">
+      <button onclick="resetSimulation()" style="flex:1;background:var(--sky);color:#000;font-weight:bold">Reset Cluster</button>
+      <button onclick="togglePause()" id="btnPause" style="flex:1">Pause</button>
+    </div>
+  </div>
+</div>
+
+<div id="hud-strip">
+  <div class="hud-line"><span class="hud-lbl">Transformation Horizon</span><span class="hud-val" id="hud-camera-state" style="color:#60a5fa;font-weight:bold">Camera B Active</span></div>
+  <div class="hud-line"><span class="hud-lbl">GPU Compute Latency</span><span class="hud-val" id="hud-compute-time" style="color:#10b981">0.00 ms</span></div>
+  <div class="hud-line"><span class="hud-lbl">Render Latency (Present)</span><span class="hud-val" id="hud-render-time" style="color:#10b981">0.00 ms</span></div>
+  <div class="hud-line"><span class="hud-lbl">SSO Node Count</span><span class="hud-val" id="hud-nodes">0</span></div>
+  <div class="hud-line"><span class="hud-lbl">Parity Drift (Field Exact)</span><span class="hud-val" id="hud-drift">0.0000%</span></div>
+  <div class="hud-line"><span class="hud-lbl">Keyboard: H/R/L/O/B/[/]</span><span class="hud-val" style="color:#5c647e">(H=collapse)</span></div>
+</div>
+
+<div id="webgpu-banner">
+  <div class="banner-title"><span>&#x26A1; WebGPU INITIALIZING</span></div>
+  <div class="banner-desc" id="banner-text">Querying system hardware adapter...</div>
+  <button class="banner-btn" id="btn-banner-action" style="display:none">Dismiss</button>
+</div>
+
+<script type="module">
+// @ts-check
+
+import { updateCameraA, updateCameraB, synchronizeAtoB, synchronizeBtoA } from './potemkin_camera-v3.js';
+import { SparseStarOctreeBuilder, getWGSLOctreeShaderCode } from './sparse_star_octree-v6.js';
+
+const GPUBuf = { MAP_READ:0x01,MAP_WRITE:0x02,COPY_SRC:0x04,COPY_DST:0x08,INDEX:0x10,VERTEX:0x20,UNIFORM:0x40,STORAGE:0x80,INDIRECT:0x100,QUERY_RESOLVE:0x200 };
+const GPUSh  = { VERTEX:0x1,FRAGMENT:0x2,COMPUTE:0x4 };
+const GPUTex = { COPY_SRC:0x01,COPY_DST:0x02,TEXTURE_BINDING:0x04,STORAGE_BINDING:0x08,RENDER_ATTACHMENT:0x10 };
+
+// ── §1  Astrophysical Constants & Catalog ─────────────────────
+let G_CONST            = 0.045;
+let SGR_MASS           = 55000.0;
+let REACH_RADIUS       = 38.0;
+let BROWNIAN_STRENGTH  = 0.020;
+let RADIATION_PRESSURE = 0.035;
+let SPIKE_INTENSITY    = 1.0;
+let SHOW_LINES  = false;
+let SHOW_ORBIT  = false;
+let SHOW_BOUNDS = true;
+let TIME_SCALE  = 1.0;
+let isPaused    = false;
+let focusedSisterIdx = -1;
+let simTime = 0.0;
+let frameCount  = 0;
+let lastFpsTime = performance.now();
+let currentFps  = 60.0;
+
+/** @type {'cooperative'|'sequential'|'exhaustive'} */
+let activePipeline = 'cooperative';
+let thetaCutoff    = 0.15;
+const PARTICLE_FLOATS = 16;
+
+/**
+ * @typedef {{ name:string, mass:number, radius:number, color:number[], off:number[], spec:string }} SisterStar
+ */
+/** @type {SisterStar[]} */
+const SEVEN_SISTERS = [
+    { name:'Alcyone (Eta Tau)', mass:9200, radius:1.65, color:[0.38,0.68,1.0],  off:[0,0,0],            spec:'B7IIIe (Brightest Sister)' },
+    { name:'Atlas (27 Tau)',    mass:6800, radius:1.40, color:[0.55,0.78,1.0],  off:[26.5,3.2,12.4],    spec:'B8III (Father Star)'       },
+    { name:'Electra (17 Tau)', mass:5400, radius:1.30, color:[0.22,0.74,0.98], off:[-21.2,-2.8,-18.6], spec:'B6IIIe (Rapid Rotator)'    },
+    { name:'Maia (20 Tau)',    mass:5100, radius:1.25, color:[0.48,0.84,1.0],  off:[-9.4,4.6,17.8],    spec:'B8III (Nebular Sister)'    },
+    { name:'Merope (23 Tau)',  mass:4800, radius:1.28, color:[0.25,0.76,1.0],  off:[-3.8,-6.0,23.5],   spec:'B6IVe (Barnard Nebula)'    },
+    { name:'Taygeta (19 Tau)', mass:4200, radius:1.15, color:[0.72,0.88,1.0],  off:[-18.5,2.2,21.2],   spec:'B6V (Binary Star)'         },
+    { name:'Pleione (28 Tau)', mass:3900, radius:1.10, color:[0.82,0.58,1.0],  off:[27.6,5.2,14.2],    spec:'B8IVe (Mother/Shell Star)' },
+    { name:'Celaeno (16 Tau)', mass:2800, radius:0.95, color:[0.25,0.76,1.0],  off:[-25.8,-3.5,-10.5], spec:'B7IV (Lost Sister)'        },
+    { name:'Asterope (21 Tau)',mass:2500, radius:0.88, color:[0.58,0.78,1.0],  off:[-13.2,7.2,27.0],   spec:'B8V (Double Star)'         }
+];
+const NUM_SISTERS = SEVEN_SISTERS.length;
+
+/** Pleiades constellation asterism edges (index pairs into SEVEN_SISTERS) */
+const CONSTELLATION_EDGES = [[0,4],[4,2],[2,7],[7,5],[5,3],[3,8],[3,0],[0,1],[1,6]];
+
+// ── §2  Camera State & Matrix Math (Zero-Allocation) ─────────
+
+/** @type {import('./potemkin_camera-v3.js').CameraState} */
+const camState = {
+    target: new Float32Array([85,0,0]),
+    distance: 52, azimuth: 0.35, elevation: 0.45,
+    rotation: new Float32Array([0,0,0,1]),
+    quaternionLayout: 'xyzw', activeCamera: 'B'
+};
+synchronizeAtoB(camState);
+
+const _viewMat   = new Float32Array(16);
+const _projMat   = new Float32Array(16);
+const _vpMat     = new Float32Array(16);
+const _renderUni = new Float32Array(64);
+const _eye       = new Float32Array(3);
+
+/** @param {Float32Array} o @param {number} fov @param {number} ar @param {number} n @param {number} f */
+function mat4Persp(o,fov,ar,n,f){const t=1/Math.tan(fov/2),nf=1/(n-f);o[0]=t/ar;o[1]=0;o[2]=0;o[3]=0;o[4]=0;o[5]=t;o[6]=0;o[7]=0;o[8]=0;o[9]=0;o[10]=(f+n)*nf;o[11]=-1;o[12]=0;o[13]=0;o[14]=(2*f*n)*nf;o[15]=0;}
+
+/** @param {Float32Array} o @param {number[]} eye @param {number[]} c @param {number[]} u */
+function mat4LookAt(o,eye,c,u){let z0=eye[0]-c[0],z1=eye[1]-c[1],z2=eye[2]-c[2],l=Math.hypot(z0,z1,z2);if(l>1e-6){z0/=l;z1/=l;z2/=l;}else{z2=1;}let x0=u[1]*z2-u[2]*z1,x1=u[2]*z0-u[0]*z2,x2=u[0]*z1-u[1]*z0;l=Math.hypot(x0,x1,x2);if(l>1e-6){x0/=l;x1/=l;x2/=l;}else{x0=1;}const y0=z1*x2-z2*x1,y1=z2*x0-z0*x2,y2=z0*x1-z1*x0;o[0]=x0;o[1]=y0;o[2]=z0;o[3]=0;o[4]=x1;o[5]=y1;o[6]=z1;o[7]=0;o[8]=x2;o[9]=y2;o[10]=z2;o[11]=0;o[12]=-(x0*eye[0]+x1*eye[1]+x2*eye[2]);o[13]=-(y0*eye[0]+y1*eye[1]+y2*eye[2]);o[14]=-(z0*eye[0]+z1*eye[1]+z2*eye[2]);o[15]=1;}
+
+/** @param {Float32Array} o @param {Float32Array} a @param {Float32Array} b */
+function mat4Mul(o,a,b){for(let i=0;i<4;i++){const a0=a[i],a1=a[i+4],a2=a[i+8],a3=a[i+12];o[i]=a0*b[0]+a1*b[1]+a2*b[2]+a3*b[3];o[i+4]=a0*b[4]+a1*b[5]+a2*b[6]+a3*b[7];o[i+8]=a0*b[8]+a1*b[9]+a2*b[10]+a3*b[11];o[i+12]=a0*b[12]+a1*b[13]+a2*b[14]+a3*b[15];}}
+
+/** @param {number} w @param {number} h */
+function updateCameraUniforms(w,h){
+    const cEl=Math.cos(camState.elevation);
+    _eye[0]=camState.target[0]+camState.distance*cEl*Math.sin(camState.azimuth);
+    _eye[1]=camState.target[1]+camState.distance*Math.sin(camState.elevation);
+    _eye[2]=camState.target[2]+camState.distance*cEl*Math.cos(camState.azimuth);
+    mat4LookAt(_viewMat,Array.from(_eye),Array.from(camState.target),[0,1,0]);
+    mat4Persp(_projMat,(50*Math.PI)/180,w/h,0.05,8000);
+    mat4Mul(_vpMat,_projMat,_viewMat);
+    for(let i=0;i<16;i++) _renderUni[i]=_vpMat[i];
+    for(let i=0;i<16;i++) _renderUni[16+i]=_viewMat[i];
+    for(let i=0;i<16;i++) _renderUni[32+i]=_projMat[i];
+    _renderUni[48]=_eye[0]; _renderUni[49]=_eye[1]; _renderUni[50]=_eye[2];
+    _renderUni[51]=performance.now()*0.001;
+    _renderUni[52]=w; _renderUni[53]=h;
+    _renderUni[54]=SPIKE_INTENSITY; _renderUni[55]=0;
+    _renderUni[56]=_viewMat[0]; _renderUni[57]=_viewMat[4]; _renderUni[58]=_viewMat[8];  _renderUni[59]=0;
+    _renderUni[60]=_viewMat[1]; _renderUni[61]=_viewMat[5]; _renderUni[62]=_viewMat[9];  _renderUni[63]=0;
+}
+
+// ── §3  Sister N-body Integrator (CPU) ───────────────────────
+
+const pleiadesOrbitR = 85.0;
+const pleiadesOrbSpeed = Math.sqrt((G_CONST*SGR_MASS)/pleiadesOrbitR)*0.95;
+
+/** @type {{ pos:number[], vel:number[] }[]} */
+const sisterStates = SEVEN_SISTERS.map(()=>({ pos:[0,0,0], vel:[0,0,0] }));
+
+function resetSisterStates(){
+    for(let s=0;s<NUM_SISTERS;s++){
+        const k=SEVEN_SISTERS[s];const[rx,ry,rz]=k.off;const rd=Math.hypot(rx,rz);
+        let vx=0,vz=0;
+        if(rd>0.5){const vi=Math.sqrt((G_CONST*22000)/(rd+18))*0.38;vx=-(rz/rd)*vi;vz=(rx/rd)*vi;}
+        sisterStates[s].pos=[pleiadesOrbitR+rx,ry,rz];
+        sisterStates[s].vel=[vx,0,pleiadesOrbSpeed+vz];
+    }
+}
+resetSisterStates();
+
+/** @param {number} dt */
+function integrateSisters(dt){
+    for(let s=0;s<NUM_SISTERS;s++){
+        const[px,py,pz]=sisterStates[s].pos;
+        const dSq=px*px+py*py+pz*pz+80;const id3=Math.pow(dSq,-1.5);
+        let ax=-px*(G_CONST*SGR_MASS*id3),ay=-py*(G_CONST*SGR_MASS*id3),az=-pz*(G_CONST*SGR_MASS*id3);
+        for(let o=0;o<NUM_SISTERS;o++){
+            if(o===s)continue;
+            const dx=sisterStates[o].pos[0]-px,dy=sisterStates[o].pos[1]-py,dz=sisterStates[o].pos[2]-pz;
+            const f=G_CONST*SEVEN_SISTERS[o].mass*Math.pow(dx*dx+dy*dy+dz*dz+4,-1.5);
+            ax+=dx*f;ay+=dy*f;az+=dz*f;
+        }
+        sisterStates[s].vel[0]+=ax*dt;sisterStates[s].vel[1]+=ay*dt;sisterStates[s].vel[2]+=az*dt;
+        sisterStates[s].pos[0]+=sisterStates[s].vel[0]*dt;
+        sisterStates[s].pos[1]+=sisterStates[s].vel[1]*dt;
+        sisterStates[s].pos[2]+=sisterStates[s].vel[2]*dt;
+    }
+}
+
+// ── §4  WGSL Shaders ─────────────────────────────────────────
+
+const WGSL_COMPUTE_EXHAUSTIVE = `
+struct Body { pos:vec3f, radius:f32, dual:vec3f, mass:f32, vel:vec3f, life:f32, color:vec3f, type_:f32 };
+struct CU { dt:f32,G:f32,sgrMass:f32,reach:f32, brownian:f32,radPressure:f32,time:f32,numBodies:u32 };
+@group(0) @binding(0) var<storage,read>       bodiesIn:  array<Body>;
+@group(0) @binding(1) var<storage,read_write> bodiesOut: array<Body>;
+@group(0) @binding(2) var<uniform>            sim:       CU;
+fn curlTurb(p:vec3f,t:f32)->vec3f{
+  let s1=0.04; let s2=0.085; let t1=t*0.35; let t2=-t*0.55;
+  let c=vec3f(cos(s1*(p.z+p.y)+t1),cos(s1*(p.x+p.z)+t1),cos(s1*(p.y+p.x)+t1))*s1;
+  let sv=vec3f(-sin(s2*(p.z-p.y)+t2),-sin(s2*(p.x-p.z)+t2),-sin(s2*(p.y-p.x)+t2))*s2;
+  return (vec3f(c.z-c.y,c.x-c.z,c.y-c.x)*22.0+vec3f(sv.z-sv.y,sv.x-sv.z,sv.y-sv.x)*11.0);
+}
+fn accel(pos:vec3f,vel:vec3f,mass:f32,type_:f32,idx:u32)->vec3f{
+  var a=vec3f(0.0);
+  let cSq=dot(pos,pos)+80.0; let id=inverseSqrt(cSq); a-=pos*(sim.G*sim.sgrMass*id*id*id);
+  for(var s=0u;s<9u;s=s+1u){if(s!=idx){let b=bodiesIn[s];let d=b.pos-pos;let dsq=dot(d,d)+4.0;let id2=inverseSqrt(dsq);a+=d*(sim.G*b.mass*id2*id2*id2);if(type_<0.5){let rp=(b.mass*0.08)*sim.radPressure/(dsq+2.0);a-=d*(rp*id2);}}}
+  let st=max(1u,sim.numBodies/128u);
+  for(var k=0u;k<sim.numBodies;k=k+st){if(k!=idx){let kb=bodiesIn[k];let kd=kb.pos-pos;let kdsq=dot(kd,kd)+(sim.reach*sim.reach);let ki=inverseSqrt(kdsq);a+=kd*(sim.G*(kb.mass*f32(st)*0.06)*ki*ki*ki);}}
+  if(type_<0.5){let cf=curlTurb(pos,sim.time);let drag=-vel*(0.015*(sim.brownian*25.0+0.1));a+=drag+cf*(sim.brownian*2.8/sqrt(mass+0.2));}
+  let al=length(a); if(al>300.0){a=a*(300.0/al);}
+  return a;
+}
+@compute @workgroup_size(64)
+fn compute_main(@builtin(global_invocation_id) gid:vec3<u32>){
+  let idx=gid.x; if(idx>=sim.numBodies){return;}
+  var b=bodiesIn[idx]; let a=accel(b.pos,b.vel,b.mass,b.type_,idx);
+  b.vel=b.vel+a*sim.dt; let vs=length(b.vel); let mx=select(240.0,160.0,b.type_<0.5);
+  if(vs>mx){b.vel=b.vel*(mx/vs);}
+  b.pos=b.pos+b.vel*sim.dt;
+  let rl=length(b.pos); if(rl>1200.0){let n=b.pos/rl;b.pos=n*1200.0;b.vel=b.vel-1.6*dot(b.vel,n)*n;}
+  bodiesOut[idx]=b;
+}
+`;
+
+const WGSL_RENDER = `
+struct Body { pos:vec3f,radius:f32,dual:vec3f,mass:f32,vel:vec3f,life:f32,color:vec3f,type_:f32 };
+struct RU { vpMat:mat4x4f,viewMat:mat4x4f,projMat:mat4x4f, eye:vec3f,time:f32,res:vec2f,spikeInt:f32,pad:f32, camRight:vec3f,pad2:f32,camUp:vec3f,pad3:f32 };
+@group(0) @binding(0) var<storage,read> bodies:array<Body>;
+@group(0) @binding(1) var<uniform>      ru:RU;
+struct VO { @builtin(position) pos:vec4f, @location(0) uv:vec2f, @location(1) col:vec3f, @location(2) tp:f32, @location(3) rad:f32, @location(4) wpos:vec3f };
+@vertex fn vs_main(@builtin(vertex_index) vi:u32,@builtin(instance_index) ii:u32)->VO{
+  var o:VO; let b=bodies[ii]; let cx=f32(i32(vi&1u)*2-1); let cy=f32(i32((vi>>1u)&1u)*2-1);
+  o.uv=vec2f(cx,cy); o.col=b.color; o.tp=b.type_; o.rad=b.radius; o.wpos=b.pos;
+  let pr=select(b.radius,b.radius*1.35,b.type_>0.5);
+  let vp=(ru.viewMat*vec4f(b.pos,1.0)).xyz;
+  o.pos=ru.projMat*vec4f(vp.x+cx*pr,vp.y+cy*pr,vp.z,1.0);
+  return o;
+}
+struct FO { @location(0) color:vec4f, @builtin(frag_depth) depth:f32 };
+@fragment fn fs_main(in:VO)->FO{
+  var o:FO; let dsq=dot(in.uv,in.uv); if(dsq>1.0){discard;}
+  let r=sqrt(dsq);
+  let zCam=normalize(cross(ru.camRight,ru.camUp));
+  if(in.tp>0.5){
+    let sdr=0.72; let u=r/sdr;
+    let ua=abs(in.uv.x); let va=abs(in.uv.y);
+    let cs=exp(-ua*28.0)*exp(-va*2.0)+exp(-va*28.0)*exp(-ua*2.0);
+    let ru2=abs(in.uv.x+in.uv.y)*0.707; let rv=abs(in.uv.x-in.uv.y)*0.707;
+    let ds=(exp(-ru2*22.0)*exp(-rv*3.0)+exp(-rv*22.0)*exp(-ru2*3.0))*0.35;
+    let spk=(cs+ds)*ru.spikeInt*1.25;
+    if(u<=1.0){
+      let mu=sqrt(max(0.0,1.0-u*u));
+      let pf=in.uv*20.0; let pl=sin(pf.x+ru.time*2.5)*cos(pf.y-ru.time*2.0)*0.06;
+      let di=1.95*(0.80+0.20*mu+pl); let wc=smoothstep(0.95,0.0,u)*0.75+pow(mu,2.5)*0.55;
+      let bc=mix(in.col*1.4,vec3f(1.0),clamp(wc,0.0,1.0));
+      let Ns=normalize(in.uv.x*ru.camRight+in.uv.y*ru.camUp+mu*zCam);
+      let sp=in.wpos+Ns*in.rad; let cl=ru.projMat*ru.viewMat*vec4f(sp,1.0);
+      o.depth=clamp(cl.z/cl.w,0.0,1.0); o.color=vec4f(clamp(bc*di+vec3f(1.0)*spk,vec3f(0.0),vec3f(4.0)),1.0);
+    } else {
+      let cf=pow(clamp((1.0-r)/(1.0-sdr),0.0,1.0),2.0)*1.35;
+      let cc=ru.projMat*ru.viewMat*vec4f(in.wpos,1.0);
+      o.depth=clamp(cc.z/cc.w,0.0,1.0); o.color=vec4f(in.col*cf+vec3f(1.0)*(spk*clamp((1.0-r)/(1.0-sdr),0.0,1.0)),cf);
+    }
+    return o;
+  }
+  let nz=sqrt(max(0.0,1.0-dsq));
+  let Ns=normalize(in.uv.x*ru.camRight+in.uv.y*ru.camUp+nz*zCam);
+  let sp=in.wpos+Ns*in.rad;
+  let V=normalize(ru.eye-sp);
+  var td=vec3f(0.0); var ts=vec3f(0.0);
+  for(var s=0u;s<9u;s=s+1u){
+    let sb=bodies[s]; let tl=sb.pos-sp; let dl=length(tl); let L=tl/max(dl,0.01);
+    let NL=dot(Ns,L); if(NL<=0.0){continue;}
+    var shd=1.0;
+    for(var k=0u;k<9u;k=k+1u){if(k!=s){let kb=bodies[k];let to=kb.pos-sp;let t=dot(to,L);if(t>0.0&&t<dl){let cp=sp+L*t;let pd=length(kb.pos-cp);let pen=kb.radius*t/max(dl-t,0.1);let soft=max(pen,0.15);shd=min(shd,1.0-smoothstep(kb.radius-soft,kb.radius+soft,pd));}}}
+    let H=normalize(L+V); let NHt=max(0.0,dot(Ns,H));
+    let irr=(sb.radius*sb.radius*3.5)/(dl*dl+6.0); let sr=sb.color*(irr*shd);
+    td+=sr*NL; ts+=sr*pow(NHt,32.0)*0.75;
+  }
+  let dfl=clamp(length(td)*2.2,0.0,1.0);
+  let fr=pow(clamp(1.0-max(0.0,dot(Ns,V)),0.0,1.0),3.5)*0.35*dfl;
+  let lc=in.col*td*1.35+ts*0.85+in.col*0.008+vec3f(0.25,0.7,1.0)*fr;
+  let tm=lc/(lc+vec3f(1.0)); let fc=pow(tm,vec3f(1.0/2.2));
+  let cl=ru.vpMat*vec4f(sp,1.0); o.depth=clamp(cl.z/cl.w,0.0,1.0);
+  o.color=vec4f(clamp(fc,vec3f(0.0),vec3f(2.0)),1.0);
+  return o;
+}
+`;
+
+const WGSL_SKY = `
+struct RU { vpMat:mat4x4f,viewMat:mat4x4f,projMat:mat4x4f,eye:vec3f,time:f32,res:vec2f,spikeInt:f32,pad:f32,camRight:vec3f,pad2:f32,camUp:vec3f,pad3:f32 };
+@group(0) @binding(0) var<uniform> ru:RU;
+struct SV { @builtin(position) pos:vec4f, @location(0) uv:vec2f };
+@vertex fn vs_sky(@builtin(vertex_index) vi:u32)->SV{
+  var o:SV; let x=f32((vi<<1u)&2u)*2.0-1.0; let y=f32(vi&2u)*2.0-1.0;
+  o.pos=vec4f(x,y,0.99999,1.0); o.uv=vec2f(x,y); return o;
+}
+@fragment fn fs_sky(in:SV)->@location(0) vec4f{
+  let p=in.uv*450.0; var p3=fract(vec3f(p.x,p.y,p.x+p.y)*0.1031);
+  p3+=dot(p3,p3.yzx+33.33);
+  let sv=fract((p3.x+p3.y)*p3.z);
+  let bg=select(0.0,pow(sv,35.0)*0.45,sv>0.96);
+  let vig=clamp(1.0-length(in.uv)*0.35,0.0,1.0);
+  return vec4f(vec3f(0.008,0.015,0.035)*vig+vec3f(bg*0.8,bg*0.9,bg),1.0);
+}
+`;
+
+const WGSL_LINES = `
+struct Body { pos:vec3f,radius:f32,dual:vec3f,mass:f32,vel:vec3f,life:f32,color:vec3f,type_:f32 };
+struct RU { vpMat:mat4x4f,viewMat:mat4x4f,projMat:mat4x4f,eye:vec3f,time:f32,res:vec2f,spikeInt:f32,pad:f32,camRight:vec3f,pad2:f32,camUp:vec3f,pad3:f32 };
+@group(0) @binding(0) var<storage,read> bodies:array<Body>;
+@group(0) @binding(1) var<uniform>      ru:RU;
+struct LVI { @location(0) sA:f32,@location(1) sB:f32,@location(2) t:f32,@location(3) isOrbit:f32,@location(4) angle:f32 };
+struct LVO { @builtin(position) pos:vec4f,@location(0) col:vec4f };
+@vertex fn vs_lines(in:LVI)->LVO{
+  var o:LVO; var wp=vec3f(0.0);
+  if(in.isOrbit>0.5){wp=vec3f(85.0*cos(in.angle),0.0,85.0*sin(in.angle));o.col=vec4f(0.98,0.78,0.28,0.25);}
+  else{wp=mix(bodies[u32(in.sA)].pos,bodies[u32(in.sB)].pos,in.t);o.col=vec4f(0.25,0.78,0.98,0.45);}
+  o.pos=ru.vpMat*vec4f(wp,1.0); return o;
+}
+@fragment fn fs_lines(in:LVO)->@location(0) vec4f{return in.col;}
+`;
+
+// ── §5  Swarm Data Generation ─────────────────────────────────
+
+let NUM_BODIES = 4096;
+
+/** @returns {Float32Array} */
+function generateSwarmData(n){
+    const data = new Float32Array(n * PARTICLE_FLOATS);
+    const ARCH = [
+        {minR:0.22,maxR:0.38,minM:1.5,maxM:4.8,cols:[[0.95,0.78,0.48],[0.90,0.65,0.38]]},
+        {minR:0.16,maxR:0.28,minM:0.8,maxM:2.2,cols:[[0.28,0.68,0.96],[0.35,0.85,0.98]]},
+        {minR:0.10,maxR:0.18,minM:0.3,maxM:1.1,cols:[[0.32,0.75,0.72],[0.45,0.68,0.82]]},
+        {minR:0.08,maxR:0.15,minM:0.2,maxM:0.8,cols:[[0.88,0.52,0.36],[0.82,0.42,0.28]]},
+        {minR:0.07,maxR:0.13,minM:0.15,maxM:0.6,cols:[[0.78,0.35,0.24],[0.65,0.28,0.22]]},
+        {minR:0.05,maxR:0.10,minM:0.04,maxM:0.25,cols:[[0.78,0.88,0.98],[0.88,0.92,0.98]]},
+        {minR:0.03,maxR:0.07,minM:0.01,maxM:0.08,cols:[[0.58,0.62,0.68],[0.48,0.52,0.56]]}
+    ];
+    /**
+     * @param {Float32Array} d @param {number} idx
+     * @param {{ pos?:number[], vel?:number[], dual?:number[], mass?:number, life?:number, radius?:number, color?:number[], type_?:number }} o
+     */
+    const set = (d, idx, { pos=[0,0,0], vel=[0,0,0], dual=[0,0,0], mass=1, life=1, radius=0.05, color=[0.3,0.5,0.95], type_=0 }) => {
+        const b=idx*PARTICLE_FLOATS;
+        d[b]=pos[0];d[b+1]=pos[1];d[b+2]=pos[2];d[b+3]=radius;
+        d[b+4]=dual[0];d[b+5]=dual[1];d[b+6]=dual[2];d[b+7]=mass;
+        d[b+8]=vel[0];d[b+9]=vel[1];d[b+10]=vel[2];d[b+11]=life;
+        d[b+12]=color[0];d[b+13]=color[1];d[b+14]=color[2];d[b+15]=type_;
+    };
+    for(let s=0;s<NUM_SISTERS;s++){
+        const k=SEVEN_SISTERS[s];const[rx,ry,rz]=k.off;const rd=Math.hypot(rx,rz);
+        let vx=0,vz=0;
+        if(rd>0.5){const vi=Math.sqrt((G_CONST*22000)/(rd+18))*0.38;vx=-(rz/rd)*vi;vz=(rx/rd)*vi;}
+        set(data,s,{pos:[pleiadesOrbitR+rx,ry,rz],vel:[vx,0,pleiadesOrbSpeed+vz],mass:k.mass,radius:k.radius,color:k.color,type_:1.0});
+    }
+    for(let i=NUM_SISTERS;i<n;i++){
+        const isHalo=Math.random()<0.45;
+        let ppx=pleiadesOrbitR,ppy=0,ppz=0,pvx=0,pvy=0,pvz=pleiadesOrbSpeed,pmass=45000,minR=14,maxR=85;
+        if(!isHalo){
+            const si=i%NUM_SISTERS;const bb=si*PARTICLE_FLOATS;
+            ppx=data[bb];ppy=data[bb+1];ppz=data[bb+2];
+            pvx=data[bb+8];pvy=data[bb+9];pvz=data[bb+10];
+            pmass=SEVEN_SISTERS[si].mass;minR=4;maxR=36;
+        }
+        const ct=(Math.random()*2-1)*0.35,st=Math.sqrt(Math.max(0,1-ct*ct));
+        const phi=Math.random()*Math.PI*2;
+        const rd=minR+(maxR-minR)*Math.pow(Math.max(0.0005,Math.random()),0.65);
+        const vK=Math.sqrt((G_CONST*pmass)/(rd+4))*(0.85+Math.random()*0.25);
+        const ar=ARCH[Math.floor(Math.random()*ARCH.length)];
+        const col=ar.cols[Math.floor(Math.random()*ar.cols.length)];
+        set(data,i,{
+            pos:[ppx+st*Math.cos(phi)*rd,ppy+ct*rd,ppz+st*Math.sin(phi)*rd],
+            vel:[pvx-Math.sin(phi)*vK,pvy+(Math.random()-0.5)*vK*0.25,pvz+Math.cos(phi)*vK],
+            mass:ar.minM+Math.random()*(ar.maxM-ar.minM),
+            radius:ar.minR+Math.random()*(ar.maxR-ar.minR),
+            color:col,type_:0.0
+        });
+    }
+    return data;
+}
+
+// ── §6  WebGPU Init & Pipeline Setup ─────────────────────────
+
+const canvas = /** @type {HTMLCanvasElement} */ (document.getElementById('gpuCanvas'));
+canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+window.addEventListener('resize', () => {
+    canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+    if(depthTex && device){
+        depthTex.destroy();
+        depthTex = device.createTexture({size:[canvas.width,canvas.height],format:'depth24plus',usage:GPUTex.RENDER_ATTACHMENT});
+    }
+});
+
+/** @type {any} */ let device = null;
+/** @type {any} */ let context = null;
+let canvasFormat = 'bgra8unorm';
+/** @type {any} */ let bodyBufA=null,bodyBufB=null;
+/** @type {any} */ let ssoPBuf=null,ssoOBuf=null,ssoParamBuf=null;
+/** @type {any} */ let compUniB=null,renderUniB=null,lineVB=null;
+/** @type {GPUTexture|null} */ let depthTex=null;
+/** @type {any} */ let pipeExhaust=null,pipeRender=null,pipeSky=null,pipeLines=null;
+/** @type {any} */ let pipeSSO_pos=null,pipeSSO_seq=null,pipeSSO_coop=null,pipeSSO_dir=null;
+/** @type {any} */ let bgExhAtoB=null,bgExhBtoA=null;
+/** @type {any} */ let bgRenderA=null,bgRenderB=null,bgSky=null;
+/** @type {any} */ let bgLineA=null,bgLineB=null;
+/** @type {import('./sparse_star_octree-v6.js').OctreeNode[]} */ let flatNodes=[];
+let gpuActive=false,pingPong=0,gpuFIF=false;
+
+const ssoStars = SEVEN_SISTERS.map((s,i)=>({
+    name:s.name,x:pleiadesOrbitR+s.off[0],y:s.off[1],z:s.off[2],
+    radius:s.radius,mass:s.mass,r:s.color[0],g:s.color[1],b:s.color[2]
+}));
+const _compUni = new Float32Array(16);
+
+function styleFatalBanner(){
+    const b=document.getElementById('webgpu-banner');if(!b)return;
+    b.style.border='1px solid #ef4444';b.style.background='linear-gradient(135deg,#7f1d1d,#0f172a)';
+    const t=b.querySelector('.banner-title');if(t)t.innerHTML='<span>&#x274C; WebGPU Unavailable</span>';
+}
+
+function mkBGL(bgl){ return device.createBindGroupLayout({entries:bgl}); }
+function mkPPL(bgl,code,ep){ return device.createComputePipeline({layout:device.createPipelineLayout({bindGroupLayouts:[bgl]}),compute:{module:device.createShaderModule({code}),entryPoint:ep}}); }
+
+async function initWebGPU(){
+    const navGpu=/** @type {any} */(navigator).gpu;
+    const bText=document.getElementById('banner-text');
+    const aBtn=document.getElementById('btn-banner-action');
+    if(!navGpu){if(bText)bText.textContent='WebGPU not supported.';if(aBtn)aBtn.style.display='block';styleFatalBanner();return;}
+    const adapter=await navGpu.requestAdapter({powerPreference:'high-performance'});
+    if(!adapter){if(bText)bText.textContent='No WebGPU adapter found.';if(aBtn)aBtn.style.display='block';styleFatalBanner();return;}
+    device=await adapter.requestDevice();
+    gpuActive=true;
+    const bEl=document.getElementById('webgpu-banner');if(bEl)bEl.style.display='none';
+    context=/** @type {any} */(canvas.getContext('webgpu'));
+    canvasFormat=navGpu.getPreferredCanvasFormat();
+    context.configure({device,format:canvasFormat,alphaMode:'premultiplied'});
+    await setupPipelines();
+    requestAnimationFrame(frame);
+}
+
+async function setupPipelines(){
+    const sw=generateSwarmData(NUM_BODIES);
+    bodyBufA=device.createBuffer({size:sw.byteLength,usage:GPUBuf.STORAGE|GPUBuf.COPY_DST|GPUBuf.VERTEX});
+    bodyBufB=device.createBuffer({size:sw.byteLength,usage:GPUBuf.STORAGE|GPUBuf.COPY_DST|GPUBuf.VERTEX});
+    device.queue.writeBuffer(bodyBufA,0,sw);device.queue.writeBuffer(bodyBufB,0,sw);
+    ssoPBuf=device.createBuffer({size:sw.byteLength,usage:GPUBuf.STORAGE|GPUBuf.COPY_SRC|GPUBuf.COPY_DST});
+    device.queue.writeBuffer(ssoPBuf,0,sw);
+    const b0=new SparseStarOctreeBuilder(ssoStars,1,8);const od0=b0.build();flatNodes=b0.flatNodes;
+    ssoOBuf=device.createBuffer({size:Math.max(od0.byteLength,4096),usage:GPUBuf.STORAGE|GPUBuf.COPY_DST});
+    device.queue.writeBuffer(ssoOBuf,0,od0);
+    ssoParamBuf=device.createBuffer({size:256,usage:GPUBuf.UNIFORM|GPUBuf.COPY_DST});
+    compUniB=device.createBuffer({size:64,usage:GPUBuf.UNIFORM|GPUBuf.COPY_DST});
+    renderUniB=device.createBuffer({size:256,usage:GPUBuf.UNIFORM|GPUBuf.COPY_DST});
+    depthTex=device.createTexture({size:[canvas.width,canvas.height],format:'depth24plus',usage:GPUTex.RENDER_ATTACHMENT});
+    // Line VB
+    const ld=[];
+    for(const[a,b] of CONSTELLATION_EDGES){ld.push(a,b,0,0,0);ld.push(a,b,1,0,0);}
+    for(let i=0;i<64;i++){const a1=(i/64)*Math.PI*2,a2=((i+1)/64)*Math.PI*2;ld.push(0,0,0,1,a1);ld.push(0,0,0,1,a2);}
+    lineVB=device.createBuffer({size:ld.length*4,usage:GPUBuf.VERTEX|GPUBuf.COPY_DST});
+    device.queue.writeBuffer(lineVB,0,new Float32Array(ld));
+    // BGLs
+    const bglPP=mkBGL([
+        {binding:0,visibility:GPUSh.COMPUTE,buffer:{type:'read-only-storage'}},
+        {binding:1,visibility:GPUSh.COMPUTE,buffer:{type:'storage'}},
+        {binding:2,visibility:GPUSh.COMPUTE,buffer:{type:'uniform'}}
+    ]);
+    const bglSSO=mkBGL([
+        {binding:0,visibility:GPUSh.COMPUTE,buffer:{type:'storage'}},
+        {binding:1,visibility:GPUSh.COMPUTE,buffer:{type:'read-only-storage'}},
+        {binding:2,visibility:GPUSh.COMPUTE,buffer:{type:'uniform'}}
+    ]);
+    const bglRender=mkBGL([
+        {binding:0,visibility:GPUSh.VERTEX|GPUSh.FRAGMENT,buffer:{type:'read-only-storage'}},
+        {binding:1,visibility:GPUSh.VERTEX|GPUSh.FRAGMENT,buffer:{type:'uniform'}}
+    ]);
+    const bglSky=mkBGL([{binding:0,visibility:GPUSh.FRAGMENT,buffer:{type:'uniform'}}]);
+    // Exhaustive
+    pipeExhaust=device.createComputePipeline({
+        layout:device.createPipelineLayout({bindGroupLayouts:[bglPP]}),
+        compute:{module:device.createShaderModule({code:WGSL_COMPUTE_EXHAUSTIVE}),entryPoint:'compute_main'}
+    });
+    bgExhAtoB=device.createBindGroup({layout:bglPP,entries:[{binding:0,resource:{buffer:bodyBufA}},{binding:1,resource:{buffer:bodyBufB}},{binding:2,resource:{buffer:compUniB}}]});
+    bgExhBtoA=device.createBindGroup({layout:bglPP,entries:[{binding:0,resource:{buffer:bodyBufB}},{binding:1,resource:{buffer:bodyBufA}},{binding:2,resource:{buffer:compUniB}}]});
+    // SSO
+    const ssoMod=device.createShaderModule({code:getWGSLOctreeShaderCode()});
+    const ssoLayout=device.createPipelineLayout({bindGroupLayouts:[bglSSO]});
+    pipeSSO_pos=device.createComputePipeline({layout:ssoLayout,compute:{module:ssoMod,entryPoint:'position_update_pass'}});
+    pipeSSO_seq=device.createComputePipeline({layout:ssoLayout,compute:{module:ssoMod,entryPoint:'sequential_dynamics_pass'}});
+    pipeSSO_coop=device.createComputePipeline({layout:ssoLayout,compute:{module:ssoMod,entryPoint:'cooperative_dynamics_pass'}});
+    pipeSSO_dir=device.createComputePipeline({layout:ssoLayout,compute:{module:ssoMod,entryPoint:'direct_dynamics_pass'}});
+    // Render
+    const rMod=device.createShaderModule({code:WGSL_RENDER});
+    pipeRender=device.createRenderPipeline({
+        layout:device.createPipelineLayout({bindGroupLayouts:[bglRender]}),
+        vertex:{module:rMod,entryPoint:'vs_main'},
+        fragment:{module:rMod,entryPoint:'fs_main',targets:[{format:canvasFormat}]},
+        depthStencil:{depthWriteEnabled:true,depthCompare:'less',format:'depth24plus'},
+        primitive:{topology:'triangle-strip'}
+    });
+    bgRenderA=device.createBindGroup({layout:bglRender,entries:[{binding:0,resource:{buffer:bodyBufA}},{binding:1,resource:{buffer:renderUniB}}]});
+    bgRenderB=device.createBindGroup({layout:bglRender,entries:[{binding:0,resource:{buffer:bodyBufB}},{binding:1,resource:{buffer:renderUniB}}]});
+    bgLineA=device.createBindGroup({layout:bglRender,entries:[{binding:0,resource:{buffer:bodyBufA}},{binding:1,resource:{buffer:renderUniB}}]});
+    bgLineB=device.createBindGroup({layout:bglRender,entries:[{binding:0,resource:{buffer:bodyBufB}},{binding:1,resource:{buffer:renderUniB}}]});
+    // Sky
+    const skyMod=device.createShaderModule({code:WGSL_SKY});
+    pipeSky=device.createRenderPipeline({
+        layout:device.createPipelineLayout({bindGroupLayouts:[bglSky]}),
+        vertex:{module:skyMod,entryPoint:'vs_sky'},
+        fragment:{module:skyMod,entryPoint:'fs_sky',targets:[{format:canvasFormat}]},
+        depthStencil:{depthWriteEnabled:false,depthCompare:'always',format:'depth24plus'},
+        primitive:{topology:'triangle-list'}
+    });
+    bgSky=device.createBindGroup({layout:bglSky,entries:[{binding:0,resource:{buffer:renderUniB}}]});
+    // Lines
+    const lMod=device.createShaderModule({code:WGSL_LINES});
+    pipeLines=device.createRenderPipeline({
+        layout:device.createPipelineLayout({bindGroupLayouts:[bglRender]}),
+        vertex:{module:lMod,entryPoint:'vs_lines',buffers:[{arrayStride:20,attributes:[
+            {shaderLocation:0,offset:0,format:'float32'},{shaderLocation:1,offset:4,format:'float32'},
+            {shaderLocation:2,offset:8,format:'float32'},{shaderLocation:3,offset:12,format:'float32'},
+            {shaderLocation:4,offset:16,format:'float32'}
+        ]}]},
+        fragment:{module:lMod,entryPoint:'fs_lines',targets:[{format:canvasFormat,blend:{
+            color:{srcFactor:'src-alpha',dstFactor:'one-minus-src-alpha',operation:'add'},
+            alpha:{srcFactor:'one',dstFactor:'one-minus-src-alpha',operation:'add'}
+        }}]},
+        depthStencil:{depthWriteEnabled:false,depthCompare:'less-equal',format:'depth24plus'},
+        primitive:{topology:'line-list'}
+    });
+}
+
+// ── §7  Animation Frame Loop ─────────────────────────────────
+
+let _lastT=performance.now(),_frms=0,_fpsT=0;
+
+/** @param {number} t */
+function frame(t){
+    requestAnimationFrame(frame);
+    if(!device||!context||gpuFIF)return;
+    const dt=Math.min((t-_lastT)/1000,0.05);_lastT=t;
+    _frms++;_fpsT+=dt;frameCount++;
+    if(!isPaused)simTime+=0.012*TIME_SCALE;
+    if(_fpsT>=0.5){
+        currentFps=_frms/_fpsT;_frms=0;_fpsT=0;
+        const fe=document.getElementById('fpsDisplay');if(fe)fe.textContent=`${Math.round(currentFps)} FPS`;
+        const re=document.getElementById('computeRate');if(re)re.textContent=`~${((NUM_BODIES*48*64*currentFps)/1e9).toFixed(1)} GFLOPS`;
+    }
+    if(!depthTex||depthTex.width!==canvas.width||depthTex.height!==canvas.height){
+        if(depthTex)depthTex.destroy();
+        depthTex=device.createTexture({size:[canvas.width,canvas.height],format:'depth24plus',usage:GPUTex.RENDER_ATTACHMENT});
+    }
+    if(!isPaused)integrateSisters(0.012*TIME_SCALE);
+    // Camera target
+    if(focusedSisterIdx===-1){
+        let sx=0,sy=0,sz=0;for(let s=0;s<NUM_SISTERS;s++){sx+=sisterStates[s].pos[0];sy+=sisterStates[s].pos[1];sz+=sisterStates[s].pos[2];}
+        camState.target[0]=sx/NUM_SISTERS;camState.target[1]=sy/NUM_SISTERS;camState.target[2]=sz/NUM_SISTERS;
+    }else if(focusedSisterIdx>=0&&focusedSisterIdx<NUM_SISTERS){
+        camState.target[0]=sisterStates[focusedSisterIdx].pos[0];camState.target[1]=sisterStates[focusedSisterIdx].pos[1];camState.target[2]=sisterStates[focusedSisterIdx].pos[2];
+    }else{camState.target[0]=0;camState.target[1]=0;camState.target[2]=0;}
+    updateCameraUniforms(canvas.width,canvas.height);
+    // Sync SSO star positions
+    for(let s=0;s<NUM_SISTERS;s++){ssoStars[s].x=sisterStates[s].pos[0];ssoStars[s].y=sisterStates[s].pos[1];ssoStars[s].z=sisterStates[s].pos[2];}
+    device.queue.writeBuffer(renderUniB,0,_renderUni);
+    _compUni[0]=isPaused?0:0.012*TIME_SCALE;_compUni[1]=G_CONST;_compUni[2]=SGR_MASS;_compUni[3]=REACH_RADIUS;
+    _compUni[4]=BROWNIAN_STRENGTH;_compUni[5]=RADIATION_PRESSURE;_compUni[6]=t*0.001;_compUni[7]=NUM_BODIES;
+    device.queue.writeBuffer(compUniB,0,_compUni);
+    // SSO Octree
+    const builder=new SparseStarOctreeBuilder(ssoStars,1,8);
+    const octreeData=builder.build();flatNodes=builder.flatNodes;
+    const hn=document.getElementById('hud-nodes');if(hn)hn.textContent=String(flatNodes.length);
+    if(!ssoOBuf||ssoOBuf.size<octreeData.byteLength){
+        if(ssoOBuf)ssoOBuf.destroy();
+        ssoOBuf=device.createBuffer({size:Math.max(octreeData.byteLength,4096),usage:GPUBuf.STORAGE|GPUBuf.COPY_DST});
+    }
+    if(octreeData.byteLength>0)device.queue.writeBuffer(ssoOBuf,0,octreeData);
+    const pb=new ArrayBuffer(32);const pf=new Float32Array(pb);const pu=new Uint32Array(pb);
+    pf[0]=isPaused?0:0.05*TIME_SCALE;pf[1]=BROWNIAN_STRENGTH*2.5;pf[2]=thetaCutoff;
+    pu[3]=NUM_BODIES;pu[4]=flatNodes.length;pf[5]=simTime;pu[6]=1;pu[7]=0;
+    device.queue.writeBuffer(ssoParamBuf,0,pb);
+    // Sync sister stars into GPU buffers (first 9 slots)
+    const sab=new Float32Array(NUM_SISTERS*PARTICLE_FLOATS);
+    for(let s=0;s<NUM_SISTERS;s++){
+        const base=s*PARTICLE_FLOATS;const k=SEVEN_SISTERS[s];
+        sab[base]=sisterStates[s].pos[0];sab[base+1]=sisterStates[s].pos[1];sab[base+2]=sisterStates[s].pos[2];sab[base+3]=k.radius;
+        sab[base+4]=0;sab[base+5]=0;sab[base+6]=0;sab[base+7]=k.mass;
+        sab[base+8]=sisterStates[s].vel[0];sab[base+9]=sisterStates[s].vel[1];sab[base+10]=sisterStates[s].vel[2];sab[base+11]=1;
+        sab[base+12]=k.color[0];sab[base+13]=k.color[1];sab[base+14]=k.color[2];sab[base+15]=1;
+    }
+    device.queue.writeBuffer(bodyBufA,0,sab);device.queue.writeBuffer(bodyBufB,0,sab);
+    if(ssoPBuf)device.queue.writeBuffer(ssoPBuf,0,sab);
+    const tc0=performance.now();
+    gpuFIF=true;
+    const ce=device.createCommandEncoder();
+    if(!isPaused){
+        if(activePipeline==='exhaustive'){
+            const bg=pingPong%2===0?bgExhAtoB:bgExhBtoA;
+            const p=ce.beginComputePass();p.setPipeline(pipeExhaust);p.setBindGroup(0,bg);p.dispatchWorkgroups(Math.ceil(NUM_BODIES/64));p.end();
+        }else{
+            const ssoBG=device.createBindGroup({layout:pipeSSO_pos.getBindGroupLayout(0),entries:[
+                {binding:0,resource:{buffer:ssoPBuf}},{binding:1,resource:{buffer:ssoOBuf}},{binding:2,resource:{buffer:ssoParamBuf}}
+            ]});
+            const p1=ce.beginComputePass();p1.setPipeline(pipeSSO_pos);p1.setBindGroup(0,ssoBG);p1.dispatchWorkgroups(Math.ceil(NUM_BODIES/64));p1.end();
+            const p2=ce.beginComputePass();p2.setBindGroup(0,ssoBG);
+            if(activePipeline==='cooperative'){p2.setPipeline(pipeSSO_coop);p2.dispatchWorkgroups(NUM_BODIES);}
+            else{p2.setPipeline(pipeSSO_seq);p2.dispatchWorkgroups(Math.ceil(NUM_BODIES/64));}
+            p2.end();
+            const wB=pingPong%2===0?bodyBufB:bodyBufA;
+            ce.copyBufferToBuffer(ssoPBuf,0,wB,0,NUM_BODIES*64);
+        }
+    }
+    const actRBG=pingPong%2===0?bgRenderB:bgRenderA;
+    const actLBG=pingPong%2===0?bgLineB:bgLineA;
+    const rp=ce.beginRenderPass({
+        colorAttachments:[{view:context.getCurrentTexture().createView(),clearValue:{r:0.008,g:0.015,b:0.035,a:1},loadOp:'clear',storeOp:'store'}],
+        depthStencilAttachment:{view:depthTex.createView(),depthClearValue:1,depthLoadOp:'clear',depthStoreOp:'store'}
+    });
+    rp.setPipeline(pipeSky);rp.setBindGroup(0,bgSky);rp.draw(3,1,0,0);
+    rp.setPipeline(pipeLines);rp.setBindGroup(0,actLBG);rp.setVertexBuffer(0,lineVB);
+    const nle=CONSTELLATION_EDGES.length*2;
+    if(SHOW_LINES)rp.draw(nle,1,0,0);
+    if(SHOW_ORBIT)rp.draw(128,1,nle,0);
+    rp.setPipeline(pipeRender);rp.setBindGroup(0,actRBG);rp.draw(4,NUM_BODIES,0,0);
+    rp.end();
+    device.queue.submit([ce.finish()]);
+    const tc1=performance.now();
+    const hc=document.getElementById('hud-compute-time');if(hc)hc.textContent=`${(tc1-tc0).toFixed(2)} ms`;
+    if(!isPaused)pingPong++;
+    gpuFIF=false;
+}
+
+// ── §8  Mouse/Touch Interaction ──────────────────────────────
+
+let isDrag=false,pmx=0,pmy=0;
+canvas.addEventListener('mousedown',e=>{isDrag=true;pmx=e.clientX;pmy=e.clientY;});
+window.addEventListener('mouseup',()=>{isDrag=false;});
+window.addEventListener('mousemove',e=>{if(!isDrag)return;camState.azimuth-=(e.clientX-pmx)*0.005;camState.elevation=Math.max(0.02,Math.min(Math.PI/2-0.02,camState.elevation+(e.clientY-pmy)*0.005));pmx=e.clientX;pmy=e.clientY;});
+canvas.addEventListener('wheel',e=>{e.preventDefault();camState.distance=Math.max(8,Math.min(400,camState.distance*Math.exp(e.deltaY*0.0018)));},{passive:false});
+
+// ── §9  UI Functions ─────────────────────────────────────────
+
+/** @type {any} */ window.toggleUICollapse=function(){const p=document.getElementById('hudPanel');const i=document.getElementById('foldIcon');if(p){p.classList.toggle('collapsed');if(i)i.textContent=p.classList.contains('collapsed')?'&#x25BC;':'&#x25B2;';}};
+
+const sg=document.getElementById('sisterButtonGrid');
+if(sg){SEVEN_SISTERS.forEach((s,idx)=>{const b=document.createElement('button');b.id=`sister-btn-${idx}`;b.textContent=s.name.split(' ')[0];b.onclick=()=>/** @type {any} */(window).focusSister(idx);sg.appendChild(b);});}
+
+/** @type {any} */ window.focusSister=function(si){
+    focusedSisterIdx=si;
+    for(let i=0;i<NUM_SISTERS;i++){const b=document.getElementById(`sister-btn-${i}`);if(b)b.className=i===si?'active':'';}
+    const aBtn=document.getElementById('btnAllSisters');if(aBtn)aBtn.className=si===-1?'active':'';
+    const gBtn=document.getElementById('btnGalacticView');if(gBtn)gBtn.className=si===-2?'active':'';
+    const nl=document.getElementById('activeSisterName');const sl=document.getElementById('sisterSpecLabel');
+    if(si>=0&&si<NUM_SISTERS){const s=SEVEN_SISTERS[si];if(nl)nl.textContent=s.name;if(sl)sl.textContent=s.spec;camState.distance=18;}
+    else if(si===-1){if(nl)nl.textContent='Pleiades (All 9 Sisters)';if(sl)sl.textContent='B7IIIe Open Cluster';camState.distance=52;}
+    else{if(nl)nl.textContent='Milky Way System';if(sl)sl.textContent='Central Sgr A* Core';camState.distance=380;}
+};
+
+/** @type {any} */ window.setCameraMode=function(m){
+    camState.activeCamera=m;
+    const a=document.getElementById('btnCamA');const b=document.getElementById('btnCamB');
+    if(a)a.className=m==='A'?'active':'';if(b)b.className=m==='B'?'active':'';
+    const h=document.getElementById('hud-camera-state');if(h)h.textContent=m==='A'?'Camera A (Euler)':'Camera B (Rotor G\u2074)';
+};
+
+/** @type {any} */ window.setBodyCount=async function(c){
+    NUM_BODIES=c;
+    const cl=document.getElementById('bodyCountLabel');if(cl)cl.textContent=`${c.toLocaleString()} Bodies`;
+    ['btn-1k','btn-4k','btn-16k','btn-64k'].forEach(id=>{const e=document.getElementById(id);if(e)e.className='';});
+    const aid=c===1024?'btn-1k':c===4096?'btn-4k':c===16384?'btn-16k':'btn-64k';
+    const ae=document.getElementById(aid);if(ae)ae.className='active';
+    resetSisterStates();if(!device)return;
+    const nd=generateSwarmData(c);
+    [bodyBufA,bodyBufB,ssoPBuf].forEach(b=>{if(b)b.destroy();});
+    bodyBufA=device.createBuffer({size:nd.byteLength,usage:GPUBuf.STORAGE|GPUBuf.COPY_DST|GPUBuf.VERTEX});
+    bodyBufB=device.createBuffer({size:nd.byteLength,usage:GPUBuf.STORAGE|GPUBuf.COPY_DST|GPUBuf.VERTEX});
+    device.queue.writeBuffer(bodyBufA,0,nd);device.queue.writeBuffer(bodyBufB,0,nd);
+    ssoPBuf=device.createBuffer({size:nd.byteLength,usage:GPUBuf.STORAGE|GPUBuf.COPY_SRC|GPUBuf.COPY_DST});
+    device.queue.writeBuffer(ssoPBuf,0,nd);
+    const layout=pipeExhaust.getBindGroupLayout(0);
+    bgExhAtoB=device.createBindGroup({layout,entries:[{binding:0,resource:{buffer:bodyBufA}},{binding:1,resource:{buffer:bodyBufB}},{binding:2,resource:{buffer:compUniB}}]});
+    bgExhBtoA=device.createBindGroup({layout,entries:[{binding:0,resource:{buffer:bodyBufB}},{binding:1,resource:{buffer:bodyBufA}},{binding:2,resource:{buffer:compUniB}}]});
+    const rl=pipeRender.getBindGroupLayout(0);
+    bgRenderA=device.createBindGroup({layout:rl,entries:[{binding:0,resource:{buffer:bodyBufA}},{binding:1,resource:{buffer:renderUniB}}]});
+    bgRenderB=device.createBindGroup({layout:rl,entries:[{binding:0,resource:{buffer:bodyBufB}},{binding:1,resource:{buffer:renderUniB}}]});
+    bgLineA=device.createBindGroup({layout:rl,entries:[{binding:0,resource:{buffer:bodyBufA}},{binding:1,resource:{buffer:renderUniB}}]});
+    bgLineB=device.createBindGroup({layout:rl,entries:[{binding:0,resource:{buffer:bodyBufB}},{binding:1,resource:{buffer:renderUniB}}]});
+};
+
+/** @type {any} */ window.resetSimulation=function(){resetSisterStates();if(!device)return;const d=generateSwarmData(NUM_BODIES);device.queue.writeBuffer(bodyBufA,0,d);device.queue.writeBuffer(bodyBufB,0,d);if(ssoPBuf)device.queue.writeBuffer(ssoPBuf,0,d);pingPong=0;simTime=0;};
+/** @type {any} */ window.togglePause=function(){isPaused=!isPaused;const b=document.getElementById('btnPause');if(b){b.textContent=isPaused?'Resume':'Pause';b.className=isPaused?'active':'';}};
+/** @type {any} */ window.toggleConstellationLines=function(){SHOW_LINES=!SHOW_LINES;const b=document.getElementById('toggleLines');if(b){b.textContent=SHOW_LINES?'ON':'OFF';b.className=SHOW_LINES?'tog-sm active':'tog-sm';}};
+/** @type {any} */ window.toggleOrbitPath=function(){SHOW_ORBIT=!SHOW_ORBIT;const b=document.getElementById('toggleOrbit');if(b){b.textContent=SHOW_ORBIT?'ON':'OFF';b.className=SHOW_ORBIT?'tog-sm active':'tog-sm';}};
+/** @type {any} */ window.toggleSpatialBounds=function(){SHOW_BOUNDS=!SHOW_BOUNDS;const b=document.getElementById('toggleBounds');if(b){b.textContent=SHOW_BOUNDS?'ON':'OFF';b.className=SHOW_BOUNDS?'tog-sm active':'tog-sm';}};
+
+document.getElementById('sliderSpeed').oninput=e=>{TIME_SCALE=parseFloat(e.target.value);const l=document.getElementById('valSpeed');if(l)l.textContent=`${TIME_SCALE.toFixed(1)}x`;};
+document.getElementById('sliderSpikes').oninput=e=>{SPIKE_INTENSITY=parseFloat(e.target.value);const l=document.getElementById('valSpikes');if(l)l.textContent=`${SPIKE_INTENSITY.toFixed(1)}x`;};
+document.getElementById('sliderTheta').oninput=e=>{thetaCutoff=parseFloat(e.target.value);const l=document.getElementById('valTheta');if(l)l.textContent=thetaCutoff.toFixed(2);};
+document.getElementById('sliderWind').oninput=e=>{RADIATION_PRESSURE=parseFloat(e.target.value);const l=document.getElementById('valWind');if(l)l.textContent=RADIATION_PRESSURE.toFixed(3);};
+document.getElementById('sliderBrownian').oninput=e=>{BROWNIAN_STRENGTH=parseFloat(e.target.value);const l=document.getElementById('valBrownian');if(l)l.textContent=BROWNIAN_STRENGTH.toFixed(3);};
+document.getElementById('sliderCoreMass').oninput=e=>{SGR_MASS=parseFloat(e.target.value);const l=document.getElementById('valCoreMass');if(l)l.textContent=`${SGR_MASS.toLocaleString()} M\u2609`;};
+document.getElementById('sel-pipeline').onchange=e=>{activePipeline=e.target.value;const l=document.getElementById('pipelineLabel');if(l)l.textContent=activePipeline.charAt(0).toUpperCase()+activePipeline.slice(1);};
+document.getElementById('btn-banner-action').onclick=()=>{const b=document.getElementById('webgpu-banner');if(b)b.style.display='none';};
+
+window.addEventListener('keydown',e=>{
+    switch(e.key){
+        case ' ':e.preventDefault();togglePause();break;
+        case 'r':case 'R':resetSimulation();break;
+        case 'l':case 'L':toggleConstellationLines();break;
+        case 'o':case 'O':toggleOrbitPath();break;
+        case 'b':case 'B':toggleSpatialBounds();break;
+        case 'h':case 'H':toggleUICollapse();break;
+        case 'g':case 'G':focusSister(-2);break;
+        case '0':case 'p':case 'P':focusSister(-1);break;
+        case 'a':case 'A':setCameraMode('A');break;
+        case 'q':case 'Q':setCameraMode('B');break;
+        case '[':TIME_SCALE=Math.max(0.1,TIME_SCALE*0.8);{const l=document.getElementById('valSpeed');if(l)l.textContent=`${TIME_SCALE.toFixed(1)}x`;}break;
+        case ']':TIME_SCALE=Math.min(5,TIME_SCALE*1.25);{const l=document.getElementById('valSpeed');if(l)l.textContent=`${TIME_SCALE.toFixed(1)}x`;}break;
+        default:if(e.key>='1'&&e.key<='9'){const si=parseInt(e.key,10)-1;if(si<NUM_SISTERS)focusSister(si);}
+    }
+});
+
+// ── §10  WebMCP Bridge ────────────────────────────────────────
+
+const Bridge = {
+    getState:()=>({ simTime,fps:Math.round(currentFps),frameCount,gpuActive,activePipeline,thetaCutoff,isPaused,timeScale:TIME_SCALE,numBodies:NUM_BODIES,numStars:NUM_SISTERS,radiationPressure:RADIATION_PRESSURE,spikeIntensity:SPIKE_INTENSITY,brownianStrength:BROWNIAN_STRENGTH,sgrMass:SGR_MASS,focusedSister:focusedSisterIdx>=0?SEVEN_SISTERS[focusedSisterIdx].name:(focusedSisterIdx===-1?'Pleiades All':'Galactic'),camera:{azimuth:camState.azimuth,elevation:camState.elevation,distance:camState.distance,target:Array.from(camState.target),activeCamera:camState.activeCamera},octreeNodes:flatNodes.length,sisterPositions:sisterStates.map(s=>[...s.pos]) }),
+    pause:()=>{isPaused=true;},
+    resume:()=>{isPaused=false;},
+    togglePause:()=>togglePause(),
+    step:(dt=0.012)=>{isPaused=false;setTimeout(()=>{isPaused=true;},16);},
+    setTimeScale:(s=1)=>{TIME_SCALE=Math.max(0.01,Math.min(10,s));},
+    setCameraPreset:(m='system')=>{ const p={system:-1,planet:0,moon:1,core:-2};focusSister(p[m]??-1); },
+    setCameraOrbit:(az=0.35,el=0.45,d=52)=>{ camState.azimuth=az;camState.elevation=el;camState.distance=d; },
+    runDiagnostics:()=>{
+        const r={simTime,fps:Math.round(currentFps),numBodies:NUM_BODIES,octreeNodes:flatNodes.length,gpuActive,activePipeline,sisterStates:sisterStates.map((s,i)=>({name:SEVEN_SISTERS[i].name,posFinite:s.pos.every(v=>isFinite(v)),velFinite:s.vel.every(v=>isFinite(v)),pos:[...s.pos]}))};
+        console.table(r.sisterStates);return r;
+    },
+    exec:(cmd,...args)=>{ const f=window[cmd];if(typeof f==='function')return f(...args);return{error:`Unknown: ${cmd}`}; }
+};
+/** @type {any} */ window.__WEBMCP__ = Bridge;
+/** @type {any} */ window.__3DGSIL__ = Bridge;
+
+// ── §11  Bootstrap ────────────────────────────────────────────
+
+initWebGPU().then(()=>{
+    console.log('\u1FA90 3DGSIL v8: Unified WebGPU + SSO Barnes-Hut engine initialized.');
+}).catch(err=>{
+    console.error('WebGPU init error:',err);
+    const b=document.getElementById('webgpu-banner');
+    if(b){b.style.border='1px solid #ef4444';b.style.background='linear-gradient(135deg,#7f1d1d,#0f172a)';const bt=document.getElementById('banner-text');if(bt)bt.textContent=`Error: ${err instanceof Error?err.message:String(err)}`;}
+});
+</script>
+</body>
+</html>

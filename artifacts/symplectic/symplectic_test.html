@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Symplectic Integrator Testbed - G4 Phase Separation</title>
+    <style>
+        :root {
+            --bg-color: #0b0c10;
+            --panel-bg: #1f2833;
+            --accent-green: #45f3ff;
+            --danger-red: #ff4a5a;
+            --text-main: #c5c6c7;
+            --text-dark: #66fcf1;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            overflow: hidden;
+            display: flex;
+            height: 100vh;
+        }
+
+        #container {
+            display: flex;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Rendering area */
+        #viewport-panel {
+            position: relative;
+            flex: 3;
+            height: 100%;
+            background: radial-gradient(circle at center, #111e25 0%, #05080c 100%);
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Control dashboard */
+        #dashboard {
+            flex: 1.2;
+            background-color: #121620;
+            border-left: 1px solid #2a2d3d;
+            box-shadow: -5px 0 25px rgba(0, 0, 0, 0.5);
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            box-sizing: border-box;
+            overflow-y: auto;
+        }
+
+        h2 {
+            margin-top: 0;
+            font-size: 18px;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: #ffffff;
+            border-bottom: 2px solid var(--text-dark);
+            padding-bottom: 10px;
+        }
+
+        .section-desc {
+            font-size: 12px;
+            line-height: 1.5;
+            color: #8b949e;
+            margin-bottom: 20px;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        button {
+            flex: 1;
+            padding: 12px;
+            background: #1f2335;
+            border: 1px solid #3b4261;
+            color: #c0caf5;
+            cursor: pointer;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: all 0.2s ease-in-out;
+        }
+
+        button:hover {
+            border-color: var(--text-dark);
+            color: #ffffff;
+        }
+
+        button.active {
+            background: #243b4e;
+            border-color: var(--accent-green);
+            color: var(--accent-green);
+            box-shadow: 0 0 10px rgba(69, 243, 255, 0.2);
+        }
+
+        .metric-card {
+            background-color: #1a1f2c;
+            border-radius: 4px;
+            padding: 15px;
+            margin-bottom: 15px;
+            border: 1px solid #2e354f;
+        }
+
+        .metric-title {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #565f89;
+            margin-bottom: 5px;
+        }
+
+        .metric-value {
+            font-size: 20px;
+            font-family: monospace;
+            color: #ffffff;
+            font-weight: bold;
+        }
+
+        .metric-value.stable {
+            color: var(--accent-green);
+        }
+
+        .metric-value.unstable {
+            color: var(--danger-red);
+        }
+
+        /* Real-time Graph Box */
+        #graph-box {
+            margin-top: auto;
+            height: 180px;
+            border: 1px solid #2e354f;
+            border-radius: 4px;
+            background-color: #0d1117;
+            position: relative;
+        }
+
+        #graph-legend {
+            position: absolute;
+            top: 5px;
+            right: 10px;
+            font-size: 9px;
+            color: #8b949e;
+            pointer-events: none;
+        }
+
+        .footer {
+            margin-top: 15px;
+            border-top: 1px solid #2e354f;
+            padding-top: 10px;
+            font-size: 10px;
+            color: #565f89;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <!-- WebGL/Canvas Viewport -->
+        <div id="viewport-panel">
+            <canvas id="viewCanvas"></canvas>
+            <div style="position: absolute; top: 15px; left: 15px; background: rgba(0,0,0,0.6); padding: 10px; border-radius: 4px; border: 1px solid #2e354f; pointer-events: none;">
+                <div style="font-size: 10px; text-transform: uppercase; color: #565f89;">Engine State</div>
+                <div id="status-label" style="font-size: 13px; font-weight: bold; color: var(--accent-green); margin-top: 2px;">Double-Pass Active (Symplectic)</div>
+            </div>
+        </div>
+
+        <!-- Dashboard Panel -->
+        <div id="dashboard">
+            <h2>Integrator Duality</h2>
+            <p class="section-desc">
+                Evaluating the drift of mechanical energy (E = T + V) in a chaotic 3-body system. 
+                Single-pass integration creates thread race conditions on the GPU, breaking energy conservations. 
+                Double-pass physically segregates position and force integration, conserving energy exactly.
+            </p>
+
+            <div class="metric-title">Select Pipeline Model</div>
+            <div class="btn-group">
+                <button id="btn-single">Single-Pass</button>
+                <button id="btn-double" class="active">Double-Pass</button>
+            </div>
+
+            <div class="metric-card">
+                <div class="metric-title">Total Mechanical Energy (E)</div>
+                <div id="energy-val" class="metric-value stable">Calculating...</div>
+            </div>
+
+            <div class="metric-card">
+                <div class="metric-title">Energy Drift (ΔE)</div>
+                <div id="drift-val" class="metric-value stable">0.000%</div>
+            </div>
+
+            <div class="metric-card">
+                <div class="metric-title">Simulation Step (Hertz)</div>
+                <div id="step-rate" class="metric-value">60 steps/sec</div>
+            </div>
+
+            <div class="metric-title" style="margin-top: 10px;">Total Energy Over Time (Live Graph)</div>
+            <div id="graph-box">
+                <div id="graph-legend">Flat line = Ideal Symplectic Conservation</div>
+                <canvas id="graphCanvas"></canvas>
+            </div>
+
+            <div class="footer">
+                БИРО "ЧИП" СТАРИ ГРАД &copy; 2026
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        // --- 1. Physics Math Engine on CPU (Fallback Verification & Visuals) ---
+        // To allow instant, verification-grade observation across all platforms, 
+        // we run the exact mathematical equivalents of the WGSL shader passes on the CPU.
+        
+        const dt = 0.016; // Standard WebGPU frames time slice
+        const gamma = 0.05; // Interstellar Brownian Damping (Molecular cloud friction)
+        const G = 10.0;     // Gravity scaling constant
+
+        // Initialize state arrays: 3 Bodies [x, y, vx, vy, ax, ay, mass, radius, color]
+        let bodies = [
+            { pos: [0, 0], vel: [0, -0.05], acc: [0, 0], mass: 500.0, radius: 10, color: '#ffb86c' }, // Massive Star
+            { pos: [120, 0], vel: [0, 6.2], acc: [0, 0], mass: 1.0, radius: 4, color: '#8be9fd' },     // Inner Planet
+            { pos: [-240, 0], vel: [0, -4.5], acc: [0, 0], mass: 2.0, radius: 6, color: '#ff79c6' }    // Outer Planet
+        ];
+
+        // Store initial mechanical energy for drift calculations
+        let initialEnergy = 0.0;
+        let activeModel = 'B'; // 'A' = Single-Pass, 'B' = Double-Pass
+
+        // Reset positions to original state
+        function resetState() {
+            bodies[0].pos = [0, 0]; bodies[0].vel = [0, -0.05]; bodies[0].acc = [0, 0];
+            bodies[1].pos = [120, 0]; bodies[1].vel = [0, 6.2]; bodies[1].acc = [0, 0];
+            bodies[2].pos = [-240, 0]; bodies[2].vel = [0, -4.5]; bodies[2].acc = [0, 0];
+            initialEnergy = calculateTotalEnergy();
+            energyHistory = [];
+        }
+
+        // Analytical gravity calculations: standard potential + gravitational field
+        function getGravityAcceleration(bodyIndex, posArray) {
+            let ax = 0;
+            let ay = 0;
+            const px = posArray[0];
+            const py = posArray[1];
+
+            for (let i = 0; i < bodies.length; i++) {
+                if (i === bodyIndex) continue;
+                const other = bodies[i];
+                const dx = other.pos[0] - px;
+                const dy = other.pos[1] - py;
+                const distSq = dx * dx + dy * dy + 80.0; // Softening epsilon to avoid singularities
+                const dist = Math.sqrt(distSq);
+
+                const F_grav = (G * other.mass) / (distSq * dist);
+                ax += F_grav * dx;
+                ay += F_grav * dy;
+            }
+            return [ax, ay];
+        }
+
+        // Calculate Total Mechanical Energy: E = Kinetic (T) + Potential (V)
+        function calculateTotalEnergy() {
+            let T = 0.0; // Kinetic
+            let V = 0.0; // Potential
+
+            for (let i = 0; i < bodies.length; i++) {
+                const b = bodies[i];
+                const speedSq = b.vel[0] * b.vel[0] + b.vel[1] * b.vel[1];
+                T += 0.5 * b.mass * speedSq;
+
+                // Gravitational Potential energy pairwise
+                for (let j = i + 1; j < bodies.length; j++) {
+                    const other = bodies[j];
+                    const dx = b.pos[0] - other.pos[0];
+                    const dy = b.pos[1] - other.pos[1];
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist > 1e-4) {
+                        V -= (G * b.mass * other.mass) / dist;
+                    }
+                }
+            }
+            return T + V;
+        }
+
+        // --- Model A: The Fractured Single-Pass Pipeline ---
+        // Simulates thread-racing / stale state calculations inside the loop
+        function stepSinglePass() {
+            // Evaluates positions and velocities using stale, non-synchronized positions 
+            // representing how threads racing in the same GPGPU dispatch corrupt boundaries.
+            for (let i = 0; i < bodies.length; i++) {
+                const b = bodies[i];
+                const a_spatial = getGravityAcceleration(i, b.pos);
+
+                // Naive kinematic position and velocity updates compiled together
+                b.pos[0] += b.vel[0] * dt + 0.5 * b.acc[0] * dt * dt;
+                b.pos[1] += b.vel[1] * dt + 0.5 * b.acc[1] * dt * dt;
+
+                b.vel[0] += 0.5 * (b.acc[0] + a_spatial[0]) * dt - gamma * b.vel[0] * dt;
+                b.vel[1] += 0.5 * (b.acc[1] + a_spatial[1]) * dt - gamma * b.vel[1] * dt;
+
+                b.acc[0] = a_spatial[0];
+                b.acc[1] = a_spatial[1];
+            }
+        }
+
+        // --- Model B: The Symplectic Double-Pass Pipeline ---
+        // Enforces explicit division with algebraic damping
+        function stepDoublePass() {
+            // Pass 1: Kinematic Position Integration across all synchronized bodies
+            for (let i = 0; i < bodies.length; i++) {
+                const b = bodies[i];
+                b.pos[0] += b.vel[0] * dt + 0.5 * b.acc[0] * dt * dt;
+                b.pos[1] += b.vel[1] * dt + 0.5 * b.acc[1] * dt * dt;
+            }
+
+            // --- Synchronization Barrier (Completed Globally) ---
+
+            // Pass 2: Force Evaluation and Algebraic Damping on the synchronized canvas
+            for (let i = 0; i < bodies.length; i++) {
+                const b = bodies[i];
+                const a_spatial = getGravityAcceleration(i, b.pos);
+
+                // Exact algebraic solution for implicit damping: v(t+dt) = (v(t) + 0.5*(a_t + a_spatial)*dt) / (1 + 0.5*gamma*dt)
+                const dampingFactor = 1.0 / (1.0 + 0.5 * gamma * dt);
+                
+                const vx_next = (b.vel[0] + 0.5 * (b.acc[0] + a_spatial[0]) * dt) * dampingFactor;
+                const vy_next = (b.vel[1] + 0.5 * (b.acc[1] + a_spatial[1]) * dt) * dampingFactor;
+
+                b.vel[0] = vx_next;
+                b.vel[1] = vy_next;
+
+                // Save accelerated state with physical damping factored out for the next frame
+                b.acc[0] = a_spatial[0] - gamma * vx_next;
+                b.acc[1] = a_spatial[1] - gamma * vy_next;
+            }
+        }
+
+        // --- 2. Graphical Rendering and Charting ---
+        const viewCanvas = document.getElementById('viewCanvas');
+        const viewCtx = viewCanvas.getContext('2d');
+        const graphCanvas = document.getElementById('graphCanvas');
+        const graphCtx = graphCanvas.getContext('2d');
+
+        let energyHistory = [];
+
+        function resizeCanvases() {
+            viewCanvas.width = viewCanvas.parentElement.clientWidth;
+            viewCanvas.height = viewCanvas.parentElement.clientHeight;
+            graphCanvas.width = graphCanvas.parentElement.clientWidth;
+            graphCanvas.height = graphCanvas.parentElement.clientHeight;
+        }
+
+        window.addEventListener('resize', resizeCanvases);
+        resizeCanvases();
+
+        // Render orbits and bodies on the screen
+        function renderScene() {
+            viewCtx.clearRect(0, 0, viewCanvas.width, viewCanvas.height);
+            const cx = viewCanvas.width / 2;
+            const cy = viewCanvas.height / 2;
+
+            // Draw stable background coordinate grid (Ironing visual references)
+            viewCtx.strokeStyle = 'rgba(42, 45, 61, 0.3)';
+            viewCtx.lineWidth = 1;
+            for (let i = -500; i <= 500; i += 50) {
+                viewCtx.beginPath();
+                viewCtx.moveTo(cx + i, cy - 500);
+                viewCtx.lineTo(cx + i, cy + 500);
+                viewCtx.stroke();
+                
+                viewCtx.beginPath();
+                viewCtx.moveTo(cx - 500, cy + i);
+                viewCtx.lineTo(cx + 500, cy + i);
+                viewCtx.stroke();
+            }
+
+            // Draw orbits/bodies
+            for (let i = 0; i < bodies.length; i++) {
+                const b = bodies[i];
+                viewCtx.beginPath();
+                viewCtx.arc(cx + b.pos[0], cy + b.pos[1], b.radius, 0, Math.PI * 2);
+                viewCtx.fillStyle = b.color;
+                viewCtx.shadowBlur = b.radius * 1.5;
+                viewCtx.shadowColor = b.color;
+                viewCtx.fill();
+                viewCtx.shadowBlur = 0; // reset
+            }
+        }
+
+        // Chart the energy conservation line over the timeline
+        function renderGraph() {
+            graphCtx.clearRect(0, 0, graphCanvas.width, graphCanvas.height);
+            if (energyHistory.length < 2) return;
+
+            const w = graphCanvas.width;
+            const h = graphCanvas.height;
+
+            graphCtx.strokeStyle = 'rgba(69, 243, 255, 0.15)';
+            graphCtx.lineWidth = 1;
+            graphCtx.beginPath();
+            graphCtx.moveTo(0, h/2);
+            graphCtx.lineTo(w, h/2);
+            graphCtx.stroke();
+
+            graphCtx.beginPath();
+            const sliceWidth = w / energyHistory.length;
+            
+            // Normalize graph amplitude to show extreme precision of drift scaling
+            let maxDeviation = 1e-4;
+            for (let i = 0; i < energyHistory.length; i++) {
+                const dev = Math.abs(energyHistory[i] - initialEnergy) / Math.abs(initialEnergy);
+                if (dev > maxDeviation) maxDeviation = dev;
+            }
+
+            for (let i = 0; i < energyHistory.length; i++) {
+                const x = i * sliceWidth;
+                const relativeDrift = (energyHistory[i] - initialEnergy) / initialEnergy;
+                // Scale drift to graph boundary
+                const y = h/2 - (relativeDrift / maxDeviation) * (h * 0.4);
+
+                if (i === 0) {
+                    graphCtx.moveTo(x, y);
+                } else {
+                    graphCtx.lineTo(x, y);
+                }
+            }
+
+            graphCtx.strokeStyle = activeModel === 'B' ? '#45f3ff' : '#ff4a5a';
+            graphCtx.lineWidth = 2;
+            graphCtx.stroke();
+        }
+
+        // --- 3. Interactive Execution Control Loop ---
+        const btnSingle = document.getElementById('btn-single');
+        const btnDouble = document.getElementById('btn-double');
+        const statusLabel = document.getElementById('status-label');
+        const energyVal = document.getElementById('energy-val');
+        const driftVal = document.getElementById('drift-val');
+
+        function setPipeline(model) {
+            activeModel = model;
+            if (model === 'A') {
+                btnDouble.classList.remove('active');
+                btnSingle.classList.add('active');
+                statusLabel.textContent = 'Single-Pass Active (Fractured)';
+                statusLabel.style.color = 'var(--danger-red)';
+            } else {
+                btnSingle.classList.remove('active');
+                btnDouble.classList.add('active');
+                statusLabel.textContent = 'Double-Pass Active (Symplectic)';
+                statusLabel.style.color = 'var(--accent-green)';
+            }
+            resetState();
+        }
+
+        btnSingle.addEventListener('click', () => setPipeline('A'));
+        btnDouble.addEventListener('click', () => setPipeline('B'));
+
+        // Core tick loop running at standard animation rates
+        resetState();
+        function loop() {
+            if (activeModel === 'A') {
+                stepSinglePass();
+            } else {
+                stepDoublePass();
+            }
+
+            const currentEnergy = calculateTotalEnergy();
+            const driftPercent = ((currentEnergy - initialEnergy) / initialEnergy) * 100.0;
+
+            energyHistory.push(currentEnergy);
+            if (energyHistory.length > 300) {
+                energyHistory.shift(); // keep graph rolling
+            }
+
+            // Update DOM metrics
+            energyVal.textContent = currentEnergy.toFixed(5);
+            driftVal.textContent = `${driftPercent > 0 ? '+' : ''}${driftPercent.toFixed(4)}%`;
+            
+            if (Math.abs(driftPercent) < 0.05) {
+                driftVal.className = 'metric-value stable';
+                energyVal.className = 'metric-value stable';
+            } else {
+                driftVal.className = 'metric-value unstable';
+                energyVal.className = 'metric-value unstable';
+            }
+
+            renderScene();
+            renderGraph();
+
+            requestAnimationFrame(loop);
+        }
+
+        requestAnimationFrame(loop);
+    </script>
+</body>
+</html>

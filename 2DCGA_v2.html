@@ -1,6 +1,5 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -12,18 +11,12 @@
             --bg-panel-border: rgba(0, 240, 255, 0.22);
             --text-main: #e2e8f0;
             --text-dim: #94a3b8;
-            --accent-cyan: #00f0ff;
-            /* Planet color (Complement of Red) */
-            --accent-magenta: #ff007f;
-            /* Moon color (Complement of Green) */
-            --accent-yellow: #ffd700;
-            /* Sun Photosphere (Complement of Blue) */
-            --accent-red: #ff3344;
-            /* Sun-Planet Lagrange System */
-            --accent-green: #00ff66;
-            /* Planet-Moon Lagrange System */
-            --accent-orange: #ff8800;
-            /* Transverse Crossed Tangents */
+            --accent-cyan: #00f0ff;       /* Planet color (Complement of Red) */
+            --accent-magenta: #ff007f;    /* Moon color (Complement of Green) */
+            --accent-yellow: #ffd700;     /* Sun Photosphere (Complement of Blue) */
+            --accent-red: #ff3344;        /* Sun-Planet Lagrange System */
+            --accent-green: #00ff66;      /* Planet-Moon Lagrange System */
+            --accent-orange: #ff8800;     /* Transverse Crossed Tangents */
             --font-ui: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             --font-mono: "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
         }
@@ -36,8 +29,7 @@
             -webkit-user-select: none;
         }
 
-        body,
-        html {
+        body, html {
             width: 100%;
             height: 100%;
             overflow: hidden;
@@ -64,12 +56,7 @@
         }
 
         /* Scale-Independent CAD Vector Styling: Constant screen pixel width */
-        svg line,
-        svg circle,
-        svg path,
-        svg polygon,
-        svg ellipse,
-        svg rect {
+        svg line, svg circle, svg path, svg polygon, svg ellipse, svg rect {
             vector-effect: non-scaling-stroke;
         }
 
@@ -654,29 +641,12 @@
             font-weight: 600;
         }
 
-        .hud-val.gold {
-            color: var(--accent-yellow);
-        }
-
-        .hud-val.cyan {
-            color: var(--accent-cyan);
-        }
-
-        .hud-val.magenta {
-            color: var(--accent-magenta);
-        }
-
-        .hud-val.red {
-            color: var(--accent-red);
-        }
-
-        .hud-val.green {
-            color: var(--accent-green);
-        }
-
-        .hud-val.orange {
-            color: var(--accent-orange);
-        }
+        .hud-val.gold { color: var(--accent-yellow); }
+        .hud-val.cyan { color: var(--accent-cyan); }
+        .hud-val.magenta { color: var(--accent-magenta); }
+        .hud-val.red { color: var(--accent-red); }
+        .hud-val.green { color: var(--accent-green); }
+        .hud-val.orange { color: var(--accent-orange); }
 
         /* Floating Viewport Controls */
         #viewport-dock {
@@ -727,7 +697,6 @@
         }
     </style>
 </head>
-
 <body>
 
     <!-- Main Interactive SVG Canvas -->
@@ -789,10 +758,8 @@
                 <circle id="horizon-circle" class="horizon-circle" cx="0" cy="0" r="100" />
                 <circle id="horizon-barrier" class="horizon-barrier-ring" cx="0" cy="0" r="100" />
                 <circle id="origin-marker" cx="0" cy="0" r="3" fill="#ffd700" />
-                <text id="origin-label" x="8" y="-6" fill="#ffd700" font-size="10" font-family="monospace">O
-                    (0,0)</text>
-                <text id="horizon-label" x="105" y="15" fill="#ffd700" font-size="11" font-family="monospace">r = R
-                    (Inversion Horizon)</text>
+                <text id="origin-label" x="8" y="-6" fill="#ffd700" font-size="10" font-family="monospace">O (0,0)</text>
+                <text id="horizon-label" x="105" y="15" fill="#ffd700" font-size="11" font-family="monospace">r = R (Inversion Horizon)</text>
             </g>
 
             <!-- Mode 1: Wikipedia Theorems Layer -->
@@ -844,8 +811,7 @@
                     <g id="sun-hyperbolic-funnel"></g>
                     <!-- Inside Sun: Singularity Center, Conformal Dual Optics & Inverted Bodies -->
                     <circle id="sun-singularity-core" class="singularity-sun-core" cx="0" cy="0" r="9" />
-                    <text id="sun-singularity-label" x="0" y="16" text-anchor="middle" fill="#00f0ff" font-size="7"
-                        font-family="monospace">∞</text>
+                    <text id="sun-singularity-label" x="0" y="16" text-anchor="middle" fill="#00f0ff" font-size="7" font-family="monospace">∞</text>
                     <g id="sun-internal-optics"></g>
                     <path id="planet-in-sun" class="internal-planet-disk" d="" />
                     <path id="moon-in-sun" class="internal-moon-disk" d="" />
@@ -898,8 +864,7 @@
                 <path id="cosmic-clover-dual" class="cosmic-clover-dual" d="" />
                 <circle id="singularity-core" class="singularity-core" cx="0" cy="0" r="16" />
                 <circle cx="0" cy="0" r="2" fill="#ffffff" />
-                <text x="0" y="24" text-anchor="middle" fill="#00f0ff" font-size="9" font-family="monospace">∞
-                    (Omnidirectional Infinity)</text>
+                <text x="0" y="24" text-anchor="middle" fill="#00f0ff" font-size="9" font-family="monospace">∞ (Omnidirectional Infinity)</text>
                 <g id="mirror-particles-group"></g>
             </g>
 
@@ -914,27 +879,20 @@
             <span>🪐</span> 2DCGA 4-Tangent Conformal Optics &amp; Complex k-Axis
         </div>
         <div class="subtitle">
-            Continuous extended 4-tangent lines, <span style="color:var(--accent-yellow);">Sun (k-axis ∞ core)</span>,
-            <span style="color:var(--accent-red);">Collinear Line [L₃–L₁–L₂]</span> &amp; <span
-                style="color:var(--accent-cyan);">4 Illumination Zones</span>.
+            Continuous extended 4-tangent lines, <span style="color:var(--accent-yellow);">Sun (k-axis ∞ core)</span>, <span style="color:var(--accent-red);">Collinear Line [L₃–L₁–L₂]</span> &amp; <span style="color:var(--accent-cyan);">4 Illumination Zones</span>.
         </div>
 
         <div class="mode-tabs">
             <button id="btn-mode-wiki" class="mode-btn" onclick="switchMode('wikipedia')">1. Wiki Theorems</button>
             <button id="btn-mode-grid" class="mode-btn" onclick="switchMode('conformal_grid')">2. Conformal Net</button>
-            <button id="btn-mode-fourier" class="mode-btn active" onclick="switchMode('planetary_system')">🪐 3. CAD
-                &amp; Lagrange</button>
-            <button id="btn-mode-splat" class="mode-btn" onclick="switchMode('gaussian_splats')">4. Gaussian
-                Splats</button>
-            <button id="btn-mode-mirror" class="mode-btn full-width" onclick="switchMode('mirror_infinity')">🪞 5.
-                Mirror World &amp; Infinity Singularity</button>
+            <button id="btn-mode-fourier" class="mode-btn active" onclick="switchMode('planetary_system')">🪐 3. CAD &amp; Lagrange</button>
+            <button id="btn-mode-splat" class="mode-btn" onclick="switchMode('gaussian_splats')">4. Gaussian Splats</button>
+            <button id="btn-mode-mirror" class="mode-btn full-width" onclick="switchMode('mirror_infinity')">🪞 5. Mirror World &amp; Infinity Singularity</button>
         </div>
 
         <!-- Camera Focus Buttons for Mode 3 -->
-        <div id="camera-focus-container"
-            style="margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 8px;">
-            <div style="font-size: 10px; color: var(--text-dim); margin-bottom: 4px; font-weight: 600;">INSPECT INNER
-                UNIVERSES (CONFORMAL OPTICS &amp; LAGRANGE DUALS):</div>
+        <div id="camera-focus-container" style="margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 8px;">
+            <div style="font-size: 10px; color: var(--text-dim); margin-bottom: 4px; font-weight: 600;">INSPECT INNER UNIVERSES (CONFORMAL OPTICS &amp; LAGRANGE DUALS):</div>
             <div class="camera-focus-bar">
                 <button class="cam-btn active" onclick="focusCamera('system')">🌌 System</button>
                 <button class="cam-btn" onclick="focusCamera('sun')">Inside ⊙</button>
@@ -1054,14 +1012,6 @@
             <span class="hud-key">ZOOM:</span>
             <span id="hud-zoom" class="hud-val">100%</span>
         </div>
-        <div class="hud-row" id="hud-mirror-row" style="display:none;">
-            <span class="hud-key">MIRROR COLLISIONS:</span>
-            <span id="hud-mirror-collisions" class="hud-val magenta">0</span>
-        </div>
-        <div class="hud-row" id="hud-mirror-ke-row" style="display:none;">
-            <span class="hud-key">KINETIC ENERGY:</span>
-            <span id="hud-mirror-ke" class="hud-val cyan">0</span>
-        </div>
     </div>
 
     <!-- Floating Viewport Dock -->
@@ -1088,8 +1038,6 @@
             evaluateRecursivePlanetarySystem2D,
             clampToExterior,
             reflectAtHorizon,
-            resolveElasticCollision2D,
-            resolveAllParticleCollisions2D,
             invertCosmicBox
         } from './tests/math_cga2d.mjs';
 
@@ -1169,20 +1117,18 @@
             opacity: 0.7
         };
 
-        /* Mode 5 Bouncing Mirror Particles (mass ∝ area for realistic momentum exchange) */
+        /* Mode 5 Bouncing Mirror Particles */
         const mirrorParticles = [
-            { pos: [200, 50], vel: [-60, 45], r: 5, mass: 25, color: '#00f0ff' },
-            { pos: [-180, 120], vel: [50, -55], r: 6, mass: 36, color: '#00ff9d' },
-            { pos: [120, -220], vel: [-35, 65], r: 4.5, mass: 20.25, color: '#ffd700' },
-            { pos: [-210, -160], vel: [65, 40], r: 5.5, mass: 30.25, color: '#b056ff' }
+            { pos: [200, 50], vel: [-60, 45], r: 5, color: '#00f0ff' },
+            { pos: [-180, 120], vel: [50, -55], r: 6, color: '#00ff9d' },
+            { pos: [120, -220], vel: [-35, 65], r: 4.5, color: '#ffd700' },
+            { pos: [-210, -160], vel: [65, 40], r: 5.5, color: '#b056ff' }
         ];
         /** @type {Array<Array<[number, number]>>} */
         const mirrorTrailsPrimal = mirrorParticles.map(() => []);
         /** @type {Array<Array<[number, number]>>} */
         const mirrorTrailsDual = mirrorParticles.map(() => []);
         const MAX_MIRROR_TRAIL = 120;
-        let mirrorCollisionCount = 0;
-        let mirrorLastKE = 0;
 
         let mirrorProbePos = [220, -80];
 
@@ -2184,16 +2130,11 @@
             if (!particlesGroup) return;
             particlesGroup.innerHTML = '';
 
-            // ── Physics pass (integrate → horizon → box walls → particle–particle) ──
-            if (!isPaused) {
-                // 1. Integrate positions
-                for (const p of mirrorParticles) {
+            mirrorParticles.forEach((p, idx) => {
+                if (!isPaused) {
                     p.pos[0] += p.vel[0] * dt * timeScale;
                     p.pos[1] += p.vel[1] * dt * timeScale;
-                }
 
-                // 2. Reflect off uncrossable inversion horizon
-                for (const p of mirrorParticles) {
                     /** @type {[number, number]} */
                     const typedPos = [p.pos[0], p.pos[1]];
                     /** @type {[number, number]} */
@@ -2201,42 +2142,10 @@
                     const bounceRes = reflectAtHorizon(typedPos, typedVel, R, p.r);
                     p.pos = [bounceRes.pos[0], bounceRes.pos[1]];
                     p.vel = [bounceRes.vel[0], bounceRes.vel[1]];
-                }
 
-                // 3. Reflect off cosmic box walls
-                for (const p of mirrorParticles) {
-                    if (Math.abs(p.pos[0]) > cosmicHalfL - p.r) {
-                        p.vel[0] *= -1;
-                        p.pos[0] = Math.sign(p.pos[0]) * (cosmicHalfL - p.r);
-                    }
-                    if (Math.abs(p.pos[1]) > cosmicHalfL - p.r) {
-                        p.vel[1] *= -1;
-                        p.pos[1] = Math.sign(p.pos[1]) * (cosmicHalfL - p.r);
-                    }
-                }
+                    if (Math.abs(p.pos[0]) > cosmicHalfL - p.r) { p.vel[0] *= -1; p.pos[0] = Math.sign(p.pos[0]) * (cosmicHalfL - p.r); }
+                    if (Math.abs(p.pos[1]) > cosmicHalfL - p.r) { p.vel[1] *= -1; p.pos[1] = Math.sign(p.pos[1]) * (cosmicHalfL - p.r); }
 
-                // 4. Elastic particle–particle collisions (mass-weighted, e=1)
-                const events = resolveAllParticleCollisions2D(mirrorParticles, 1.0, 2);
-                mirrorCollisionCount += events;
-
-                // 5. Optional: re-project to exterior after multi-body push (safety)
-                for (const p of mirrorParticles) {
-                    /** @type {[number, number]} */
-                    const typedPos = [p.pos[0], p.pos[1]];
-                    const clamped = clampToExterior(typedPos, R, p.r + 0.5);
-                    p.pos = [clamped[0], clamped[1]];
-                }
-
-                // Kinetic energy diagnostic
-                mirrorLastKE = mirrorParticles.reduce((s, p) => {
-                    const m = p.mass || (p.r * p.r);
-                    return s + 0.5 * m * (p.vel[0] * p.vel[0] + p.vel[1] * p.vel[1]);
-                }, 0);
-            }
-
-            // ── Render pass ──
-            mirrorParticles.forEach((p, idx) => {
-                if (!isPaused) {
                     /** @type {[number, number]} */
                     const curPrimal = [p.pos[0], p.pos[1]];
                     const curDual = invertPoint(curPrimal, R);
@@ -2384,10 +2293,10 @@
          * @param {number} clientY
          */
         function zoomAt(factor, clientX, clientY) {
-            const worldBefore = screenToWorld(/** @type {any} */({ clientX, clientY }));
+            const worldBefore = screenToWorld(/** @type {any} */ ({ clientX, clientY }));
             viewport.zoom = Math.max(0.05, Math.min(200.0, viewport.zoom * factor));
             updateSvgViewBox();
-            const worldAfter = screenToWorld(/** @type {any} */({ clientX, clientY }));
+            const worldAfter = screenToWorld(/** @type {any} */ ({ clientX, clientY }));
 
             viewport.cx += (worldBefore[0] - worldAfter[0]);
             viewport.cy += (worldBefore[1] - worldAfter[1]);
@@ -2546,11 +2455,6 @@
             boxControlRow.style.display = mode === 'mirror_infinity' ? 'flex' : 'none';
             sliderCosmicL.style.display = mode === 'mirror_infinity' ? 'block' : 'none';
 
-            const mirrorHud = document.getElementById('hud-mirror-row');
-            const mirrorKeHud = document.getElementById('hud-mirror-ke-row');
-            if (mirrorHud) mirrorHud.style.display = mode === 'mirror_infinity' ? 'flex' : 'none';
-            if (mirrorKeHud) mirrorKeHud.style.display = mode === 'mirror_infinity' ? 'flex' : 'none';
-
             if (mode === 'wikipedia') renderWikipediaMode();
             if (mode === 'conformal_grid') renderConformalGridMode();
             if (mode === 'fourier_orbits' || mode === 'planetary_system') renderPlanetarySystemMode();
@@ -2622,12 +2526,6 @@
                 fps = Math.round(1 / Math.max(1e-4, dt));
                 hudFps.textContent = `${fps} FPS (${frameCount})`;
                 hudTime.textContent = `${simTime.toFixed(2)} s`;
-                if (activeMode === 'mirror_infinity') {
-                    const hc = document.getElementById('hud-mirror-collisions');
-                    const hk = document.getElementById('hud-mirror-ke');
-                    if (hc) hc.textContent = String(mirrorCollisionCount);
-                    if (hk) hk.textContent = mirrorLastKE.toFixed(0);
-                }
             }
 
             if (activeMode === 'fourier_orbits' || activeMode === 'planetary_system') {
@@ -2701,8 +2599,8 @@
                 },
                 diagnostics: runDiagnostics()
             }),
-            setMode: (/** @type {CGA2D.VisualMode} */ mode) => /** @type {any} */(window).switchMode(mode),
-            togglePause: () => /** @type {any} */(window).togglePause(),
+            setMode: (/** @type {CGA2D.VisualMode} */ mode) => /** @type {any} */ (window).switchMode(mode),
+            togglePause: () => /** @type {any} */ (window).togglePause(),
             pause: () => { isPaused = true; btnPause.textContent = 'Resume'; },
             resume: () => { isPaused = false; btnPause.textContent = 'Pause'; },
             step: (/** @type {number} */ dt = 0.05) => { simTime += dt; renderPlanetarySystemMode(); },
@@ -2718,7 +2616,7 @@
             },
             setZoom: (/** @type {number} */ z) => { viewport.zoom = z; updateSvgViewBox(); },
             panTo: (/** @type {number} */ x, /** @type {number} */ y) => { viewport.cx = x; viewport.cy = y; updateSvgViewBox(); },
-            resetView: () => /** @type {any} */(window).resetViewport(),
+            resetView: () => /** @type {any} */ (window).resetViewport(),
             runDiagnostics,
             exec: (/** @type {string} */ cmd, /** @type {any[]} */ ...args) => {
                 console.log(`[WebMCP Exec] ${cmd}`, args);
@@ -2757,5 +2655,4 @@
         console.log('🪐 2DCGA 4-Tangent Conformal Optics & Complex k-Axis Initialized.');
     </script>
 </body>
-
 </html>

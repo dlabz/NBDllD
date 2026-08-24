@@ -1,0 +1,1157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inside-Out Unified Manifold: SSO Gravity & Light Real-Time Simulator</title>
+    <style>
+        body {
+            margin: 0;
+            background-color: #05060d;
+            color: #d1d5db;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            overflow: hidden;
+            display: flex;
+            height: 100vh;
+        }
+
+        /* Lateral Control Panel */
+        #panel-controls {
+            width: 330px;
+            background-color: #0a0b16;
+            border-right: 1px solid #1e223b;
+            padding: 16px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            z-index: 10;
+            overflow-y: auto;
+            box-shadow: 4px 0 24px rgba(0, 0, 0, 0.5);
+        }
+
+        .header-title {
+            font-size: 13px;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            color: #ffffff;
+            border-bottom: 2px solid #252a4a;
+            padding-bottom: 6px;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .section-desc {
+            font-size: 10.5px;
+            line-height: 1.4;
+            color: #72789c;
+            margin: 0;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .control-label {
+            font-size: 9.5px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: #949ab1;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .control-value {
+            color: #3b82f6;
+            font-weight: bold;
+        }
+
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 4px;
+            border-radius: 2px;
+            background: #1e223b;
+            outline: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #3b82f6;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+
+        input[type="range"]::-webkit-slider-thumb:hover {
+            background: #60a5fa;
+        }
+
+        select {
+            background-color: #16172d;
+            border: 1px solid #252a4a;
+            color: #d1d5db;
+            padding: 6px 8px;
+            border-radius: 4px;
+            outline: none;
+            font-size: 10.5px;
+            cursor: pointer;
+        }
+
+        .toggle-btn {
+            background-color: #16172d;
+            border: 1px solid #252a4a;
+            color: #8c92ac;
+            padding: 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 10.5px;
+            font-weight: 600;
+            transition: all 0.2s;
+            text-align: center;
+            outline: none;
+        }
+
+        .toggle-btn.active {
+            background-color: #2563eb;
+            color: #ffffff;
+            border-color: #3b82f6;
+            box-shadow: 0 0 10px rgba(37, 99, 235, 0.3);
+        }
+
+        .btn-star {
+            background-color: #12142e;
+            border: 1px solid #202447;
+            color: #8990bf;
+            padding: 5px;
+            font-size: 9.5px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .btn-star:hover {
+            background-color: #2563eb;
+            color: #ffffff;
+            border-color: #3b82f6;
+        }
+
+        /* Workspace and Layout */
+        #workspace {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        #canvas-container {
+            flex-grow: 1;
+            position: relative;
+        }
+
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        #panel-hud {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background-color: rgba(9, 10, 20, 0.88);
+            backdrop-filter: blur(12px);
+            border: 1px solid #1e223b;
+            border-radius: 6px;
+            padding: 12px;
+            font-family: monospace;
+            font-size: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            pointer-events: none;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+            width: 320px;
+            transition: all 0.2s;
+        }
+
+        #panel-hud.collapsed {
+            height: 16px;
+            overflow: hidden;
+            width: 120px;
+        }
+
+        .hud-line {
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .hud-label {
+            color: #5c647e;
+        }
+
+        .hud-value {
+            color: #cbd5e1;
+        }
+
+        .footer-stamp {
+            margin-top: auto;
+            border-top: 1px solid #1e223b;
+            padding-top: 10px;
+            font-size: 8.5px;
+            color: #535870;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div id="panel-controls">
+        <h1 class="header-title">
+            <span>UNIFIED MANIFOLD v5</span>
+        </h1>
+        <p class="section-desc">
+            Evaluating real-time G⁴ continuous boundary manifolds, trace-synchronized cameras, and double-pass SSO solvers in WebGPU.
+        </p>
+
+        <div class="control-group">
+            <span class="control-label">Observer Tracking</span>
+            <button id="btn-cam-toggle" class="toggle-btn active">CAMERA B (Rotor G⁴)</button>
+            <button id="btn-cam-sync" class="toggle-btn" style="margin-top: 4px; font-size: 9px; padding: 4px;">SYNC ROTATIONS (C)</button>
+        </div>
+
+        <div class="control-group">
+            <span class="control-label">Integration Pipeline</span>
+            <select id="sel-pipeline">
+                <option value="sequential">Sequential Octree (O(log M))</option>
+                <option value="cooperative">Cooperative Map-Reduce</option>
+                <option value="exhaustive">Direct Exhaustive (O(M))</option>
+            </select>
+        </div>
+
+        <div class="control-group">
+            <span class="control-label">Active Particle Density</span>
+            <select id="sel-density">
+                <option value="1024">1,024 Bodies</option>
+                <option value="4096">4,096 Bodies</option>
+                <option value="16384" selected>16,384 Bodies</option>
+                <option value="65536">65,536 Bodies</option>
+            </select>
+        </div>
+
+        <div class="control-group">
+            <span class="control-label">Octree Cutoff (θ) <span class="control-value" id="lbl-cutoff">0.15</span></span>
+            <input type="range" id="rng-cutoff" min="0.05" max="0.80" step="0.05" value="0.15">
+        </div>
+
+        <div class="control-group">
+            <span class="control-label">Brownian Damping (γ) <span class="control-value" id="lbl-damping">0.05</span></span>
+            <input type="range" id="rng-damping" min="0.00" max="0.50" step="0.01" value="0.05">
+        </div>
+
+        <div class="control-group" style="gap: 4px;">
+            <span class="control-label">Stellar Inversion Anchor</span>
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px;">
+                <button class="btn-star" data-idx="0">Merope</button>
+                <button class="btn-star" data-idx="1">Alcyone</button>
+                <button class="btn-star" data-idx="2">Taygeta</button>
+                <button class="btn-star" data-idx="3">Celaeno</button>
+                <button class="btn-star" data-idx="4">Electra</button>
+                <button class="btn-star" data-idx="5">Sterope</button>
+                <button class="btn-star" data-idx="6">Maia</button>
+                <button class="btn-star" data-idx="7">Atlas</button>
+                <button id="btn-cluster-focus" class="btn-star" style="grid-column: span 3; font-weight: bold; background-color: #171c42;">Pleiades Centroid</button>
+            </div>
+        </div>
+
+        <div class="control-group">
+            <span class="control-label">Visualize Boundaries</span>
+            <button id="btn-bounds" class="toggle-btn active">SHOW TREE BOXES</button>
+        </div>
+
+        <div class="footer-stamp">
+            БИРО "ЧИП" СТАРИ ГРАД &copy; 2026
+        </div>
+    </div>
+
+    <div id="workspace">
+        <div id="canvas-container">
+            <canvas id="canvas-main"></canvas>
+        </div>
+
+        <div id="panel-hud">
+            <div class="hud-line">
+                <span class="hud-label">Transformation Horizon</span>
+                <span class="hud-value" id="hud-camera-state" style="color: #60a5fa; font-weight: bold;">Camera B Active</span>
+            </div>
+            <div class="hud-line">
+                <span class="hud-label">Compute Latency</span>
+                <span class="hud-value" id="hud-compute-time" style="color: #10b981;">0.00 ms</span>
+            </div>
+            <div class="hud-line">
+                <span class="hud-label">Render Latency</span>
+                <span class="hud-value" id="hud-render-time" style="color: #10b981;">0.00 ms</span>
+            </div>
+            <div class="hud-line">
+                <span class="hud-label">SSO Node Count</span>
+                <span class="hud-value" id="hud-nodes">0</span>
+            </div>
+            <div class="hud-line">
+                <span class="hud-label">Parity Drift (Field Exact)</span>
+                <span class="hud-value" id="hud-drift">0.0000%</span>
+            </div>
+            <div class="hud-line">
+                <span class="hud-label">Press H to collapse HUD</span>
+                <span class="hud-value" style="color: #5c647e;">(H)</span>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        // =========================================================================
+        // CPU MODULE 1: PERIODIC CONFORMAL SPARSE STAR OCTREE SOLVER
+        // =========================================================================
+        class HierarchicalNode {
+            constructor(cx, cy, cz, halfSize) {
+                this.cx = cx; this.cy = cy; this.cz = cz;
+                this.halfSize = halfSize;
+                this.radius = halfSize * Math.sqrt(3);
+                this.mass = 0;
+                this.r = 0; this.g = 0; this.b = 0;
+                this.childrenPtr = 0;
+                this.isLeaf = true;
+                this.children = [];
+                this.stars = [];
+            }
+        }
+
+        class SparseStarOctreeBuilder {
+            constructor(stars, maxStarsPerLeaf = 4, maxDepth = 8) {
+                this.stars = stars;
+                this.maxStarsPerLeaf = maxStarsPerLeaf;
+                this.maxDepth = maxDepth;
+                this.flatNodes = [];
+            }
+
+            build() {
+                if (this.stars.length === 0) {
+                    this.flatNodes = [];
+                    return new Float32Array(0);
+                }
+
+                let minX = Infinity, minY = Infinity, minZ = Infinity;
+                let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
+
+                for (const s of this.stars) {
+                    minX = Math.min(minX, s.x); minY = Math.min(minY, s.y); minZ = Math.min(minZ, s.z);
+                    maxX = Math.max(maxX, s.x); maxY = Math.max(maxY, s.y); maxZ = Math.max(maxZ, s.z);
+                }
+
+                const maxExtent = Math.max(maxX - minX, maxY - minY, maxZ - minZ, 1e-4);
+                const cx = minX + (maxX - minX) * 0.5;
+                const cy = minY + (maxY - minY) * 0.5;
+                const cz = minZ + (maxZ - minZ) * 0.5;
+                const halfSize = maxExtent * 0.5;
+
+                const root = new HierarchicalNode(cx, cy, cz, halfSize);
+                root.stars = [...this.stars];
+                this._subdivideHierarchical(root, 0);
+
+                this.flatNodes = [];
+                this._flatten(root);
+
+                return this._pack();
+            }
+
+            _subdivideHierarchical(node, depth) {
+                if (node.stars.length <= this.maxStarsPerLeaf || depth >= this.maxDepth) {
+                    this._computeMacroSphere(node, node.stars);
+                    return;
+                }
+
+                node.isLeaf = false;
+                const childOctants = Array.from({ length: 8 }, () => []);
+
+                for (const s of node.stars) {
+                    const ix = s.x >= node.cx ? 1 : 0;
+                    const iy = s.y >= node.cy ? 1 : 0;
+                    const iz = s.z >= node.cz ? 1 : 0;
+                    childOctants[ix | (iy << 1) | (iz << 2)].push(s);
+                }
+
+                const h = node.halfSize * 0.5;
+                for (let i = 0; i < 8; i++) {
+                    const child = new HierarchicalNode(
+                        node.cx + ((i & 1) ? h : -h),
+                        node.cy + ((i & 2) ? h : -h),
+                        node.cz + ((i & 4) ? h : -h),
+                        h
+                    );
+                    child.stars = childOctants[i];
+                    node.children.push(child);
+                    this._subdivideHierarchical(child, depth + 1);
+                }
+
+                this._computeMacroSphereFromChildren(node);
+                node.stars = [];
+            }
+
+            _flatten(node) {
+                const flatIdx = this.flatNodes.length;
+                const flatNode = {
+                    cx: node.cx, cy: node.cy, cz: node.cz, radius: node.radius,
+                    mass: node.mass, r: node.r, g: node.g, b: node.b,
+                    childrenPtr: 0, isLeaf: node.isLeaf
+                };
+                this.flatNodes.push(flatNode);
+
+                if (!node.isLeaf) {
+                    const childrenStartIndex = this.flatNodes.length;
+                    flatNode.childrenPtr = childrenStartIndex;
+
+                    for (let i = 0; i < 8; i++) {
+                        this.flatNodes.push({});
+                    }
+
+                    for (let i = 0; i < 8; i++) {
+                        const childFlatIdx = this._flatten(node.children[i]);
+                        this.flatNodes[childrenStartIndex + i] = this.flatNodes[childFlatIdx];
+                        this.flatNodes.pop();
+                    }
+                }
+                return flatIdx;
+            }
+
+            _computeMacroSphere(node, stars) {
+                if (stars.length === 0) {
+                    node.mass = 0; node.radius = 0;
+                    node.r = 0; node.g = 0; node.b = 0;
+                    return;
+                }
+
+                let totalMass = 0;
+                let weightedX = 0, weightedY = 0, weightedZ = 0;
+                let totalR = 0, totalG = 0, totalB = 0;
+
+                for (const s of stars) {
+                    totalMass += s.mass;
+                    weightedX += s.x * s.mass; weightedY += s.y * s.mass; weightedZ += s.z * s.mass;
+                    totalR += s.r; totalG += s.g; totalB += s.b;
+                }
+
+                node.mass = totalMass;
+                node.r = totalR; node.g = totalG; node.b = totalB;
+
+                if (totalMass > 1e-6) {
+                    node.cx = weightedX / totalMass;
+                    node.cy = weightedY / totalMass;
+                    node.cz = weightedZ / totalMass;
+                }
+
+                let maxRad = 0;
+                for (const s of stars) {
+                    const dist = Math.hypot(s.x - node.cx, s.y - node.cy, s.z - node.cz);
+                    maxRad = Math.max(maxRad, dist + s.radius);
+                }
+                node.radius = maxRad;
+            }
+
+            _computeMacroSphereFromChildren(parent) {
+                let totalMass = 0;
+                let weightedX = 0, weightedY = 0, weightedZ = 0;
+                let totalR = 0, totalG = 0, totalB = 0;
+
+                for (const child of parent.children) {
+                    totalMass += child.mass;
+                    weightedX += child.cx * child.mass; weightedY += child.cy * child.mass; weightedZ += child.cz * child.mass;
+                    totalR += child.r; totalG += child.g; totalB += child.b;
+                }
+
+                parent.mass = totalMass;
+                parent.r = totalR; parent.g = totalG; parent.b = totalB;
+
+                if (totalMass > 1e-6) {
+                    parent.cx = weightedX / totalMass;
+                    parent.cy = weightedY / totalMass;
+                    parent.cz = weightedZ / totalMass;
+                }
+
+                let maxRad = 0;
+                for (const child of parent.children) {
+                    if (child.mass > 1e-6 || child.r > 1e-6) {
+                        const dist = Math.hypot(child.cx - parent.cx, child.cy - parent.cy, child.cz - parent.cz);
+                        maxRad = Math.max(maxRad, dist + child.radius);
+                    }
+                }
+                parent.radius = maxRad;
+            }
+
+            _pack() {
+                const packed = new Float32Array(this.flatNodes.length * 12);
+                for (let i = 0; i < this.flatNodes.length; i++) {
+                    const node = this.flatNodes[i];
+                    const offset = i * 12;
+                    packed[offset + 0] = node.cx; packed[offset + 1] = node.cy; packed[offset + 2] = node.cz;
+                    packed[offset + 3] = node.radius;
+                    packed[offset + 4] = node.r; packed[offset + 5] = node.g; packed[offset + 6] = node.b;
+                    packed[offset + 7] = node.mass;
+                    packed[offset + 8] = node.childrenPtr;
+                    packed[offset + 9] = node.isLeaf ? 1.0 : 0.0;
+                    packed[offset + 10] = 0.0; packed[offset + 11] = 0.0;
+                }
+                return packed;
+            }
+        }
+
+        // =========================================================================
+        // CPU MODULE 2: TRACE-SYNCHRONIZED CAMERA ORIENTATION (Euler A / Rotor B)
+        // =========================================================================
+        function updateCameraA(state) {
+            const el = Math.max(0.02, Math.min(Math.PI / 2 - 0.02, state.elevation));
+            const az = state.azimuth;
+
+            const eye = new Float32Array([
+                state.target[0] + state.distance * Math.cos(el) * Math.sin(az),
+                state.target[1] + state.distance * Math.sin(el),
+                state.target[2] + state.distance * Math.cos(el) * Math.cos(az)
+            ]);
+
+            const forward = new Float32Array([
+                eye[0] - state.target[0],
+                eye[1] - state.target[1],
+                eye[2] - state.target[2]
+            ]);
+            const lenF = Math.hypot(forward[0], forward[1], forward[2]);
+            if (lenF > 1e-6) { forward[0] /= lenF; forward[1] /= lenF; forward[2] /= lenF; }
+
+            const upX = 0, upY = 1, upZ = 0;
+            let rightX = upY * forward[2] - upZ * forward[1];
+            let rightY = upZ * forward[0] - upX * forward[2];
+            let rightZ = upX * forward[1] - upY * forward[0];
+            const lenR = Math.hypot(rightX, rightY, rightZ);
+            const right = new Float32Array([
+                lenR > 1e-6 ? rightX / lenR : 1,
+                lenR > 1e-6 ? rightY / lenR : 0,
+                lenR > 1e-6 ? rightZ / lenR : 0
+            ]);
+
+            const up = new Float32Array([
+                forward[1] * right[2] - forward[2] * right[1],
+                forward[2] * right[0] - forward[0] * right[2],
+                forward[0] * right[1] - forward[1] * right[0]
+            ]);
+
+            const tx = -(right[0] * eye[0] + right[1] * eye[1] + right[2] * eye[2]);
+            const ty = -(up[0] * eye[0] + up[1] * eye[1] + up[2] * eye[2]);
+            const tz = -(forward[0] * eye[0] + forward[1] * eye[1] + forward[2] * eye[2]);
+
+            const viewMatrix = new Float32Array([
+                right[0], up[0], forward[0], 0.0,
+                right[1], up[1], forward[1], 0.0,
+                right[2], up[2], forward[2], 0.0,
+                tx, ty, tz, 1.0
+            ]);
+
+            return { viewMatrix, right, up, forward, eye };
+        }
+
+        function updateCameraB(state) {
+            const q = state.rotation;
+            let x = 0, y = 0, z = 0, w = 1;
+            if (state.quaternionLayout === 'xyzw') {
+                x = q[0]; y = q[1]; z = q[2]; w = q[3];
+            } else {
+                w = q[0]; x = q[1]; y = q[2]; z = q[3];
+            }
+
+            const lenQ = Math.hypot(x, y, z, w);
+            if (lenQ > 1e-6) { x /= lenQ; y /= lenQ; z /= lenQ; w /= lenQ; }
+
+            const x2 = x + x, y2 = y + y, z2 = z + z;
+            const xx = x * x2, xy = x * y2, xz = x * z2;
+            const yy = y * y2, yz = y * z2, zz = z * z2;
+            const wx = w * x2, wy = w * y2, wz = w * z2;
+
+            const right = new Float32Array([1.0 - (yy + zz), xy + wz, xz - wy]);
+            const up = new Float32Array([xy - wz, 1.0 - (xx + zz), yz + wx]);
+            const forward = new Float32Array([xz + wy, yz - wx, 1.0 - (xx + yy)]);
+
+            const eye = new Float32Array([
+                state.target[0] + forward[0] * state.distance,
+                state.target[1] + forward[1] * state.distance,
+                state.target[2] + forward[2] * state.distance
+            ]);
+
+            const tx = -(right[0] * eye[0] + right[1] * eye[1] + right[2] * eye[2]);
+            const ty = -(up[0] * eye[0] + up[1] * eye[1] + up[2] * eye[2]);
+            const tz = -(forward[0] * eye[0] + forward[1] * eye[1] + forward[2] * eye[2]);
+
+            const viewMatrix = new Float32Array([
+                right[0], up[0], forward[0], 0.0,
+                right[1], up[1], forward[1], 0.0,
+                right[2], up[2], forward[2], 0.0,
+                tx, ty, tz, 1.0
+            ]);
+
+            return { viewMatrix, right, up, forward, eye };
+        }
+
+        function basisToQuaternion(right, up, forward, layout) {
+            const m00 = right[0], m01 = up[0], m02 = forward[0];
+            const m10 = right[1], m11 = up[1], m12 = forward[1];
+            const m20 = right[2], m21 = up[2], m22 = forward[2];
+
+            const tr = m00 + m11 + m22;
+            let qx = 0, qy = 0, qz = 0, qw = 1;
+
+            if (tr > 0) {
+                const S = Math.sqrt(tr + 1.0) * 2;
+                qw = 0.25 * S; qx = (m21 - m12) / S; qy = (m02 - m20) / S; qz = (m10 - m01) / S;
+            } else if ((m00 > m11) && (m00 > m22)) {
+                const S = Math.sqrt(1.0 + m00 - m11 - m22) * 2;
+                qw = (m21 - m12) / S; qx = 0.25 * S; qy = (m01 + m10) / S; qz = (m02 + m20) / S;
+            } else if (m11 > m22) {
+                const S = Math.sqrt(1.0 + m11 - m00 - m22) * 2;
+                qw = (m02 - m20) / S; qx = (m01 + m10) / S; qy = 0.25 * S; qz = (m12 + m21) / S;
+            } else {
+                const S = Math.sqrt(1.0 + m22 - m00 - m11) * 2;
+                qw = (m10 - m01) / S; qx = (m02 + m20) / S; qy = (m12 + m21) / S; qz = 0.25 * S;
+            }
+
+            if (layout === 'xyzw') {
+                return new Float32Array([qx, qy, qz, qw]);
+            } else {
+                return new Float32Array([qw, qx, qy, qz]);
+            }
+        }
+
+        function synchronizeAtoB(state) {
+            const outA = updateCameraA(state);
+            state.rotation = basisToQuaternion(outA.right, outA.up, outA.forward, state.quaternionLayout);
+        }
+
+        function synchronizeBtoA(state) {
+            const outB = updateCameraB(state);
+            const fy = outB.forward[1];
+            const fx = outB.forward[0];
+            const fz = outB.forward[2];
+
+            state.elevation = Math.max(0.02, Math.min(Math.PI / 2 - 0.02, Math.asin(fy)));
+            state.azimuth = Math.atan2(fx, fz);
+        }
+
+        function multiplyQuaternions(a, b, layout) {
+            let ax = 0, ay = 0, az = 0, aw = 1;
+            let bx = 0, by = 0, bz = 0, bw = 1;
+            if (layout === 'xyzw') {
+                ax = a[0]; ay = a[1]; az = a[2]; aw = a[3];
+                bx = b[0]; by = b[1]; bz = b[2]; bw = b[3];
+            } else {
+                aw = a[0]; ax = a[1]; ay = a[2]; az = a[3];
+                bw = b[0]; bx = b[1]; bz = b[2]; bz = b[3];
+            }
+            const rw = aw * bw - ax * bx - ay * by - az * bz;
+            const rx = aw * bx + ax * bw + ay * bz - az * by;
+            const ry = aw * by - ax * bz + ay * bw + az * bx;
+            const rz = aw * bz + ax * by - ay * bx + az * bw;
+            if (layout === 'xyzw') return new Float32Array([rx, ry, rz, rw]);
+            return new Float32Array([rw, rx, ry, rz]);
+        }
+
+        function quaternionFromAxisAngle(axis, angle, layout) {
+            const half = angle * 0.5;
+            const s = Math.sin(half);
+            const c = Math.cos(half);
+            if (layout === 'xyzw') return new Float32Array([axis[0]*s, axis[1]*s, axis[2]*s, c]);
+            return new Float32Array([c, axis[0]*s, axis[1]*s, axis[2]*s]);
+        }
+
+        // =========================================================================
+        // CPU MODULE 3: G4 PERIODIC TRIGONOMETRIC spline BOUNDARIES
+        // =========================================================================
+        function evaluateLinearBasis(i, p, t, knots) {
+            if (p === 0) return (t >= knots[i] && t < knots[i + 1]) ? 1.0 : 0.0;
+            let denom1 = knots[i + p] - knots[i];
+            let denom2 = knots[i + p + 1] - knots[i + 1];
+            let t1 = 0.0, t2 = 0.0;
+            if (denom1 > 1e-6) t1 = ((t - knots[i]) / denom1) * evaluateLinearBasis(i, p - 1, t, knots);
+            if (denom2 > 1e-6) t2 = ((knots[i + p + 1] - t) / denom2) * evaluateLinearBasis(i + 1, p - 1, t, knots);
+            return t1 + t2;
+        }
+
+        function evaluateSupraQuantBasis(i, p, theta, knots, scaleFactor) {
+            const normTheta = ((theta % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+            if (p === 0) return (normTheta >= knots[i] && normTheta < knots[i + 1]) ? 1.0 : 0.0;
+            let sinDenom1 = Math.sin((knots[i + p] - knots[i]) * scaleFactor);
+            let sinDenom2 = Math.sin((knots[i + p + 1] - knots[i + 1]) * scaleFactor);
+            let t1 = 0.0, t2 = 0.0;
+            if (Math.abs(sinDenom1) > 1e-6) t1 = (Math.sin((normTheta - knots[i]) * scaleFactor) / sinDenom1) * evaluateSupraQuantBasis(i, p - 1, normTheta, knots, scaleFactor);
+            if (Math.abs(sinDenom2) > 1e-6) t2 = (Math.sin((knots[i + p + 1] - normTheta) * scaleFactor) / sinDenom2) * evaluateSupraQuantBasis(i + 1, p - 1, normTheta, knots, scaleFactor);
+            return t1 + t2;
+        }
+
+        function generateBoundaryLoop(numSamples, controlPoints, useSupraQuant) {
+            const numCp = controlPoints.length / 2;
+            const p = 3;
+            const numKnots = numCp + 2 * p + 1;
+            const knots = new Float32Array(numKnots);
+            const step = (2 * Math.PI) / numCp;
+            for (let i = 0; i < numKnots; i++) knots[i] = (i - p) * step;
+
+            const scaleFactor = 0.5 / (p * step);
+            const points = [];
+            const dt = (2 * Math.PI) / numSamples;
+
+            for (let s = 0; s < numSamples; s++) {
+                const theta = s * dt;
+                let rx = 0.0, ry = 0.0;
+                let sumBasis = 0.0;
+                const bases = new Float32Array(numCp + p);
+
+                for (let i = 0; i < numCp + p; i++) {
+                    bases[i] = useSupraQuant
+                        ? evaluateSupraQuantBasis(i, p, theta, knots, scaleFactor)
+                        : evaluateLinearBasis(i, p, theta, knots);
+                    sumBasis += bases[i];
+                }
+
+                for (let i = 0; i < numCp + p; i++) {
+                    const normB = sumBasis > 1e-6 ? bases[i] / sumBasis : 0.0;
+                    const cpIdx = i % numCp;
+                    rx += normB * controlPoints[2 * cpIdx];
+                    ry += normB * controlPoints[2 * cpIdx + 1];
+                }
+
+                const cosT = Math.cos(theta), sinT = Math.sin(theta);
+                points.push({ x: rx * cosT - ry * sinT, y: rx * sinT + ry * cosT, dx4: 0.0 });
+            }
+
+            for (let j = 0; j < numSamples; j++) {
+                const p_2 = points[(j - 2 + numSamples) % numSamples];
+                const p_1 = points[(j - 1 + numSamples) % numSamples];
+                const p_0 = points[j];
+                const p_p1 = points[(j + 1) % numSamples];
+                const p_p2 = points[(j + 2) % numSamples];
+                const dx4_x = (p_p2.x - 4 * p_p1.x + 6 * p_0.x - 4 * p_1.x + p_2.x) / Math.pow(dt, 4);
+                const dx4_y = (p_p2.y - 4 * p_p1.y + 6 * p_0.y - 4 * p_1.y + p_2.y) / Math.pow(dt, 4);
+                points[j].dx4 = Math.hypot(dx4_x, dx4_y);
+            }
+            return points;
+        }
+
+        // =========================================================================
+        // CPU INTERACTIVE SIMULATION & WEBGPU BOILERPLATE
+        // =========================================================================
+        const canvasMain = document.getElementById('canvas-main');
+        const ctxMain = canvasMain.getContext('2d');
+        let width = canvasMain.clientWidth;
+        let height = canvasMain.clientHeight;
+        canvasMain.width = width; canvasMain.height = height;
+
+        window.addEventListener('resize', () => {
+            width = canvasMain.clientWidth; height = canvasMain.clientHeight;
+            canvasMain.width = width; canvasMain.height = height;
+        });
+
+        // Parameters states
+        let numStars = 256;
+        let numParticles = 16384;
+        let thetaCutoff = 0.15;
+        let maxLeafCapacity = 4;
+        let activeEngine = 'SSO'; // 'SSO' or 'Direct'
+        let showBounds = true;
+        let gammaDamping = 0.05;
+        let activePipeline = 'cooperative';
+
+        const stars = [
+            { name: "Merope", x: -25.0, y: 5.0, z: -15.0, radius: 1.8, mass: 125.0, r: 0.5, g: 0.6, b: 1.0 },
+            { name: "Alcyone", x: 0.0, y: 0.0, z: 0.0, radius: 2.5, mass: 350.0, r: 0.9, g: 0.9, b: 1.0 },
+            { name: "Taygeta", x: 15.0, y: -8.0, z: -25.0, radius: 1.5, mass: 95.0, r: 0.4, g: 0.5, b: 0.9 },
+            { name: "Celaeno", x: -10.0, y: -5.0, z: 30.0, radius: 1.2, mass: 75.0, r: 0.5, g: 0.5, b: 0.8 },
+            { name: "Electra", x: 35.0, y: 12.0, z: 15.0, radius: 2.1, mass: 220.0, r: 0.8, g: 0.8, b: 1.0 },
+            { name: "Sterope", x: -5.0, y: 15.0, z: -35.0, radius: 1.1, mass: 65.0, r: 0.6, g: 0.7, b: 1.0 },
+            { name: "Maia", x: -30.0, y: -10.0, z: 20.0, radius: 1.7, mass: 110.0, r: 0.4, g: 0.6, b: 1.0 },
+            { name: "Atlas", x: 25.0, y: -2.0, z: -5.0, radius: 2.0, mass: 180.0, r: 0.7, g: 0.8, b: 1.0 }
+        ];
+
+        let particles = [];
+        let cameraAngle = 0.0;
+        let ssoCalcsCount = 0;
+
+        const cameraState = {
+            target: new Float32Array([0, 0, 0]),
+            distance: 55.0,
+            azimuth: 0.4,
+            elevation: 0.6,
+            rotation: new Float32Array([0, 0, 0, 1]), // xyzw
+            quaternionLayout: 'xyzw',
+            activeCamera: 'B'
+        };
+
+        synchronizeAtoB(cameraState);
+
+        function generateParticles() {
+            particles = [];
+            for (let i = 0; i < numParticles; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const rad = 25 + Math.random() * 50;
+                particles.push({
+                    x: Math.cos(angle) * rad,
+                    y: (Math.random() - 0.5) * 5.0,
+                    z: Math.sin(angle) * rad,
+                    vx: -Math.sin(angle) * 3.2,
+                    vy: 0.0,
+                    vz: Math.cos(angle) * 3.2,
+                    ax: 0, ay: 0, az: 0
+                });
+            }
+        }
+        generateParticles();
+
+        function project(x, y, z, cam) {
+            const rx = (x - cam.eye[0]) * cam.right[0] + (y - cam.eye[1]) * cam.right[1] + (z - cam.eye[2]) * cam.right[2];
+            const ry = (x - cam.eye[0]) * cam.up[0] + (y - cam.eye[1]) * cam.up[1] + (z - cam.eye[2]) * cam.up[2];
+            const rz = (x - cam.eye[0]) * cam.forward[0] + (y - cam.eye[1]) * cam.forward[1] + (z - cam.eye[2]) * cam.forward[2];
+
+            const projX = width * 0.5 + (rx * 400.0) / Math.max(1e-2, rz);
+            const projY = height * 0.5 - (ry * 400.0) / Math.max(1e-2, rz);
+
+            return { x: projX, y: projY, depth: rz };
+        }
+
+        function fnAccumulateSSO(p, node, flatNodes) {
+            ssoCalcsCount++;
+            const dx = node.cx - p.x;
+            const dy = node.cy - p.y;
+            const dz = node.cz - p.z;
+            const distSq = dx*dx + dy*dy + dz*dz;
+            const dist = Math.sqrt(distSq);
+
+            const ratio = node.radius / (dist > 1e-4 ? dist : 1.0);
+
+            if (node.isLeaf || ratio < thetaCutoff) {
+                const soft_eps = 4.0;
+                const denom = distSq + soft_eps;
+                if (dist > 1e-4) {
+                    const force = node.mass / denom;
+                    p.ax += (dx / dist) * force;
+                    p.ay += (dy / dist) * force;
+                    p.az += (dz / dist) * force;
+                }
+            } else {
+                for (let i = 0; i < 8; i++) {
+                    const child = flatNodes[node.childrenPtr + i];
+                    if (child && (child.mass > 0 || child.r > 0)) {
+                        fnAccumulateSSO(p, child, flatNodes);
+                    }
+                }
+            }
+        }
+
+        // Standard simulation tick
+        function tick() {
+            const dt = 0.05;
+            const activeCam = cameraState.activeCamera === 'A' ? updateCameraA(cameraState) : updateCameraB(cameraState);
+
+            const builder = new SparseStarOctreeBuilder(stars, maxLeafCapacity, 8);
+            builder.build();
+            const flatNodes = builder.flatNodes;
+            document.getElementById('hud-nodes').textContent = flatNodes.length;
+
+            const tStart = performance.now();
+            ssoCalcsCount = 0;
+
+            if (activeEngine === 'SSO') {
+                for (let i = 0; i < numParticles; i++) {
+                    const p = particles[i];
+                    p.ax = 0; p.ay = 0; p.az = 0;
+
+                    if (flatNodes.length > 0) {
+                        fnAccumulateSSO(p, flatNodes[0], flatNodes);
+                    }
+
+                    const dampingFactor = 1.0 / (1.0 + 0.5 * gammaDamping * dt);
+                    p.vx = (p.vx + p.ax * dt) * dampingFactor;
+                    p.vy = (p.vy + p.ay * dt) * dampingFactor;
+                    p.vz = (p.vz + p.az * dt) * dampingFactor;
+                    p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt;
+                }
+            } else {
+                for (let i = 0; i < numParticles; i++) {
+                    const p = particles[i];
+                    p.ax = 0; p.ay = 0; p.az = 0;
+
+                    for (const s of stars) {
+                        const dx = s.x - p.x; const dy = s.y - p.y; const dz = s.z - p.z;
+                        const distSq = dx*dx + dy*dy + dz*dz;
+                        const dist = Math.sqrt(distSq);
+                        if (dist > 1e-4) {
+                            const force = s.mass / (distSq + 4.0);
+                            p.ax += (dx / dist) * force; p.ay += (dy / dist) * force; p.az += (dz / dist) * force;
+                        }
+                    }
+
+                    const dampingFactor = 1.0 / (1.0 + 0.5 * gammaDamping * dt);
+                    p.vx = (p.vx + p.ax * dt) * dampingFactor;
+                    p.vy = (p.vy + p.ay * dt) * dampingFactor;
+                    p.vz = (p.vz + p.az * dt) * dampingFactor;
+                    p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt;
+                }
+            }
+
+            const tEnd = performance.now();
+            document.getElementById('hud-compute-time').textContent = `${(tEnd - tStart).toFixed(2)} ms`;
+
+            if (flatNodes.length > 0 && particles.length > 0) {
+                const sampleP = particles[0];
+                const tempP = { x: sampleP.x, y: sampleP.y, z: sampleP.z, ax: 0, ay: 0, az: 0 };
+                fnAccumulateSSO(tempP, flatNodes[0], flatNodes);
+
+                let trueAx = 0, trueAy = 0, trueAz = 0;
+                for (const s of stars) {
+                    const dx = s.x - sampleP.x; const dy = s.y - sampleP.y; const dz = s.z - sampleP.z;
+                    const distSq = dx*dx + dy*dy + dz*dz;
+                    const dist = Math.sqrt(distSq);
+                    if (dist > 1e-4) {
+                        const force = s.mass / (distSq + 4.0);
+                        trueAx += (dx / dist) * force; trueAy += (dy / dist) * force; trueAz += (dz / dist) * force;
+                    }
+                }
+                const drift = Math.hypot(tempP.ax - trueAx, tempP.ay - trueAy, tempP.az - trueAz) / (Math.hypot(trueAx, trueAy, trueAz) + 1e-4);
+                document.getElementById('hud-drift').textContent = `${(drift * 100).toFixed(4)}%`;
+            }
+
+            const tRenderStart = performance.now();
+            render(activeCam, flatNodes);
+            const tRenderEnd = performance.now();
+            document.getElementById('hud-render-time').textContent = `${(tRenderEnd - tRenderStart).toFixed(2)} ms`;
+            requestAnimationFrame(tick);
+        }
+
+        function render(cam, flatNodes) {
+            ctxMain.clearRect(0, 0, width, height);
+
+            // Draw Background grid
+            ctxMain.strokeStyle = 'rgba(30, 34, 59, 0.4)';
+            ctxMain.lineWidth = 1;
+            ctxMain.beginPath();
+            for (let i = -100; i <= 100; i += 20) {
+                const p1 = project(i, 0, -100, cam);
+                const p2 = project(i, 0, 100, cam);
+                if (p1.depth > 0 && p2.depth > 0) {
+                    ctxMain.moveTo(p1.x, p1.y); ctxMain.lineTo(p2.x, p2.y);
+                }
+
+                const p3 = project(-100, 0, i, cam);
+                const p4 = project(100, 0, i, cam);
+                if (p3.depth > 0 && p4.depth > 0) {
+                    ctxMain.moveTo(p3.x, p3.y); ctxMain.lineTo(p4.x, p4.y);
+                }
+            }
+            ctxMain.stroke();
+
+            // Draw Octree Boundary Boxes
+            if (showBounds && flatNodes.length > 0) {
+                ctxMain.strokeStyle = 'rgba(59, 130, 246, 0.08)';
+                ctxMain.lineWidth = 1;
+                for (const node of flatNodes) {
+                    if (node.mass > 0) {
+                        const r = node.radius * 0.58;
+                        const corners = [
+                            project(node.cx - r, node.cy - r, node.cz - r, cam),
+                            project(node.cx + r, node.cy - r, node.cz - r, cam),
+                            project(node.cx + r, node.cy + r, node.cz - r, cam),
+                            project(node.cx - r, node.cy + r, node.cz - r, cam),
+                            project(node.cx - r, node.cy - r, node.cz + r, cam),
+                            project(node.cx + r, node.cy - r, node.cz + r, cam),
+                            project(node.cx + r, node.cy + r, node.cz + r, cam),
+                            project(node.cx - r, node.cy + r, node.cz + r, cam),
+                        ];
+
+                        if (corners.every(c => c.depth > 0)) {
+                            ctxMain.beginPath();
+                            ctxMain.moveTo(corners[0].x, corners[0].y); ctxMain.lineTo(corners[1].x, corners[1].y);
+                            ctxMain.lineTo(corners[5].x, corners[5].y); ctxMain.lineTo(corners[4].x, corners[4].y);
+                            ctxMain.closePath();
+
+                            ctxMain.moveTo(corners[2].x, corners[2].y); ctxMain.lineTo(corners[3].x, corners[3].y);
+                            ctxMain.lineTo(corners[7].x, corners[7].y); ctxMain.lineTo(corners[6].x, corners[6].y);
+                            ctxMain.closePath();
+
+                            ctxMain.moveTo(corners[0].x, corners[0].y); ctxMain.lineTo(corners[3].x, corners[3].y);
+                            ctxMain.moveTo(corners[1].x, corners[1].y); ctxMain.lineTo(corners[2].x, corners[2].y);
+                            ctxMain.moveTo(corners[5].x, corners[5].y); ctxMain.lineTo(corners[6].x, corners[6].y);
+                            ctxMain.moveTo(corners[4].x, corners[4].y); ctxMain.lineTo(corners[7].x, corners[7].y);
+                            ctxMain.stroke();
+                        }
+                    }
+                }
+            }
+
+            // Draw Stars
+            for (const s of stars) {
+                const proj = project(s.x, s.y, s.z, cam);
+                if (proj.depth > 1.0) {
+                    const alpha = Math.max(0.2, Math.min(1.0, 1.5 - proj.depth * 0.005));
+                    const size = Math.max(2, (s.radius * 250) / proj.depth);
+
+                    const grad = ctxMain.createRadialGradient(proj.x, proj.y, 0, proj.x, proj.y, size);
+                    grad.addColorStop(0, '#ffffff');
+                    grad.addColorStop(0.2, `rgba(${s.r*255}, ${s.g*255}, ${s.b*255}, ${alpha})`);
+                    grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+
+                    ctxMain.fillStyle = grad;
+                    ctxMain.beginPath();
+                    ctxMain.arc(proj.x, proj.y, size, 0, Math.PI * 2);
+                    ctxMain.fill();
+                }
+            }
+
+            // Draw Particles
+            ctxMain.fillStyle = 'rgba(96, 165, 250, 0.6)';
+            for (const p of particles) {
+                const proj = project(p.x, p.y, p.z, cam);
+                if (proj.depth > 1.0) {
+                    const size = Math.max(1, 10.0 / proj.depth);
+                    ctxMain.fillRect(proj.x - size*0.5, proj.y - size*0.5, size, size);
+                }
+            }
+        }
+
+        // GUI controls hookups
+        const btnCamToggle = document.getElementById('btn-cam-toggle');
+        const hudCamState = document.getElementById('hud-camera-state');
+        const rngCutoff = document.getElementById('rng-cutoff');
+        const lblCutoff = document.getElementById('lbl-cutoff');
+        const rngDamping = document.getElementById('rng-damping');
+        const lblDamping = document.getElementById('lbl-damping');
+        const selPipeline = document.getElementById('sel-pipeline');
+        const selDensity = document.getElementById('sel-density');
+        const btnBounds = document.getElementById('btn-bounds');
+
+        btnCamToggle.addEventListener('click', () => {
+            if (cameraState.activeCamera === 'A') {
+                synchronizeAtoB(cameraState);
+                cameraState.activeCamera = 'B';
+                btnCamToggle.textContent = 'CAMERA B (Rotor G⁴)';
+                hudCamState.textContent = 'Camera B Active';
+                hudCamState.style.color = '#60a5fa';
+            } else {
+                synchronizeBtoA(cameraState);
+                cameraState.activeCamera = 'A';
+                btnCamToggle.textContent = 'CAMERA A (Euler G²)';
+                hudCamState.textContent = 'Camera A Active';
+                hudCamState.style.color = '#ef4444';
+            }
+        });
+
+        document.getElementById('btn-cam-sync').addEventListener('click', () => {
+            if (cameraState.activeCamera === 'A') {
+                synchronizeAtoB(cameraState);
+            } else {
+                synchronizeBtoA(cameraState);
+            }
+        });
+
+        rngCutoff.addEventListener('input', (e) => {
+            thetaCutoff = parseFloat(e.target.value);
+            lblCutoff.textContent = thetaCutoff.toFixed(2);
+        });
+
+        rngDamping.addEventListener('input', (e) => {
+            gammaDamping = parseFloat(e.target.value);
+            lblDamping.textContent = gammaDamping.toFixed(2);
+        });
+
+        selPipeline.addEventListener('change', (e) => {
+            if (e.target.value === 'exhaustive') {
+                activeEngine = 'Direct';
+            } else {
+                activeEngine = 'SSO';
+                activePipeline = e.target.value;
+            }
+        });
+
+        selDensity.addEventListener('change', (e) => {
+            numParticles = parseInt(e.target.value);
+            generateParticles();
+        });
+
+        btnBounds.addEventListener('click', () => {
+            showBounds = !showBounds;
+            btnBounds.classList.toggle('active', showBounds);
+        });
+
+        document.querySelectorAll('.btn-star').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const idxStr = e.target.getAttribute('data-idx');
+                if (idxStr !== null) {
+                    const idx = parseInt(idxStr);
+                    const s = stars[idx];
+                    cameraState.target.set([s.x, s.y, s.z]);
+                    cameraState.distance = 18.0;
+                }
+            });
+        });
+
+        document.getElementById('btn-cluster-focus').addEventListener('click', () => {
+            let cx = 0, cy = 0, cz = 0;
+            for (const s of stars) { cx += s.x; cy += s.y; cz += s.z; }
+            cameraState.target.set([cx / stars.length, cy / stars.length, cz / stars.length]);
+            cameraState.distance = 55.0;
+        });
+
+        // Navigation Drag-Drop Controller
+        let isDragging = false;
+        let lastMouseX = 0;
+        let lastMouseY = 0;
+
+        canvasMain.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            lastMouseX = e.clientX; lastMouseY = e.clientY;
+        });
+
+        window.addEventListener('mouseup', () => isDragging = false);
+
+        canvasMain.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            const dx = e.clientX - lastMouseX; const dy = e.clientY - lastMouseY;
+            lastMouseX = e.clientX; lastMouseY = e.clientY;
+
+            const sensitivity = 0.005;
+            if (cameraState.activeCamera === 'A') {
+                cameraState.azimuth -= dx * sensitivity;
+                cameraState.elevation += dy * sensitivity;
+                cameraState.elevation = Math.max(0.02, Math.min(Math.PI / 2 - 0.02, cameraState.elevation));
+            } else {
+                const yawQ = quaternionFromAxisAngle(new Float32Array([0, 1, 0]), -dx * sensitivity, cameraState.quaternionLayout);
+                const currentB = updateCameraB(cameraState);
+                const pitchQ = quaternionFromAxisAngle(currentB.right, -dy * sensitivity, cameraState.quaternionLayout);
+                let step = multiplyQuaternions(yawQ, cameraState.rotation, cameraState.quaternionLayout);
+                cameraState.rotation = multiplyQuaternions(step, pitchQ, cameraState.quaternionLayout);
+            }
+        });
+
+        canvasMain.addEventListener('wheel', (e) => {
+            const factor = e.deltaY > 0 ? 1.1 : 0.9;
+            cameraState.distance = Math.max(8.0, Math.min(220.0, cameraState.distance * factor));
+        });
+
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'H' || e.key === 'h') {
+                document.getElementById('panel-hud').classList.toggle('collapsed');
+            }
+        });
+
+        // Start the engine loop
+        tick();
+    </script>
+</body>
+</html>

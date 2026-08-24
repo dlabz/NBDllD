@@ -31,7 +31,7 @@ import {
     evaluateLagrangeProjectionsInHost,
     evaluateFourCommonTangents2D,
     evaluateDualReachInversion2D
-} from './math_cga2d.mjs';
+} from './math_cga2d_v2.mjs';
 
 /**
  * @typedef {Object} TestResult
